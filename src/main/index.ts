@@ -12,6 +12,9 @@ import { getProcessMetrics } from './collectors/processes'
 import { getDatabase, closeDatabase } from './storage/database'
 import { recordSnapshot, cleanOldSnapshots } from './storage/recorder'
 import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
+import { getSystemInfo, invalidateSystemInfoCache } from './collectors/systemInfo'
+import { getThermalMetrics } from './collectors/thermal'
+import { getStartupMetrics } from './collectors/startup'
 
 function createWindow(): void {
   // Create the browser window.
@@ -58,6 +61,9 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Refresh system info (mainly for uptime) every 60 seconds
+setInterval(invalidateSystemInfoCache, 60000)
 
   // Initialize database
 getDatabase()
@@ -129,6 +135,18 @@ ipcMain.handle('get-history-summary', async (_event, minutes: number) => {
 
 ipcMain.handle('get-history-downsampled', async (_event, minutes: number) => {
   return getDownsampled(minutes)
+})
+
+ipcMain.handle('get-system-info', async () => {
+  return await getSystemInfo()
+})
+
+ipcMain.handle('get-thermal-metrics', async () => {
+  return await getThermalMetrics()
+})
+
+ipcMain.handle('get-startup-metrics', async () => {
+  return await getStartupMetrics()
 })
 
   app.on('activate', function () {

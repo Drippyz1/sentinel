@@ -5,6 +5,7 @@ import { DashboardPage }  from './pages/DashboardPage'
 import { ProcessesPage }  from './pages/ProcessesPage'
 import { HistoryPage }    from './pages/HistoryPage'
 import { SettingsPage }   from './pages/SettingsPage'
+import { SystemPage } from './pages/SystemPage'
 
 function AppContent() {
   useMetricsPolling()
@@ -31,6 +32,7 @@ function AppContent() {
         <Route path="processes" element={<ProcessesPage />} />
         <Route path="history"   element={<HistoryPage />} />
         <Route path="settings"  element={<SettingsPage />} />
+        <Route path="system" element={<SystemPage />} />
       </Route>
     </Routes>
   )

@@ -12,6 +12,11 @@ if (process.contextIsolated) {
       getGpuMetrics:     () => ipcRenderer.invoke('get-gpu-metrics'),
       getBatteryMetrics: () => ipcRenderer.invoke('get-battery-metrics'),
 
+      // Advanced collectors
+      getSystemInfo:     () => ipcRenderer.invoke('get-system-info'),
+      getThermalMetrics: () => ipcRenderer.invoke('get-thermal-metrics'),
+      getStartupMetrics: () => ipcRenderer.invoke('get-startup-metrics'),
+
       // Historical data
       getHistorySnapshots:   (minutes: number) => ipcRenderer.invoke('get-history-snapshots',   minutes),
       getHistorySummary:     (minutes: number) => ipcRenderer.invoke('get-history-summary',     minutes),
