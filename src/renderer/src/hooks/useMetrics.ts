@@ -6,11 +6,9 @@ export function useMetricsPolling() {
   const fetchProcesses = useMetricsStore(state => state.fetchProcesses)
 
   useEffect(() => {
-    // Hardware metrics — every 2 seconds
     fetchAll()
     const hardwareInterval = setInterval(fetchAll, 2000)
 
-    // Process list — every 3 seconds (heavier operation)
     fetchProcesses()
     const processInterval = setInterval(fetchProcesses, 3000)
 
@@ -18,7 +16,8 @@ export function useMetricsPolling() {
       clearInterval(hardwareInterval)
       clearInterval(processInterval)
     }
-  }, [fetchAll, fetchProcesses])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // ← empty array, not [fetchAll, fetchProcesses]
 }
 
 export function useCpuMetrics() {
