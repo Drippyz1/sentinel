@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom'
 
-// Each nav item needs a label, route path, and an icon (we'll use simple SVG)
 const NAV_ITEMS = [
   {
     path:  '/',
@@ -59,13 +58,11 @@ export function Sidebar() {
       className="flex flex-col h-full w-52 shrink-0 py-4"
       style={{ borderRight: '1px solid var(--border)' }}
     >
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 mb-8">
         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />
         <span className="text-base font-semibold tracking-wide">Sentinel</span>
       </div>
 
-      {/* Nav links */}
       <nav className="flex flex-col gap-1 px-3">
         {NAV_ITEMS.map(item => (
           <NavLink

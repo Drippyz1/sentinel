@@ -11,13 +11,12 @@ export function GpuWidget() {
     return (
       <Card title="GPU">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          No GPU data available
+          No GPU detected.
         </p>
       </Card>
     )
   }
 
-  // Show the first controller — most machines have one
   const controller = gpu.controllers[0]
 
   return (
@@ -51,7 +50,6 @@ export function GpuWidget() {
         />
       </div>
 
-      {/* VRAM section — only show if we have real VRAM data */}
       {controller.vramBytes > 0 && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>

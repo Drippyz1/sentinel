@@ -84,10 +84,9 @@ export function ProcessesPage() {
       </div>
 
       <Card>
-        {/* Search */}
         <input
           type="text"
-          placeholder="Filter by name..."
+          placeholder="Search..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full text-sm px-3 py-2 rounded-lg mb-4 outline-none"
@@ -98,7 +97,6 @@ export function ProcessesPage() {
           }}
         />
 
-        {/* Header */}
         <div
           className="grid gap-4 px-3 pb-2 mb-1"
           style={{
@@ -112,7 +110,6 @@ export function ProcessesPage() {
           <ColHeader label="PID"    sortKey="pid"         current={sortKey} direction={sortDir} onSort={handleSort} />
         </div>
 
-        {/* Rows */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           {filtered.map(process => (
             <div
@@ -147,7 +144,7 @@ export function ProcessesPage() {
 
           {filtered.length === 0 && (
             <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
-              {search ? 'No processes match your search' : 'Loading processes...'}
+              {search ? 'No matches.' : 'Loading...'}
             </p>
           )}
         </div>

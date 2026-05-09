@@ -30,7 +30,6 @@ export function NetworkWidget() {
         </div>
       </div>
 
-      {/* Two charts side by side for download vs upload */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <MiniChart
           data={downHistory}

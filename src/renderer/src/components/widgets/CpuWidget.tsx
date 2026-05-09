@@ -22,7 +22,6 @@ export function CpuWidget() {
 
       <UsageBar percent={cpu.usagePercent} />
 
-      {/* Chart sits between the bar and the stats */}
       <div className="mt-3">
         <MiniChart
           data={history}

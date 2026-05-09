@@ -7,7 +7,6 @@ import { SnapshotRow } from '../../../main/storage/queries'
 import { formatBytes } from '../utils/format'
 import { Card } from '../components/ui/Card'
 
-// Time range options the user can pick from
 const RANGES = [
   { label: '30 min', minutes: 30  },
   { label: '1 hour', minutes: 60  },
@@ -16,7 +15,6 @@ const RANGES = [
   { label: '24 hours', minutes: 1440 },
 ]
 
-// Format a timestamp for the X axis
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
@@ -92,7 +90,6 @@ export function HistoryPage() {
 
   useEffect(() => {
     loadHistory()
-    // Refresh every 30 seconds so the charts stay current
     const interval = setInterval(loadHistory, 30000)
     return () => clearInterval(interval)
   }, [selectedRange])
@@ -109,7 +106,6 @@ export function HistoryPage() {
     }
   }
 
-  // Calculate max values for dynamic chart domains
   const maxNetDown = Math.max(...data.map(d => d.net_down), 1)
   const maxNetUp   = Math.max(...data.map(d => d.net_up), 1)
   const maxDiskRead  = Math.max(...data.map(d => d.disk_read), 1)
@@ -117,7 +113,6 @@ export function HistoryPage() {
 
   return (
     <div>
-      {/* Header + range picker */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           History
@@ -146,12 +141,12 @@ export function HistoryPage() {
 
       {isLoading && data.length === 0 ? (
         <div className="flex items-center justify-center py-24">
-          <p style={{ color: 'var(--text-muted)' }}>Loading history...</p>
+          <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
         </div>
       ) : data.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <p style={{ color: 'var(--text-muted)' }}>
-            No data yet — keep the app running and check back shortly
+            Nothing here yet. Leave it running and check back.
           </p>
         </div>
       ) : (
