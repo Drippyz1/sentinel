@@ -80,9 +80,9 @@ export function recordSnapshot(data: SnapshotData) {
   }
 }
 
-export function cleanOldSnapshots() {
+export function cleanOldSnapshots(retentionDays = RETENTION_DAYS) {
   try {
-    const cutoff = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000)
+    const cutoff = Date.now() - (retentionDays * 24 * 60 * 60 * 1000)
     const result = getCleanupStmt().run({ cutoff })
     if (result.changes > 0) {
       console.log(`Cleaned ${result.changes} old snapshots`)

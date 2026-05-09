@@ -15,8 +15,9 @@ import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
 import { getSystemInfo, invalidateSystemInfoCache } from './collectors/systemInfo'
 import { getThermalMetrics } from './collectors/thermal'
 import { getStartupMetrics, enableStartupItem, disableStartupItem } from './collectors/startup'
-import { checkForAnomalies, AnomalyReport } from './analysis/anomalyDetector'
+import { checkForAnomalies, AnomalyReport, setThreshold } from './analysis/anomalyDetector'
 import { setupTray, destroyTray } from './tray'
+import { loadSettings, saveSettings, AppSettings, SENSITIVITY_THRESHOLD } from './settings'
 
 // ─────────────────────────────────────────────
 // createWindow now returns the BrowserWindow
@@ -64,6 +65,15 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // ── Settings ──────────────────────────────
+  // Load persisted user preferences and apply
+  // any immediate effects (dock visibility, etc.)
+  const currentSettings = loadSettings()
+  setThreshold(SENSITIVITY_THRESHOLD[currentSettings.anomalySensitivity])
+  if (currentSettings.hideFromDock && process.platform === 'darwin') {
+    app.dock?.hide()
+  }
+
   // ── Database ──────────────────────────────
   // Initialize SQLite — creates the file if it
   // doesn't exist yet and runs schema migrations
@@ -110,9 +120,12 @@ app.whenReady().then(() => {
   }, 2000)
 
   // ── Housekeeping intervals ─────────────────
-  // Delete database rows older than 7 days
-  cleanOldSnapshots()
-  setInterval(cleanOldSnapshots, 60 * 60 * 1000)
+  // Delete database rows older than the configured retention period
+  cleanOldSnapshots(currentSettings.dataRetentionDays)
+  setInterval(() => {
+    const s = loadSettings()
+    cleanOldSnapshots(s.dataRetentionDays)
+  }, 60 * 60 * 1000)
 
   // Invalidate the system info cache so uptime
   // stays accurate — the cache refills on next request
@@ -159,6 +172,20 @@ app.whenReady().then(() => {
 
   // Anomaly detection — returns latest cached report instantly
   ipcMain.handle('get-anomaly-report', () => latestAnomalyReport)
+
+  // Settings — read and persist user preferences
+  ipcMain.handle('get-settings', () => loadSettings())
+  ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
+    saveSettings(newSettings)
+    setThreshold(SENSITIVITY_THRESHOLD[newSettings.anomalySensitivity])
+    if (process.platform === 'darwin') {
+      newSettings.hideFromDock ? app.dock?.hide() : app.dock?.show()
+    }
+  })
+
+  // Dock visibility — called directly from the toggle for instant feedback
+  ipcMain.handle('hide-dock', () => { if (process.platform === 'darwin') app.dock?.hide() })
+  ipcMain.handle('show-dock', () => { if (process.platform === 'darwin') app.dock?.show() })
 
   // Historical database queries
   ipcMain.handle('get-history-snapshots',

@@ -1,3 +1,4 @@
+import { AppSettings }    from '../../../main/settings'
 import { CpuMetrics }     from '../../../main/collectors/cpu'
 import { MemoryMetrics }  from '../../../main/collectors/memory'
 import { DiskMetrics }    from '../../../main/collectors/disk'
@@ -41,7 +42,14 @@ declare global {
       getSystemInfo:     () => Promise<SystemInfo>
       getThermalMetrics: () => Promise<ThermalMetrics>
       getStartupMetrics: () => Promise<StartupMetrics>
-      getAnomalyReport: () => Promise<AnomalyReport | null>
+      getAnomalyReport:  () => Promise<AnomalyReport | null>
+      toggleStartupItem: (itemPath: string, enable: boolean) => Promise<void>
+
+      // Settings
+      getSettings:  () => Promise<AppSettings>
+      saveSettings: (settings: AppSettings) => Promise<void>
+      showDock:     () => Promise<void>
+      hideDock:     () => Promise<void>
 
       // Historical data
       getHistorySnapshots:   (minutes: number) => Promise<SnapshotRow[]>
