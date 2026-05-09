@@ -8,8 +8,7 @@ export function SettingsPage() {
       </h2>
       <Card title="Coming Soon">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Settings will include poll interval, data retention period,
-          theme customization, and notification thresholds.
+          Polling interval, data retention, theme, and alert thresholds — on the way.
         </p>
       </Card>
     </div>

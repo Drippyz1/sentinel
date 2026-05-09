@@ -32,7 +32,6 @@ export function DiskWidget() {
         <StatRow label="Total" value={formatBytes(primaryDrive.totalBytes)} accent="blue"  />
       </div>
 
-      {/* Two charts side by side for read vs write */}
       <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="grid grid-cols-2 gap-4">
           <div>

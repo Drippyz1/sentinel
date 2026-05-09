@@ -3,7 +3,6 @@ import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 
-// Format minutes into a readable string like "2h 34m" or "45m"
 function formatTime(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}m`
   const h = Math.floor(minutes / 60)
@@ -11,7 +10,6 @@ function formatTime(minutes: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
-// Battery health color — green is good, red is bad
 function healthColor(pct: number): 'green' | 'amber' | 'red' {
   if (pct >= 80) return 'green'
   if (pct >= 60) return 'amber'
@@ -33,13 +31,12 @@ export function BatteryWidget() {
     return (
       <Card title="Battery">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          No battery detected — desktop machine
+          No battery.
         </p>
       </Card>
     )
   }
 
-  // Pick a charge color based on level + charging state
   const chargeAccent = battery.isCharging
     ? 'green'
     : battery.chargePercent < 20
@@ -96,7 +93,6 @@ export function BatteryWidget() {
         )}
       </div>
 
-      {/* Battery health section */}
       {battery.healthPercent !== null && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
