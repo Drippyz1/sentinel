@@ -17,15 +17,26 @@ if (process.contextIsolated) {
       getBatteryMetrics: () => ipcRenderer.invoke('get-battery-metrics'),
 
       // Advanced collectors
-      getSystemInfo:     () => ipcRenderer.invoke('get-system-info'),
-      getThermalMetrics: () => ipcRenderer.invoke('get-thermal-metrics'),
-      getStartupMetrics: () => ipcRenderer.invoke('get-startup-metrics'),
-      getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
+      getSystemInfo:       () => ipcRenderer.invoke('get-system-info'),
+      getThermalMetrics:   () => ipcRenderer.invoke('get-thermal-metrics'),
+      getStartupMetrics:   () => ipcRenderer.invoke('get-startup-metrics'),
+      getAnomalyReport:    () => ipcRenderer.invoke('get-anomaly-report'),
+      toggleStartupItem:   (itemPath: string, enable: boolean) =>
+                             ipcRenderer.invoke('toggle-startup-item', itemPath, enable),
+
+      // Settings
+      getSettings:  () => ipcRenderer.invoke('get-settings'),
+      saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
+      showDock:     () => ipcRenderer.invoke('show-dock'),
+      hideDock:     () => ipcRenderer.invoke('hide-dock'),
 
       // Historical data
-      getHistorySnapshots:   (minutes: number) => ipcRenderer.invoke('get-history-snapshots',   minutes),
-      getHistorySummary:     (minutes: number) => ipcRenderer.invoke('get-history-summary',     minutes),
-      getHistoryDownsampled: (minutes: number) => ipcRenderer.invoke('get-history-downsampled', minutes),
+      getHistorySnapshots:   (minutes: number) =>
+                               ipcRenderer.invoke('get-history-snapshots', minutes),
+      getHistorySummary:     (minutes: number) =>
+                               ipcRenderer.invoke('get-history-summary', minutes),
+      getHistoryDownsampled: (minutes: number) =>
+                               ipcRenderer.invoke('get-history-downsampled', minutes),
     })
   } catch (error) {
     console.error(error)

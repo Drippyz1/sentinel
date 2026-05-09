@@ -14,7 +14,7 @@ import { recordSnapshot, cleanOldSnapshots } from './storage/recorder'
 import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
 import { getSystemInfo, invalidateSystemInfoCache } from './collectors/systemInfo'
 import { getThermalMetrics } from './collectors/thermal'
-import { getStartupMetrics } from './collectors/startup'
+import { getStartupMetrics, enableStartupItem, disableStartupItem } from './collectors/startup'
 import { checkForAnomalies, AnomalyReport } from './analysis/anomalyDetector'
 import { setupTray, destroyTray } from './tray'
 
@@ -131,6 +131,17 @@ app.whenReady().then(() => {
   // ── IPC handlers ──────────────────────────
   // These respond to requests from the renderer
   // (React UI) via window.electronAPI.*
+
+  // Startup item management
+  ipcMain.handle('toggle-startup-item',
+  async (_event, itemPath: string, enable: boolean) => {
+    if (enable) {
+      return enableStartupItem(itemPath)
+    } else {
+      return disableStartupItem(itemPath)
+    }
+  }
+)
 
   // Live hardware metrics
   ipcMain.handle('get-cpu-metrics',     async () => await getCpuMetrics())

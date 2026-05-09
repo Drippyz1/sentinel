@@ -1,23 +1,16 @@
 import { execSync } from 'child_process'
 
-// Thermal pressure levels Apple uses internally
 export type ThermalLevel = 'nominal' | 'moderate' | 'heavy' | 'trapping' | 'unknown'
 
 export interface ThermalMetrics {
-  level:           ThermalLevel
-  isThrottling:    boolean     // true if anything above nominal
-  cpuSpeedLimit:   number | null  // % of max speed allowed (100 = not limited)
-  schedulerLimit:  number | null  // % of scheduler time available
-  diskSpeedLimit:  number | null
-  description:     string      // human readable explanation
-}
-
-// Maps Apple's thermal pressure values to our levels
-const LEVEL_MAP: Record<string, ThermalLevel> = {
-  'Nominal':  'nominal',
-  'Moderate': 'moderate',
-  'Heavy':    'heavy',
-  'Trapping': 'trapping',
+  level:              ThermalLevel
+  isThrottling:       boolean
+  cpuSpeedLimit:      number | null
+  schedulerLimit:     number | null
+  diskSpeedLimit:     number | null
+  description:        string
+  source:             string
+  requiresSudo:       boolean   // true if we couldn't get data due to permissions
 }
 
 const DESCRIPTIONS: Record<ThermalLevel, string> = {
@@ -25,85 +18,128 @@ const DESCRIPTIONS: Record<ThermalLevel, string> = {
   moderate: 'System is warm — minor throttling may occur',
   heavy:    'System is hot — performance is being reduced',
   trapping: 'System is critically hot — significant throttling active',
-  unknown:  'Thermal status unavailable',
+  unknown:  'Thermal data requires elevated permissions on this Mac',
 }
 
 export async function getThermalMetrics(): Promise<ThermalMetrics> {
-  try {
-    // powermetrics is a macOS-only tool that exposes thermal data
-    // We run it once with a very short sample time to get a snapshot
-    // -n 1 = one sample, -i 100 = 100ms interval, --samplers = only thermal data
-    const output = execSync(
-      'sudo powermetrics -n 1 -i 100 --samplers thermal 2>/dev/null',
-      { timeout: 3000, encoding: 'utf8' }
-    )
+  const method1 = tryPowermetricsSafe()
+  if (method1) return method1
 
-    return parsePowermetricsOutput(output)
+  const method2 = tryIOKit()
+  if (method2) return method2
 
-  } catch {
-    // powermetrics requires sudo — fall back to a simpler method
-    return getThermalFallback()
-  }
-}
+  const method3 = tryCpuFrequencyProxy()
+  if (method3) return method3
 
-function parsePowermetricsOutput(output: string): ThermalMetrics {
-  // Extract thermal pressure level
-  const levelMatch = output.match(/thermal pressure:\s*(\w+)/i)
-  const rawLevel   = levelMatch?.[1] ?? 'unknown'
-  const level      = LEVEL_MAP[rawLevel] ?? 'unknown'
-
-  // Extract CPU speed limit if present
-  const cpuLimitMatch  = output.match(/CPU Speed Limit:\s*(\d+)/i)
-  const cpuSpeedLimit  = cpuLimitMatch ? parseInt(cpuLimitMatch[1]) : null
-
-  // Extract scheduler limit if present
-  const schedMatch     = output.match(/Scheduler Limit:\s*(\d+)/i)
-  const schedulerLimit = schedMatch ? parseInt(schedMatch[1]) : null
-
-  const diskMatch      = output.match(/Disk Speed Limit:\s*(\d+)/i)
-  const diskSpeedLimit = diskMatch ? parseInt(diskMatch[1]) : null
-
+  // Nothing worked — be honest about why
   return {
-    level,
-    isThrottling:  level !== 'nominal' && level !== 'unknown',
-    cpuSpeedLimit,
-    schedulerLimit,
-    diskSpeedLimit,
-    description:   DESCRIPTIONS[level],
+    level:          'unknown',
+    isThrottling:   false,
+    cpuSpeedLimit:  null,
+    schedulerLimit: null,
+    diskSpeedLimit: null,
+    description:    DESCRIPTIONS['unknown'],
+    source:         'none',
+    requiresSudo:   true,
   }
 }
 
-// Fallback when powermetrics isn't available
-// Uses sysctl to get basic thermal info
-function getThermalFallback(): ThermalMetrics {
+function tryPowermetricsSafe(): ThermalMetrics | null {
   try {
     const output = execSync(
-      'sysctl -n machdep.xcpm.cpu_thermal_level 2>/dev/null',
+      'powermetrics -n 1 -i 50 --samplers smc 2>/dev/null',
+      { timeout: 2000, encoding: 'utf8' }
+    )
+    if (!output || output.trim().length === 0) return null
+
+    const match = output.match(/thermal pressure[:\s]+(\w+)/i)
+    if (!match) return null
+
+    const raw   = match[1].toLowerCase()
+    const level = raw === 'nominal'  ? 'nominal'  :
+                  raw === 'moderate' ? 'moderate' :
+                  raw === 'heavy'    ? 'heavy'    :
+                  raw === 'trapping' ? 'trapping' : null
+    if (!level) return null
+
+    return {
+      level,
+      isThrottling:   level !== 'nominal',
+      cpuSpeedLimit:  null,
+      schedulerLimit: null,
+      diskSpeedLimit: null,
+      description:    DESCRIPTIONS[level],
+      source:         'powermetrics',
+      requiresSudo:   false,
+    }
+  } catch {
+    return null
+  }
+}
+
+function tryIOKit(): ThermalMetrics | null {
+  try {
+    const output = execSync(
+      'ioreg -r -c IOPlatformExpertDevice -d 3 2>/dev/null',
+      { timeout: 2000, encoding: 'utf8' }
+    )
+    if (!output) return null
+
+    const match = output.match(/"thermal-state"\s*=\s*(\d+)/)
+    if (!match) return null
+
+    const state = parseInt(match[1])
+    const level: ThermalLevel =
+      state === 0 ? 'nominal'  :
+      state === 1 ? 'moderate' :
+      state === 2 ? 'heavy'    :
+      state === 3 ? 'trapping' : 'unknown'
+
+    return {
+      level,
+      isThrottling:   level !== 'nominal' && level !== 'unknown',
+      cpuSpeedLimit:  null,
+      schedulerLimit: null,
+      diskSpeedLimit: null,
+      description:    DESCRIPTIONS[level],
+      source:         'ioreg',
+      requiresSudo:   false,
+    }
+  } catch {
+    return null
+  }
+}
+
+function tryCpuFrequencyProxy(): ThermalMetrics | null {
+  try {
+    const output = execSync(
+      'sysctl -n hw.cpufrequency hw.cpufrequency_max 2>/dev/null',
       { timeout: 1000, encoding: 'utf8' }
     ).trim()
 
-    const level = parseInt(output)
-    const thermalLevel: ThermalLevel =
-      level === 0 ? 'nominal' :
-      level <= 3  ? 'moderate' :
-      level <= 6  ? 'heavy' : 'trapping'
+    const lines = output.split('\n').map(l => parseInt(l.trim()))
+    if (lines.length < 2 || isNaN(lines[0]) || isNaN(lines[1])) return null
+
+    const current = lines[0]
+    const max     = lines[1]
+    const ratio   = current / max
+
+    const level: ThermalLevel =
+      ratio >= 0.95 ? 'nominal'  :
+      ratio >= 0.75 ? 'moderate' :
+      ratio >= 0.5  ? 'heavy'    : 'trapping'
 
     return {
-      level:           thermalLevel,
-      isThrottling:    thermalLevel !== 'nominal',
-      cpuSpeedLimit:   null,
-      schedulerLimit:  null,
-      diskSpeedLimit:  null,
-      description:     DESCRIPTIONS[thermalLevel],
+      level,
+      isThrottling:   level !== 'nominal',
+      cpuSpeedLimit:  Math.round(ratio * 100),
+      schedulerLimit: null,
+      diskSpeedLimit: null,
+      description:    DESCRIPTIONS[level],
+      source:         'cpu-frequency',
+      requiresSudo:   false,
     }
   } catch {
-    return {
-      level:           'unknown',
-      isThrottling:    false,
-      cpuSpeedLimit:   null,
-      schedulerLimit:  null,
-      diskSpeedLimit:  null,
-      description:     DESCRIPTIONS['unknown'],
-    }
+    return null
   }
 }

@@ -6,8 +6,7 @@ import { NetworkMetrics } from '../collectors/network'
 import { GpuMetrics }     from '../collectors/gpu'
 import { BatteryMetrics } from '../collectors/battery'
 
-// How many days of history to keep
-// Older rows get deleted automatically to control file size
+// How many days of history to keep before auto-deleting old rows
 const RETENTION_DAYS = 7
 
 interface SnapshotData {
@@ -19,10 +18,9 @@ interface SnapshotData {
   battery: BatteryMetrics | null
 }
 
-// Prepare the insert statement once and reuse it
-// "Prepared statements" are pre-compiled SQL — much faster than
-// building the query string every time
-let insertStmt: ReturnType<typeof getDatabase>['prepare'] | null = null
+// Prepared statements are compiled once and reused on every insert
+// This is significantly faster than building the SQL string each time
+let insertStmt:  ReturnType<typeof getDatabase>['prepare'] | null = null
 let cleanupStmt: ReturnType<typeof getDatabase>['prepare'] | null = null
 
 function getInsertStmt() {
@@ -58,14 +56,21 @@ export function recordSnapshot(data: SnapshotData) {
 
     getInsertStmt().run({
       timestamp:    Date.now(),
-      cpu_usage:    data.cpu.usagePercent,
-      memory_usage: data.memory.usagePercent,
-      memory_used:  data.memory.usedBytes,
-      disk_usage:   primaryDrive?.usagePercent ?? 0,
-      disk_read:    data.disk.io.readBytesPerSec,
-      disk_write:   data.disk.io.writeBytesPerSec,
-      net_down:     data.network.totalDownloadBytesPerSec,
-      net_up:       data.network.totalUploadBytesPerSec,
+
+      // ?? 0 on every numeric field so a null or undefined value
+      // from the collectors during startup never hits the NOT NULL
+      // constraint in the database schema
+      cpu_usage:    data.cpu.usagePercent                     ?? 0,
+      memory_usage: data.memory.usagePercent                  ?? 0,
+      memory_used:  data.memory.usedBytes                     ?? 0,
+      disk_usage:   primaryDrive?.usagePercent                ?? 0,
+      disk_read:    data.disk.io.readBytesPerSec              ?? 0,
+      disk_write:   data.disk.io.writeBytesPerSec             ?? 0,
+      net_down:     data.network.totalDownloadBytesPerSec     ?? 0,
+      net_up:       data.network.totalUploadBytesPerSec       ?? 0,
+
+      // These two are genuinely nullable — machines without a GPU
+      // or battery correctly store null in the database
       gpu_usage:    data.gpu?.controllers[0]?.utilizationPercent ?? null,
       battery:      data.battery?.hasBattery ? data.battery.chargePercent : null,
     })
@@ -75,8 +80,6 @@ export function recordSnapshot(data: SnapshotData) {
   }
 }
 
-// Delete rows older than RETENTION_DAYS
-// Call this periodically — we'll run it once per hour
 export function cleanOldSnapshots() {
   try {
     const cutoff = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000)
