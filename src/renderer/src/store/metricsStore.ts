@@ -4,27 +4,37 @@ import { MemoryMetrics }  from '../../../main/collectors/memory'
 import { DiskMetrics }    from '../../../main/collectors/disk'
 import { NetworkMetrics } from '../../../main/collectors/network'
 import { ProcessMetrics } from '../../../main/collectors/processes'
+import { GpuMetrics }     from '../../../main/collectors/gpu'
+import { BatteryMetrics } from '../../../main/collectors/battery'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {
-  cpu:         CpuMetrics | null
-  memory:      MemoryMetrics | null
-  disk:        DiskMetrics | null
-  network:     NetworkMetrics | null
-  processes:   ProcessMetrics | null
+  cpu:       CpuMetrics     | null
+  memory:    MemoryMetrics  | null
+  disk:      DiskMetrics    | null
+  network:   NetworkMetrics | null
+  processes: ProcessMetrics | null
+  gpu:       GpuMetrics     | null
+  battery:   BatteryMetrics | null
+
   isLoading:   boolean
   error:       string | null
   lastUpdated: Date | null
+
   fetchAll:       () => Promise<void>
   fetchProcesses: () => Promise<void>
+  fetchBattery:   () => Promise<void>
 }
 
 export const useMetricsStore = create<MetricsState>()((set) => ({
-  cpu:         null,
-  memory:      null,
-  disk:        null,
-  network:     null,
-  processes:   null,
+  cpu:       null,
+  memory:    null,
+  disk:      null,
+  network:   null,
+  processes: null,
+  gpu:       null,
+  battery:   null,
+
   isLoading:   false,
   error:       null,
   lastUpdated: null,
@@ -32,13 +42,15 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   fetchAll: async () => {
     set({ isLoading: true, error: null })
     try {
-      const [cpu, memory, disk, network] = await Promise.all([
+      const [cpu, memory, disk, network, gpu] = await Promise.all([
         window.electronAPI.getCpuMetrics(),
         window.electronAPI.getMemoryMetrics(),
         window.electronAPI.getDiskMetrics(),
         window.electronAPI.getNetworkMetrics(),
+        window.electronAPI.getGpuMetrics(),
       ])
-      set({ cpu, memory, disk, network, isLoading: false, lastUpdated: new Date() })
+
+      set({ cpu, memory, disk, network, gpu, isLoading: false, lastUpdated: new Date() })
 
       const history = useHistoryStore.getState()
       history.pushCpu(cpu.usagePercent)
@@ -59,6 +71,16 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
       set({ processes })
     } catch (err) {
       console.error('Failed to fetch processes:', err)
+    }
+  },
+
+  // Battery is polled slowly — it changes much less frequently than hardware metrics
+  fetchBattery: async () => {
+    try {
+      const battery = await window.electronAPI.getBatteryMetrics()
+      set({ battery })
+    } catch (err) {
+      console.error('Failed to fetch battery:', err)
     }
   }
 }))

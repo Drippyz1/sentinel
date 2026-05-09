@@ -3,10 +3,15 @@ import { getCpuMetrics } from './collectors/cpu'
 import { getMemoryMetrics } from './collectors/memory'
 import { getDiskMetrics } from './collectors/disk'
 import { getNetworkMetrics } from './collectors/network'
+import { getGpuMetrics }     from './collectors/gpu'
+import { getBatteryMetrics } from './collectors/battery'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { getProcessMetrics } from './collectors/processes'
+import { getDatabase, closeDatabase } from './storage/database'
+import { recordSnapshot, cleanOldSnapshots } from './storage/recorder'
+import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
 
 function createWindow(): void {
   // Create the browser window.
@@ -54,6 +59,31 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Initialize database
+getDatabase()
+
+// Record a snapshot every time we fetch hardware metrics
+// We hook into the existing 2-second polling cycle
+setInterval(async () => {
+  try {
+    const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
+      getCpuMetrics(),
+      getMemoryMetrics(),
+      getDiskMetrics(),
+      getNetworkMetrics(),
+      getGpuMetrics(),
+      getBatteryMetrics(),
+    ])
+    recordSnapshot({ cpu, memory, disk, network, gpu, battery })
+  } catch (err) {
+    console.error('Snapshot recording failed:', err)
+  }
+}, 2000)
+
+// Clean old data once per hour
+cleanOldSnapshots()
+setInterval(cleanOldSnapshots, 60 * 60 * 1000)
+
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
@@ -77,8 +107,28 @@ ipcMain.handle('get-network-metrics', async () => {
   return await getNetworkMetrics()
 })
 
+ipcMain.handle('get-gpu-metrics', async () => {
+  return await getGpuMetrics()
+})
+
+ipcMain.handle('get-battery-metrics', async () => {
+  return await getBatteryMetrics()
+})
+
 ipcMain.handle('get-process-metrics', async () => {
   return await getProcessMetrics()
+})
+
+ipcMain.handle('get-history-snapshots', async (_event, minutes: number) => {
+  return getSnapshots(minutes)
+})
+
+ipcMain.handle('get-history-summary', async (_event, minutes: number) => {
+  return getSummary(minutes)
+})
+
+ipcMain.handle('get-history-downsampled', async (_event, minutes: number) => {
+  return getDownsampled(minutes)
 })
 
   app.on('activate', function () {
@@ -95,6 +145,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('quit', () => {
+  closeDatabase()
 })
 
 // In this file you can include the rest of your app's specific main process

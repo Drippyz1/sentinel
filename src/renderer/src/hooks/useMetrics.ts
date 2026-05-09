@@ -4,20 +4,27 @@ import { useMetricsStore } from '../store/metricsStore'
 export function useMetricsPolling() {
   const fetchAll       = useMetricsStore(state => state.fetchAll)
   const fetchProcesses = useMetricsStore(state => state.fetchProcesses)
+  const fetchBattery   = useMetricsStore(state => state.fetchBattery)
 
   useEffect(() => {
+    // Hardware + GPU — every 2 seconds
     fetchAll()
     const hardwareInterval = setInterval(fetchAll, 2000)
 
+    // Processes — every 3 seconds
     fetchProcesses()
     const processInterval = setInterval(fetchProcesses, 3000)
+
+    // Battery — every 15 seconds (it barely changes)
+    fetchBattery()
+    const batteryInterval = setInterval(fetchBattery, 15000)
 
     return () => {
       clearInterval(hardwareInterval)
       clearInterval(processInterval)
+      clearInterval(batteryInterval)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])  // ← empty array, not [fetchAll, fetchProcesses]
+  }, [])
 }
 
 export function useCpuMetrics() {
@@ -38,6 +45,14 @@ export function useNetworkMetrics() {
 
 export function useProcessMetrics() {
   return useMetricsStore(state => state.processes)
+}
+
+export function useGpuMetrics() {
+  return useMetricsStore(state => state.gpu)
+}
+
+export function useBatteryMetrics() {
+  return useMetricsStore(state => state.battery)
 }
 
 export function useMetricsStatus() {
