@@ -3,6 +3,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electronAPI', {
+
+      // Mini tray interface
+      openMainWindow: () => ipcRenderer.invoke('open-main-window'),
+
       // Live metrics
       getCpuMetrics:     () => ipcRenderer.invoke('get-cpu-metrics'),
       getMemoryMetrics:  () => ipcRenderer.invoke('get-memory-metrics'),

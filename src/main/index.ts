@@ -3,7 +3,7 @@ import { getCpuMetrics } from './collectors/cpu'
 import { getMemoryMetrics } from './collectors/memory'
 import { getDiskMetrics } from './collectors/disk'
 import { getNetworkMetrics } from './collectors/network'
-import { getGpuMetrics }     from './collectors/gpu'
+import { getGpuMetrics } from './collectors/gpu'
 import { getBatteryMetrics } from './collectors/battery'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -16,9 +16,13 @@ import { getSystemInfo, invalidateSystemInfoCache } from './collectors/systemInf
 import { getThermalMetrics } from './collectors/thermal'
 import { getStartupMetrics } from './collectors/startup'
 import { checkForAnomalies, AnomalyReport } from './analysis/anomalyDetector'
+import { setupTray, destroyTray } from './tray'
 
-function createWindow(): void {
-  // Create the browser window.
+// ─────────────────────────────────────────────
+// createWindow now returns the BrowserWindow
+// so we can pass it to setupTray below
+// ─────────────────────────────────────────────
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -40,153 +44,154 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Return the window so the caller can use it
+  return mainWindow
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+// ─────────────────────────────────────────────
+// App ready — everything starts here
+// ─────────────────────────────────────────────
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Refresh system info (mainly for uptime) every 60 seconds
-setInterval(invalidateSystemInfoCache, 60000)
+  // ── Database ──────────────────────────────
+  // Initialize SQLite — creates the file if it
+  // doesn't exist yet and runs schema migrations
+  getDatabase()
 
-  // Initialize database
-getDatabase()
+  // ── Anomaly report storage ─────────────────
+  // Stored at module level so the IPC handler
+  // can always serve the latest report instantly
+  // without having to re-run the detector
+  let latestAnomalyReport: AnomalyReport | null = null
 
-// Store latest anomaly report so IPC can serve it on demand
-let latestAnomalyReport: AnomalyReport | null = null
+  // ── Main polling loop (every 2 seconds) ────
+  // Fetches all hardware metrics, records them
+  // to SQLite, and runs anomaly detection
+  setInterval(async () => {
+    try {
+      const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
+        getCpuMetrics(),
+        getMemoryMetrics(),
+        getDiskMetrics(),
+        getNetworkMetrics(),
+        getGpuMetrics(),
+        getBatteryMetrics(),
+      ])
 
-setInterval(async () => {
-  try {
-    const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
-      getCpuMetrics(),
-      getMemoryMetrics(),
-      getDiskMetrics(),
-      getNetworkMetrics(),
-      getGpuMetrics(),
-      getBatteryMetrics(),
-    ])
+      // Write a row to the database
+      recordSnapshot({ cpu, memory, disk, network, gpu, battery })
 
-    recordSnapshot({ cpu, memory, disk, network, gpu, battery })
+      // Feed current values into the anomaly detector
+      // The detector maintains its own rolling window internally
+      latestAnomalyReport = checkForAnomalies({
+        cpu:       cpu.usagePercent,
+        memory:    memory.usagePercent,
+        diskRead:  disk.io.readBytesPerSec,
+        diskWrite: disk.io.writeBytesPerSec,
+        netDown:   network.totalDownloadBytesPerSec,
+        netUp:     network.totalUploadBytesPerSec,
+        gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
+      })
 
-    // Feed latest values into anomaly detector
-    latestAnomalyReport = checkForAnomalies({
-      cpu:       cpu.usagePercent,
-      memory:    memory.usagePercent,
-      diskRead:  disk.io.readBytesPerSec,
-      diskWrite: disk.io.writeBytesPerSec,
-      netDown:   network.totalDownloadBytesPerSec,
-      netUp:     network.totalUploadBytesPerSec,
-      gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
-    })
+    } catch (err) {
+      console.error('Main polling loop error:', err)
+    }
+  }, 2000)
 
-  } catch (err) {
-    console.error('Snapshot recording failed:', err)
-  }
-}, 2000)
+  // ── Housekeeping intervals ─────────────────
+  // Delete database rows older than 7 days
+  cleanOldSnapshots()
+  setInterval(cleanOldSnapshots, 60 * 60 * 1000)
 
-// Clean old data once per hour
-cleanOldSnapshots()
-setInterval(cleanOldSnapshots, 60 * 60 * 1000)
+  // Invalidate the system info cache so uptime
+  // stays accurate — the cache refills on next request
+  setInterval(invalidateSystemInfoCache, 60000)
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // ── Windows ───────────────────────────────
+  // createWindow() now returns the BrowserWindow
+  // instance so we can hand it to setupTray
+  const mainWindow = createWindow()
 
-  createWindow()
+  // Set up the menubar tray icon and popover window
+  // Must be called after createWindow() so we can
+  // pass mainWindow in for the "Open →" button
+  setupTray(mainWindow)
 
-  // Listen for the renderer asking for system data
-  // When it asks, we fetch the data and return it
-  ipcMain.handle('get-cpu-metrics', async () => {
-  return await getCpuMetrics()
-})
+  // ── IPC handlers ──────────────────────────
+  // These respond to requests from the renderer
+  // (React UI) via window.electronAPI.*
 
-ipcMain.handle('get-memory-metrics', async () => {
-  return await getMemoryMetrics()
-})
+  // Live hardware metrics
+  ipcMain.handle('get-cpu-metrics',     async () => await getCpuMetrics())
+  ipcMain.handle('get-memory-metrics',  async () => await getMemoryMetrics())
+  ipcMain.handle('get-disk-metrics',    async () => await getDiskMetrics())
+  ipcMain.handle('get-network-metrics', async () => await getNetworkMetrics())
+  ipcMain.handle('get-gpu-metrics',     async () => await getGpuMetrics())
+  ipcMain.handle('get-battery-metrics', async () => await getBatteryMetrics())
+  ipcMain.handle('get-process-metrics', async () => await getProcessMetrics())
 
-ipcMain.handle('get-disk-metrics', async () => {
-  return await getDiskMetrics()
-})
+  // Advanced / slower collectors
+  ipcMain.handle('get-system-info',     async () => await getSystemInfo())
+  ipcMain.handle('get-thermal-metrics', async () => await getThermalMetrics())
+  ipcMain.handle('get-startup-metrics', async () => await getStartupMetrics())
 
-ipcMain.handle('get-network-metrics', async () => {
-  return await getNetworkMetrics()
-})
+  // Anomaly detection — returns latest cached report instantly
+  ipcMain.handle('get-anomaly-report', () => latestAnomalyReport)
 
-ipcMain.handle('get-gpu-metrics', async () => {
-  return await getGpuMetrics()
-})
+  // Historical database queries
+  ipcMain.handle('get-history-snapshots',
+    async (_event, minutes: number) => getSnapshots(minutes))
+  ipcMain.handle('get-history-summary',
+    async (_event, minutes: number) => getSummary(minutes))
+  ipcMain.handle('get-history-downsampled',
+    async (_event, minutes: number) => getDownsampled(minutes))
 
-ipcMain.handle('get-battery-metrics', async () => {
-  return await getBatteryMetrics()
-})
-
-ipcMain.handle('get-process-metrics', async () => {
-  return await getProcessMetrics()
-})
-
-ipcMain.handle('get-history-snapshots', async (_event, minutes: number) => {
-  return getSnapshots(minutes)
-})
-
-ipcMain.handle('get-history-summary', async (_event, minutes: number) => {
-  return getSummary(minutes)
-})
-
-ipcMain.handle('get-history-downsampled', async (_event, minutes: number) => {
-  return getDownsampled(minutes)
-})
-
-ipcMain.handle('get-system-info', async () => {
-  return await getSystemInfo()
-})
-
-ipcMain.handle('get-thermal-metrics', async () => {
-  return await getThermalMetrics()
-})
-
-ipcMain.handle('get-startup-metrics', async () => {
-  return await getStartupMetrics()
-})
-
-ipcMain.handle('get-anomaly-report', () => {
-  return latestAnomalyReport
-})
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
+  // ── macOS dock behaviour ───────────────────
+  // Re-create the main window if the user clicks
+  // the dock icon after closing all windows
+  app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// ─────────────────────────────────────────────
+// On macOS we intentionally do NOT quit when all
+// windows are closed — the app lives in the tray
+// ─────────────────────────────────────────────
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
+// ─────────────────────────────────────────────
+// Clean up before the process exits
+// ─────────────────────────────────────────────
 app.on('quit', () => {
   closeDatabase()
+  destroyTray()
 })
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+// Suppress the "write EIO" error that systeminformation throws
+// when the app closes and its streams are already torn down.
+// This is a known issue with the library during shutdown —
+// it's harmless but shows an ugly dialog without this handler.
+process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EIO' || err.message?.includes('write EIO')) {
+    // Silently ignore — this is expected during shutdown
+    return
+  }
+  // For any other uncaught exception, log it so we don't hide real bugs
+  console.error('Uncaught exception:', err)
+})

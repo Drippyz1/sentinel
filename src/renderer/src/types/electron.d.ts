@@ -24,6 +24,10 @@ export interface HistorySummary {
 declare global {
   interface Window {
     electronAPI: {
+
+      // Mini tray interface
+      openMainWindow: () => Promise<void>
+
       // Live metrics
       getCpuMetrics:     () => Promise<CpuMetrics>
       getMemoryMetrics:  () => Promise<MemoryMetrics>
