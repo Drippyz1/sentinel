@@ -6,7 +6,11 @@ const WINDOW_SIZE = 900
 // 2.0 = flags ~5% of readings (sensitive)
 // 2.5 = flags ~1% of readings (balanced)
 // 3.0 = flags ~0.3% of readings (conservative)
-const THRESHOLD = 2.5
+let THRESHOLD = 2.5
+
+export function setThreshold(value: number) {
+  THRESHOLD = value
+}
 
 // Minimum readings needed before we start flagging anomalies
 // Prevents false alarms while the detector is still learning
@@ -89,6 +93,8 @@ class MetricDetector {
 
   // Returns an anomaly if the value is unusual, null if normal
   check(value: number): Anomaly | null {
+    // Skip bad values from the system info library so they don't corrupt the buffer
+    if (!isFinite(value) || isNaN(value)) return null
     this.buffer.push(value)
 
     // Not enough data yet
@@ -120,8 +126,10 @@ class MetricDetector {
     }
   }
 
-  private buildMessage(value: number, avg: number, std: number): string {
-    const pctAbove = Math.round(((value - avg) / avg) * 100)
+  private buildMessage(value: number, avg: number, _std: number): string {
+    const pctAbove = (avg > 0 && isFinite(avg))
+      ? Math.round(((value - avg) / avg) * 100)
+      : 0
 
     const messages: Record<string, string> = {
       cpu:     `CPU is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,

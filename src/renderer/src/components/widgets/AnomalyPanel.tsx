@@ -2,6 +2,25 @@ import { useAnomalyReport } from '../../hooks/useMetrics'
 import { Anomaly } from '../../../../main/analysis/anomalyDetector'
 import { Card } from '../ui/Card'
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024)              return `${bytes.toFixed(0)} B`
+  if (bytes < 1024 * 1024)      return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function formatValue(metric: string, value: number): string {
+  switch (metric) {
+    case 'disk_read':
+    case 'disk_write':
+    case 'net_down':
+    case 'net_up':
+      return `${formatBytes(value)}/s`
+    default:
+      return `${value}%`
+  }
+}
+
 function severityColor(severity: string): string {
   switch (severity) {
     case 'critical': return 'var(--accent-red)'
@@ -35,7 +54,7 @@ function AnomalyItem({ anomaly }: { anomaly: Anomaly }) {
           {anomaly.message}
         </p>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          Current: {anomaly.currentValue}% · Baseline: {anomaly.meanValue}% · Z-score: {anomaly.zScore}
+          Current: {formatValue(anomaly.metric, anomaly.currentValue)} · Baseline: {formatValue(anomaly.metric, anomaly.meanValue)} · Z-score: {anomaly.zScore}
         </p>
       </div>
 
