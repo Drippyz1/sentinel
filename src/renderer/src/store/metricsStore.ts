@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { CpuMetrics } from '../../../main/collectors/cpu'
-import { MemoryMetrics } from '../../../main/collectors/memory'
-import { DiskMetrics } from '../../../main/collectors/disk'
+import { CpuMetrics }     from '../../../main/collectors/cpu'
+import { MemoryMetrics }  from '../../../main/collectors/memory'
+import { DiskMetrics }    from '../../../main/collectors/disk'
 import { NetworkMetrics } from '../../../main/collectors/network'
+import { ProcessMetrics } from '../../../main/collectors/processes'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {
@@ -10,10 +11,12 @@ interface MetricsState {
   memory:      MemoryMetrics | null
   disk:        DiskMetrics | null
   network:     NetworkMetrics | null
+  processes:   ProcessMetrics | null
   isLoading:   boolean
   error:       string | null
   lastUpdated: Date | null
-  fetchAll:    () => Promise<void>
+  fetchAll:       () => Promise<void>
+  fetchProcesses: () => Promise<void>
 }
 
 export const useMetricsStore = create<MetricsState>()((set) => ({
@@ -21,6 +24,7 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   memory:      null,
   disk:        null,
   network:     null,
+  processes:   null,
   isLoading:   false,
   error:       null,
   lastUpdated: null,
@@ -34,12 +38,8 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
         window.electronAPI.getDiskMetrics(),
         window.electronAPI.getNetworkMetrics(),
       ])
-
       set({ cpu, memory, disk, network, isLoading: false, lastUpdated: new Date() })
 
-      // Push latest values into history store after every successful fetch
-      // We access the history store directly (not via a hook) because
-      // we're inside a plain function, not a React component
       const history = useHistoryStore.getState()
       history.pushCpu(cpu.usagePercent)
       history.pushMemory(memory.usagePercent)
@@ -49,10 +49,16 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
       history.pushNetworkUp(network.totalUploadBytesPerSec)
 
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to fetch metrics',
-        isLoading: false
-      })
+      set({ error: err instanceof Error ? err.message : 'Failed to fetch metrics', isLoading: false })
+    }
+  },
+
+  fetchProcesses: async () => {
+    try {
+      const processes = await window.electronAPI.getProcessMetrics()
+      set({ processes })
+    } catch (err) {
+      console.error('Failed to fetch processes:', err)
     }
   }
 }))

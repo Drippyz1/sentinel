@@ -2,15 +2,23 @@ import { useEffect } from 'react'
 import { useMetricsStore } from '../store/metricsStore'
 
 export function useMetricsPolling() {
-  // We grab fetchAll once using the selector pattern
-  const fetchAll = useMetricsStore(state => state.fetchAll)
+  const fetchAll       = useMetricsStore(state => state.fetchAll)
+  const fetchProcesses = useMetricsStore(state => state.fetchProcesses)
 
   useEffect(() => {
-    // Fetch immediately, then every 2 seconds
+    // Hardware metrics — every 2 seconds
     fetchAll()
-    const interval = setInterval(fetchAll, 2000)
-    return () => clearInterval(interval)
-  }, [fetchAll]) // fetchAll is stable so this only runs once
+    const hardwareInterval = setInterval(fetchAll, 2000)
+
+    // Process list — every 3 seconds (heavier operation)
+    fetchProcesses()
+    const processInterval = setInterval(fetchProcesses, 3000)
+
+    return () => {
+      clearInterval(hardwareInterval)
+      clearInterval(processInterval)
+    }
+  }, [fetchAll, fetchProcesses])
 }
 
 export function useCpuMetrics() {
@@ -27,6 +35,10 @@ export function useDiskMetrics() {
 
 export function useNetworkMetrics() {
   return useMetricsStore(state => state.network)
+}
+
+export function useProcessMetrics() {
+  return useMetricsStore(state => state.processes)
 }
 
 export function useMetricsStatus() {

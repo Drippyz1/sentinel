@@ -1,9 +1,10 @@
 import { useMetricsPolling, useMetricsStatus } from './hooks/useMetrics'
 import { formatTime } from './utils/format'
-import { CpuWidget }     from './components/widgets/CpuWidget'
-import { MemoryWidget }  from './components/widgets/MemoryWidget'
-import { DiskWidget }    from './components/widgets/DiskWidget'
-import { NetworkWidget } from './components/widgets/NetworkWidget'
+import { CpuWidget }        from './components/widgets/CpuWidget'
+import { MemoryWidget }     from './components/widgets/MemoryWidget'
+import { DiskWidget }       from './components/widgets/DiskWidget'
+import { NetworkWidget }    from './components/widgets/NetworkWidget'
+import { ProcessExplorer }  from './components/widgets/ProcessExplorer'
 
 function App() {
   useMetricsPolling()
@@ -43,7 +44,8 @@ function App() {
       <header className="flex items-center justify-between px-6 py-4 shrink-0"
               style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />
+          <div className="w-2 h-2 rounded-full"
+               style={{ backgroundColor: 'var(--accent-green)' }} />
           <h1 className="text-base font-semibold tracking-wide">Sentinel</h1>
         </div>
         {lastUpdated && (
@@ -53,14 +55,20 @@ function App() {
         )}
       </header>
 
-      {/* Dashboard grid */}
+      {/* Dashboard */}
       <main className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-2 gap-4">
+
+        {/* Top row — hardware widgets */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <CpuWidget />
           <MemoryWidget />
           <DiskWidget />
           <NetworkWidget />
         </div>
+
+        {/* Process explorer — full width below */}
+        <ProcessExplorer />
+
       </main>
 
     </div>

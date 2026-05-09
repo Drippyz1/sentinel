@@ -6,6 +6,7 @@ import { getNetworkMetrics } from './collectors/network'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { getProcessMetrics } from './collectors/processes'
 
 function createWindow(): void {
   // Create the browser window.
@@ -58,7 +59,7 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Listen for the renderer asking for CPU data
+  // Listen for the renderer asking for system data
   // When it asks, we fetch the data and return it
   ipcMain.handle('get-cpu-metrics', async () => {
   return await getCpuMetrics()
@@ -74,6 +75,10 @@ ipcMain.handle('get-disk-metrics', async () => {
 
 ipcMain.handle('get-network-metrics', async () => {
   return await getNetworkMetrics()
+})
+
+ipcMain.handle('get-process-metrics', async () => {
+  return await getProcessMetrics()
 })
 
   app.on('activate', function () {
