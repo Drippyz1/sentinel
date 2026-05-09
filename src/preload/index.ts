@@ -16,6 +16,7 @@ if (process.contextIsolated) {
       getSystemInfo:     () => ipcRenderer.invoke('get-system-info'),
       getThermalMetrics: () => ipcRenderer.invoke('get-thermal-metrics'),
       getStartupMetrics: () => ipcRenderer.invoke('get-startup-metrics'),
+      getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
 
       // Historical data
       getHistorySnapshots:   (minutes: number) => ipcRenderer.invoke('get-history-snapshots',   minutes),

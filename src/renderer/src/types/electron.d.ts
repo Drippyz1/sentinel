@@ -9,6 +9,7 @@ import { SystemInfo }     from '../../../main/collectors/systemInfo'
 import { ThermalMetrics } from '../../../main/collectors/thermal'
 import { StartupMetrics } from '../../../main/collectors/startup'
 import { SnapshotRow }    from '../../../main/storage/queries'
+import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 
 export interface HistorySummary {
   avg_cpu:      number
@@ -36,6 +37,7 @@ declare global {
       getSystemInfo:     () => Promise<SystemInfo>
       getThermalMetrics: () => Promise<ThermalMetrics>
       getStartupMetrics: () => Promise<StartupMetrics>
+      getAnomalyReport: () => Promise<AnomalyReport | null>
 
       // Historical data
       getHistorySnapshots:   (minutes: number) => Promise<SnapshotRow[]>

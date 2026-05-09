@@ -4,6 +4,7 @@ import { DiskWidget }      from '../components/widgets/DiskWidget'
 import { NetworkWidget }   from '../components/widgets/NetworkWidget'
 import { GpuWidget }       from '../components/widgets/GpuWidget'
 import { BatteryWidget }   from '../components/widgets/BatteryWidget'
+import { AnomalyPanel }    from '../components/widgets/AnomalyPanel'
 
 export function DashboardPage() {
   return (
@@ -12,7 +13,8 @@ export function DashboardPage() {
           style={{ color: 'var(--text-primary)' }}>
         Overview
       </h2>
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
         <CpuWidget />
         <MemoryWidget />
         <DiskWidget />
@@ -20,6 +22,8 @@ export function DashboardPage() {
         <GpuWidget />
         <BatteryWidget />
       </div>
+
+      <AnomalyPanel />
     </div>
   )
 }

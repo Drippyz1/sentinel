@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useMetricsStore } from '../store/metricsStore'
+import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 
 export function useMetricsPolling() {
   const fetchAll       = useMetricsStore(state => state.fetchAll)
@@ -60,4 +61,20 @@ export function useMetricsStatus() {
   const error       = useMetricsStore(state => state.error)
   const lastUpdated = useMetricsStore(state => state.lastUpdated)
   return { isLoading, error, lastUpdated }
+}
+
+export function useAnomalyReport() {
+  const [report, setReport] = useState<AnomalyReport | null>(null)
+
+  useEffect(() => {
+    const fetch = async () => {
+      const data = await window.electronAPI.getAnomalyReport()
+      setReport(data)
+    }
+    fetch()
+    const interval = setInterval(fetch, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  return report
 }

@@ -15,6 +15,7 @@ import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
 import { getSystemInfo, invalidateSystemInfoCache } from './collectors/systemInfo'
 import { getThermalMetrics } from './collectors/thermal'
 import { getStartupMetrics } from './collectors/startup'
+import { checkForAnomalies, AnomalyReport } from './analysis/anomalyDetector'
 
 function createWindow(): void {
   // Create the browser window.
@@ -68,8 +69,9 @@ setInterval(invalidateSystemInfoCache, 60000)
   // Initialize database
 getDatabase()
 
-// Record a snapshot every time we fetch hardware metrics
-// We hook into the existing 2-second polling cycle
+// Store latest anomaly report so IPC can serve it on demand
+let latestAnomalyReport: AnomalyReport | null = null
+
 setInterval(async () => {
   try {
     const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
@@ -80,7 +82,20 @@ setInterval(async () => {
       getGpuMetrics(),
       getBatteryMetrics(),
     ])
+
     recordSnapshot({ cpu, memory, disk, network, gpu, battery })
+
+    // Feed latest values into anomaly detector
+    latestAnomalyReport = checkForAnomalies({
+      cpu:       cpu.usagePercent,
+      memory:    memory.usagePercent,
+      diskRead:  disk.io.readBytesPerSec,
+      diskWrite: disk.io.writeBytesPerSec,
+      netDown:   network.totalDownloadBytesPerSec,
+      netUp:     network.totalUploadBytesPerSec,
+      gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
+    })
+
   } catch (err) {
     console.error('Snapshot recording failed:', err)
   }
@@ -147,6 +162,10 @@ ipcMain.handle('get-thermal-metrics', async () => {
 
 ipcMain.handle('get-startup-metrics', async () => {
   return await getStartupMetrics()
+})
+
+ipcMain.handle('get-anomaly-report', () => {
+  return latestAnomalyReport
 })
 
   app.on('activate', function () {
