@@ -6,9 +6,9 @@ export interface DiskMetrics {
 }
 
 export interface DiskDrive {
-  name: string          // e.g. "/dev/disk0"
-  mount: string         // e.g. "/" (where it's mounted)
-  type: string          // e.g. "APFS", "HFS+"
+  name: string
+  mount: string
+  type: string
   totalBytes: number
   usedBytes: number
   freeBytes: number
@@ -16,21 +16,18 @@ export interface DiskDrive {
 }
 
 export interface DiskIO {
-  readBytesPerSec: number   // current read speed
-  writeBytesPerSec: number  // current write speed
+  readBytesPerSec: number
+  writeBytesPerSec: number
 }
 
-// We need to track previous IO readings to calculate per-second rates
-// These live outside the function so they persist between calls
 let previousIO = { read: 0, write: 0, timestamp: Date.now() }
 
 export async function getDiskMetrics(): Promise<DiskMetrics> {
   const [fsData, ioData] = await Promise.all([
-    si.fsSize(),    // filesystem sizes and usage
-    si.disksIO()    // raw disk IO counters
+    si.fsSize(),
+    si.disksIO()
   ])
 
-  // Filter to real mounted drives only — skip system/virtual mounts
   const drives: DiskDrive[] = fsData
     .filter(fs => fs.size > 0 && fs.mount && !fs.mount.startsWith('/System/Volumes/'))
     .map(fs => ({
@@ -43,20 +40,18 @@ export async function getDiskMetrics(): Promise<DiskMetrics> {
       usagePercent: Math.round(fs.use)
     }))
 
-  // Calculate bytes-per-second by comparing to previous reading
-  // Raw IO counters are cumulative totals, not rates — we do the math ourselves
   const now = Date.now()
   const elapsedSeconds = (now - previousIO.timestamp) / 1000
 
-  const readBytesPerSec = elapsedSeconds > 0
-    ? Math.max(0, (ioData.rIO_sec ?? 0))
-    : 0
+  // ioData can be null on macOS when the OS hasn't populated
+  // the disk IO counters yet — guard the whole object, not just
+  // the individual fields, otherwise accessing .rIO_sec throws
+  const safeIO = ioData ?? { rIO_sec: 0, wIO_sec: 0, rIO: 0, wIO: 0 }
 
-  const writeBytesPerSec = elapsedSeconds > 0
-    ? Math.max(0, (ioData.wIO_sec ?? 0))
-    : 0
+  const readBytesPerSec  = elapsedSeconds > 0 ? Math.max(0, safeIO.rIO_sec ?? 0) : 0
+  const writeBytesPerSec = elapsedSeconds > 0 ? Math.max(0, safeIO.wIO_sec ?? 0) : 0
 
-  previousIO = { read: ioData.rIO ?? 0, write: ioData.wIO ?? 0, timestamp: now }
+  previousIO = { read: safeIO.rIO ?? 0, write: safeIO.wIO ?? 0, timestamp: now }
 
   return {
     drives,
