@@ -17,7 +17,7 @@ import { getThermalMetrics } from './collectors/thermal'
 import { getStartupMetrics, enableStartupItem, disableStartupItem } from './collectors/startup'
 import { checkForAnomalies, AnomalyReport, setThreshold } from './analysis/anomalyDetector'
 import { setupTray, destroyTray } from './tray'
-import { loadSettings, saveSettings, AppSettings, SENSITIVITY_THRESHOLD } from './settings'
+import { loadSettings, saveSettings, AppSettings, SENSITIVITY_THRESHOLD } from './storage/settings'
 
 // ─────────────────────────────────────────────
 // createWindow now returns the BrowserWindow

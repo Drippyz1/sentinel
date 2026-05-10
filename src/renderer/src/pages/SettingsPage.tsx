@@ -1,143 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card } from '../components/ui/Card'
-import { AppSettings } from '../../../main/settings'
-
-// ── Primitives ───────────────────────────────────────────────────────────────
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      onClick={() => onChange(!checked)}
-      style={{
-        width: '40px',
-        height: '22px',
-        borderRadius: '11px',
-        backgroundColor: checked ? 'var(--accent-blue)' : 'var(--border)',
-        border: 'none',
-        cursor: 'pointer',
-        position: 'relative',
-        transition: 'background-color 0.2s',
-        flexShrink: 0,
-        outline: 'none',
-      }}
-    >
-      <span
-        style={{
-          position: 'absolute',
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          backgroundColor: 'white',
-          top: '3px',
-          left: checked ? '21px' : '3px',
-          transition: 'left 0.2s',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
-        }}
-      />
-    </button>
-  )
-}
-
-function SegmentedControl<T extends string | number>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { label: string; value: T }[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        border: '1px solid var(--border)',
-        backgroundColor: 'var(--bg-base)',
-      }}
-    >
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          style={{
-            padding: '5px 12px',
-            fontSize: '12px',
-            fontWeight: 500,
-            backgroundColor: value === opt.value ? 'var(--accent-blue)' : 'transparent',
-            color: value === opt.value ? 'white' : 'var(--text-muted)',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'background-color 0.15s, color 0.15s',
-            outline: 'none',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ── Layout helpers ───────────────────────────────────────────────────────────
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <h3
-      className="text-xs font-semibold uppercase tracking-widest mb-3"
-      style={{ color: 'var(--text-muted)' }}
-    >
-      {children}
-    </h3>
-  )
-}
-
-function SettingRow({
-  label,
-  description,
-  last,
-  children,
-}: {
-  label: string
-  description?: string
-  last?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <div
-      className="flex items-center justify-between gap-4 py-3"
-      style={last ? undefined : { borderBottom: '1px solid var(--border)' }}
-    >
-      <div className="flex-1">
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-          {label}
-        </p>
-        {description && (
-          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            {description}
-          </p>
-        )}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  )
-}
-
-// ── Main component ───────────────────────────────────────────────────────────
-
-const SENSITIVITY_OPTIONS: { label: string; value: AppSettings['anomalySensitivity'] }[] = [
-  { label: 'Sensitive',    value: 'sensitive' },
-  { label: 'Balanced',     value: 'balanced' },
-  { label: 'Conservative', value: 'conservative' },
-]
-
-const RETENTION_OPTIONS: { label: string; value: number }[] = [
-  { label: '1 day',   value: 1 },
-  { label: '7 days',  value: 7 },
-  { label: '14 days', value: 14 },
-  { label: '30 days', value: 30 },
-]
+import { AppSettings } from '../../../main/storage/settings'
 
 const DEFAULT_SETTINGS: AppSettings = {
   hideFromDock:       false,
@@ -145,123 +7,214 @@ const DEFAULT_SETTINGS: AppSettings = {
   anomalySensitivity: 'balanced',
 }
 
+// ── Small reusable primitives ──────────────────────────────────────────────
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-6">
+      <h3
+        className="text-xs font-semibold uppercase tracking-widest mb-3"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {title}
+      </h3>
+      <div
+        className="rounded-xl divide-y"
+        style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Row({
+  label,
+  description,
+  children,
+}: {
+  label: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 gap-4">
+      <div className="flex flex-col min-w-0">
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          {label}
+        </span>
+        {description && (
+          <span className="text-xs mt-0.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+            {description}
+          </span>
+        )}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="relative inline-flex items-center w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none"
+      style={{ background: checked ? 'var(--accent)' : 'var(--border)' }}
+    >
+      <span
+        className="inline-block w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
+        style={{ transform: checked ? 'translateX(22px)' : 'translateX(2px)' }}
+      />
+    </button>
+  )
+}
+
+function Select<T extends string | number>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T
+  options: { label: string; value: T }[]
+  onChange: (v: T) => void
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        const raw = e.target.value
+        onChange((typeof value === 'number' ? Number(raw) : raw) as T)
+      }}
+      className="text-sm rounded-lg px-2 py-1 pr-6 appearance-none focus:outline-none"
+      style={{
+        background:          'var(--card-bg)',
+        color:               'var(--text-primary)',
+        border:              '1px solid var(--border)',
+        backgroundImage:     `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+        backgroundRepeat:    'no-repeat',
+        backgroundPosition:  'right 6px center',
+      }}
+    >
+      {options.map((o) => (
+        <option key={String(o.value)} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
+
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [saved, setSaved] = useState(false)
+  const [saved,    setSaved]    = useState(false)
+  const [loading,  setLoading]  = useState(true)
 
   useEffect(() => {
     window.electronAPI.getSettings().then((s) => {
-      if (s) setSettings(s as AppSettings)
+      setSettings(s)
+      setLoading(false)
     })
   }, [])
 
-  function apply(patch: Partial<AppSettings>) {
-    const next = { ...settings, ...patch }
+  async function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+    const next = { ...settings, [key]: value }
     setSettings(next)
-    window.electronAPI.saveSettings(next)
+
+    // Dock side-effect — instant feedback before the main process picks it up
+    if (key === 'hideFromDock') {
+      if (value) await window.electronAPI.hideDock()
+      else       await window.electronAPI.showDock()
+    }
+
+    await window.electronAPI.saveSettings(next)
+
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Loading settings…
+        </span>
+      </div>
+    )
+  }
+
+  const isMac = navigator.platform.toUpperCase().includes('MAC')
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Settings
         </h2>
-        {saved && (
-          <span
-            className="text-xs font-medium"
-            style={{ color: 'var(--accent-green)' }}
-          >
-            Saved
-          </span>
-        )}
+        <span
+          className="text-xs transition-opacity duration-300"
+          style={{ color: 'var(--accent)', opacity: saved ? 1 : 0 }}
+        >
+          ✓ Saved
+        </span>
       </div>
 
-      {/* General */}
-      <div>
-        <SectionHeader>General</SectionHeader>
-        <Card>
-          <SettingRow
+      {/* ── Data & Storage ───────────────────────── */}
+      <Section title="Data & Storage">
+        <Row
+          label="History retention"
+          description="How long metric snapshots are kept on disk"
+        >
+          <Select
+            value={settings.dataRetentionDays}
+            onChange={(v) => update('dataRetentionDays', v)}
+            options={[
+              { label: '1 day',   value: 1  },
+              { label: '3 days',  value: 3  },
+              { label: '7 days',  value: 7  },
+              { label: '14 days', value: 14 },
+              { label: '30 days', value: 30 },
+            ]}
+          />
+        </Row>
+      </Section>
+
+      {/* ── Anomaly Detection ────────────────────── */}
+      <Section title="Anomaly Detection">
+        <Row
+          label="Sensitivity"
+          description="How aggressively unusual activity is flagged"
+        >
+          <Select
+            value={settings.anomalySensitivity}
+            onChange={(v) => update('anomalySensitivity', v)}
+            options={[
+              { label: 'Sensitive — flags ~5% of readings',    value: 'sensitive'    },
+              { label: 'Balanced — flags ~1% of readings',     value: 'balanced'     },
+              { label: 'Conservative — flags ~0.3% of readings', value: 'conservative' },
+            ]}
+          />
+        </Row>
+      </Section>
+
+      {/* ── System — macOS only ──────────────────── */}
+      {isMac && (
+        <Section title="System">
+          <Row
             label="Hide from Dock"
-            description="When enabled, Sentinel won't appear in the Dock. Access it via the menu bar icon instead."
-            last
+            description="Remove the app icon from the macOS Dock (still accessible via menu bar)"
           >
             <Toggle
               checked={settings.hideFromDock}
-              onChange={(v) => apply({ hideFromDock: v })}
+              onChange={(v) => update('hideFromDock', v)}
             />
-          </SettingRow>
-        </Card>
-      </div>
-
-      {/* Anomaly Detection */}
-      <div>
-        <SectionHeader>Anomaly Detection</SectionHeader>
-        <Card>
-          <SettingRow
-            label="Sensitivity"
-            description={
-              settings.anomalySensitivity === 'sensitive'
-                ? 'Flags ~5% of readings. Best for catching subtle issues early.'
-                : settings.anomalySensitivity === 'conservative'
-                  ? 'Flags ~0.3% of readings. Only surfaces major spikes.'
-                  : 'Flags ~1% of readings. Recommended for most setups.'
-            }
-            last
-          >
-            <SegmentedControl
-              options={SENSITIVITY_OPTIONS}
-              value={settings.anomalySensitivity}
-              onChange={(v) => apply({ anomalySensitivity: v })}
-            />
-          </SettingRow>
-        </Card>
-      </div>
-
-      {/* Data */}
-      <div>
-        <SectionHeader>Data</SectionHeader>
-        <Card>
-          <SettingRow
-            label="History Retention"
-            description="Metric history older than this is automatically deleted from the local database."
-            last
-          >
-            <SegmentedControl
-              options={RETENTION_OPTIONS}
-              value={settings.dataRetentionDays}
-              onChange={(v) => apply({ dataRetentionDays: v })}
-            />
-          </SettingRow>
-        </Card>
-      </div>
-
-      {/* About */}
-      <div>
-        <SectionHeader>About</SectionHeader>
-        <Card>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--text-muted)' }}>Version</span>
-              <span style={{ color: 'var(--text-primary)' }}>1.0.0</span>
-            </div>
-            <div
-              className="flex justify-between text-sm pt-2"
-              style={{ borderTop: '1px solid var(--border)' }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Data stored locally at</span>
-              <span
-                className="text-xs font-mono"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                ~/Library/Application Support/sentinel/
-              </span>
-            </div>
-          </div>
-        </Card>
-      </div>
+          </Row>
+        </Section>
+      )}
     </div>
   )
 }

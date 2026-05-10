@@ -1,4 +1,3 @@
-import { AppSettings }    from '../../../main/settings'
 import { CpuMetrics }     from '../../../main/collectors/cpu'
 import { MemoryMetrics }  from '../../../main/collectors/memory'
 import { DiskMetrics }    from '../../../main/collectors/disk'
@@ -10,7 +9,8 @@ import { SystemInfo }     from '../../../main/collectors/systemInfo'
 import { ThermalMetrics } from '../../../main/collectors/thermal'
 import { StartupMetrics } from '../../../main/collectors/startup'
 import { SnapshotRow }    from '../../../main/storage/queries'
-import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
+import { AnomalyReport }  from '../../../main/analysis/anomalyDetector'
+import { AppSettings }    from '../../../main/storage/settings'
 
 export interface HistorySummary {
   avg_cpu:      number
@@ -29,7 +29,7 @@ declare global {
       // Mini tray interface
       openMainWindow: () => Promise<void>
 
-      // Live metrics
+      // Live hardware metrics
       getCpuMetrics:     () => Promise<CpuMetrics>
       getMemoryMetrics:  () => Promise<MemoryMetrics>
       getDiskMetrics:    () => Promise<DiskMetrics>
@@ -43,11 +43,11 @@ declare global {
       getThermalMetrics: () => Promise<ThermalMetrics>
       getStartupMetrics: () => Promise<StartupMetrics>
       getAnomalyReport:  () => Promise<AnomalyReport | null>
-      toggleStartupItem: (itemPath: string, enable: boolean) => Promise<void>
+      toggleStartupItem: (itemPath: string, enable: boolean) => Promise<boolean>
 
       // Settings
       getSettings:  () => Promise<AppSettings>
-      saveSettings: (settings: AppSettings) => Promise<void>
+      saveSettings: (settings: AppSettings) => Promise<boolean>
       showDock:     () => Promise<void>
       hideDock:     () => Promise<void>
 

@@ -3,9 +3,9 @@ import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 
 export interface AppSettings {
-  hideFromDock:        boolean
-  dataRetentionDays:   number
-  anomalySensitivity:  'sensitive' | 'balanced' | 'conservative'
+  hideFromDock:       boolean
+  dataRetentionDays:  number
+  anomalySensitivity: 'sensitive' | 'balanced' | 'conservative'
 }
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
@@ -33,6 +33,14 @@ export function loadSettings(): AppSettings {
   }
 }
 
-export function saveSettings(settings: AppSettings): void {
-  writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf8')
+// Returns boolean so the IPC handler and frontend
+// can confirm whether the save actually succeeded
+export function saveSettings(settings: AppSettings): boolean {
+  try {
+    writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf8')
+    return true
+  } catch (err) {
+    console.error('Failed to save settings:', err)
+    return false
+  }
 }
