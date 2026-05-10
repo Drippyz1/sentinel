@@ -1,13 +1,13 @@
 import { useDiskMetrics } from '../../hooks/useMetrics'
 import { useHistoryStore } from '../../store/historyStore'
-import { formatBytes, formatPercent, formatSpeed } from '../../utils/format'
+import { formatSpeed, formatBytes } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
 
 export function DiskWidget() {
-  const disk        = useDiskMetrics()
+  const disk         = useDiskMetrics()
   const readHistory  = useHistoryStore(state => state.diskRead)
   const writeHistory = useHistoryStore(state => state.diskWrite)
   if (!disk) return null

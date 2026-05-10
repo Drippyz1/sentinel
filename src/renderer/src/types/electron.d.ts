@@ -50,6 +50,8 @@ declare global {
       saveSettings: (settings: AppSettings) => Promise<boolean>
       showDock:     () => Promise<void>
       hideDock:     () => Promise<void>
+      
+      killProcess: (pid: number) => Promise<{ success: boolean; error?: string }>
 
       // Historical data
       getHistorySnapshots:   (minutes: number) => Promise<SnapshotRow[]>

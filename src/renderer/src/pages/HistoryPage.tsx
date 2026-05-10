@@ -8,17 +8,16 @@ import { formatBytes } from '../utils/format'
 import { Card } from '../components/ui/Card'
 
 const RANGES = [
-  { label: '30 min', minutes: 30  },
-  { label: '1 hour', minutes: 60  },
-  { label: '3 hours', minutes: 180 },
-  { label: '6 hours', minutes: 360 },
-  { label: '24 hours', minutes: 1440 },
+  { label: '30 min',  minutes: 30   },
+  { label: '1 hour',  minutes: 60   },
+  { label: '3 hours', minutes: 180  },
+  { label: '6 hours', minutes: 360  },
+  { label: '24 hours',minutes: 1440 },
 ]
 
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
+    hour: '2-digit', minute: '2-digit'
   })
 }
 
@@ -36,11 +35,7 @@ function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100]
     <Card title={title}>
       <ResponsiveContainer width="100%" height={160}>
         <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--border)"
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="timestamp"
             tickFormatter={formatXAxis}
@@ -54,7 +49,7 @@ function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100]
             tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={formatValue}
+            tickFormatter={(v: number) => formatValue(v)}
             width={55}
           />
           <Tooltip
@@ -65,8 +60,8 @@ function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100]
               fontSize: '12px',
               color: 'var(--text-primary)'
             }}
-            formatter={(value: number) => [formatValue(value), title]}
-            labelFormatter={(label: number) => new Date(label).toLocaleTimeString()}
+            formatter={(value: unknown) => [formatValue(value as number), title]}
+            labelFormatter={(label: unknown) => new Date(label as number).toLocaleTimeString()}
           />
           <Area
             type="monotone"
@@ -84,7 +79,7 @@ function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100]
 }
 
 export function HistoryPage() {
-  const [selectedRange, setSelectedRange] = useState(RANGES[1])  // default 1 hour
+  const [selectedRange, setSelectedRange] = useState(RANGES[1])
   const [data, setData]                   = useState<SnapshotRow[]>([])
   const [isLoading, setIsLoading]         = useState(true)
 
@@ -106,9 +101,9 @@ export function HistoryPage() {
     }
   }
 
-  const maxNetDown = Math.max(...data.map(d => d.net_down), 1)
-  const maxNetUp   = Math.max(...data.map(d => d.net_up), 1)
-  const maxDiskRead  = Math.max(...data.map(d => d.disk_read), 1)
+  const maxNetDown   = Math.max(...data.map(d => d.net_down),   1)
+  const maxNetUp     = Math.max(...data.map(d => d.net_up),     1)
+  const maxDiskRead  = Math.max(...data.map(d => d.disk_read),  1)
   const maxDiskWrite = Math.max(...data.map(d => d.disk_write), 1)
 
   return (
@@ -125,11 +120,9 @@ export function HistoryPage() {
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
                 backgroundColor: selectedRange.minutes === range.minutes
-                  ? 'var(--accent-blue)'
-                  : 'var(--bg-card)',
+                  ? 'var(--accent-blue)' : 'var(--bg-card)',
                 color: selectedRange.minutes === range.minutes
-                  ? 'white'
-                  : 'var(--text-muted)',
+                  ? 'white' : 'var(--text-muted)',
                 border: '1px solid var(--border)'
               }}
             >
@@ -151,73 +144,17 @@ export function HistoryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
-          <ChartCard
-            title="CPU Usage"
-            data={data}
-            dataKey="cpu_usage"
-            color="#3b82f6"
-            formatValue={v => `${v}%`}
-            domain={[0, 100]}
-          />
-          <ChartCard
-            title="Memory Usage"
-            data={data}
-            dataKey="memory_usage"
-            color="#a855f7"
-            formatValue={v => `${v}%`}
-            domain={[0, 100]}
-          />
-          <ChartCard
-            title="Network Download"
-            data={data}
-            dataKey="net_down"
-            color="#22c55e"
-            formatValue={v => formatBytes(v) + '/s'}
-            domain={[0, maxNetDown]}
-          />
-          <ChartCard
-            title="Network Upload"
-            data={data}
-            dataKey="net_up"
-            color="#f59e0b"
-            formatValue={v => formatBytes(v) + '/s'}
-            domain={[0, maxNetUp]}
-          />
-          <ChartCard
-            title="Disk Read"
-            data={data}
-            dataKey="disk_read"
-            color="#22c55e"
-            formatValue={v => formatBytes(v) + '/s'}
-            domain={[0, maxDiskRead]}
-          />
-          <ChartCard
-            title="Disk Write"
-            data={data}
-            dataKey="disk_write"
-            color="#ef4444"
-            formatValue={v => formatBytes(v) + '/s'}
-            domain={[0, maxDiskWrite]}
-          />
+          <ChartCard title="CPU Usage"        data={data} dataKey="cpu_usage"    color="#3b82f6" formatValue={v => `${v}%`}              domain={[0, 100]}       />
+          <ChartCard title="Memory Usage"     data={data} dataKey="memory_usage" color="#a855f7" formatValue={v => `${v}%`}              domain={[0, 100]}       />
+          <ChartCard title="Network Download" data={data} dataKey="net_down"     color="#22c55e" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxNetDown]}   />
+          <ChartCard title="Network Upload"   data={data} dataKey="net_up"       color="#f59e0b" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxNetUp]}     />
+          <ChartCard title="Disk Read"        data={data} dataKey="disk_read"    color="#22c55e" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxDiskRead]}  />
+          <ChartCard title="Disk Write"       data={data} dataKey="disk_write"   color="#ef4444" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxDiskWrite]} />
           {data.some(d => d.gpu_usage !== null) && (
-            <ChartCard
-              title="GPU Usage"
-              data={data}
-              dataKey="gpu_usage"
-              color="#ec4899"
-              formatValue={v => `${v}%`}
-              domain={[0, 100]}
-            />
+            <ChartCard title="GPU Usage" data={data} dataKey="gpu_usage" color="#ec4899" formatValue={v => `${v}%`} domain={[0, 100]} />
           )}
           {data.some(d => d.battery !== null) && (
-            <ChartCard
-              title="Battery"
-              data={data}
-              dataKey="battery"
-              color="#84cc16"
-              formatValue={v => `${v}%`}
-              domain={[0, 100]}
-            />
+            <ChartCard title="Battery" data={data} dataKey="battery" color="#84cc16" formatValue={v => `${v}%`} domain={[0, 100]} />
           )}
         </div>
       )}

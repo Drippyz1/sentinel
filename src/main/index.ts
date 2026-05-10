@@ -183,6 +183,15 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('kill-process', (_event, pid: number) => {
+  try {
+    process.kill(pid, 'SIGKILL')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+})
+
   // Dock visibility — called directly from the toggle for instant feedback
   ipcMain.handle('hide-dock', () => { if (process.platform === 'darwin') app.dock?.hide() })
   ipcMain.handle('show-dock', () => { if (process.platform === 'darwin') app.dock?.show() })

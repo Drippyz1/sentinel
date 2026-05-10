@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
 import { useMetricsPolling } from './hooks/useMetrics'
 import { useCpuMetrics, useMemoryMetrics,
          useNetworkMetrics, useBatteryMetrics } from './hooks/useMetrics'
-import { formatSpeed, formatBytes } from './utils/format'
+import { formatSpeed } from './utils/format'
 import { UsageBar } from './components/ui/UsageBar'
 
 function TrayContent() {
@@ -60,14 +59,9 @@ function TrayContent() {
 
       {/* CPU */}
       <div style={{ marginBottom: '8px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '3px'
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
           <span style={{ color: 'var(--text-muted)' }}>CPU</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600,
-                         color: 'var(--accent-blue)' }}>
+          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-blue)' }}>
             {cpu.usagePercent}%
           </span>
         </div>
@@ -76,14 +70,9 @@ function TrayContent() {
 
       {/* Memory */}
       <div style={{ marginBottom: '8px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '3px'
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
           <span style={{ color: 'var(--text-muted)' }}>Memory</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600,
-                         color: 'var(--accent-purple)' }}>
+          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-purple)' }}>
             {memory.usagePercent}%
           </span>
         </div>
@@ -93,9 +82,7 @@ function TrayContent() {
       {/* Network */}
       {network && (
         <div style={{ marginBottom: '8px' }}>
-          <div style={{ color: 'var(--text-muted)', marginBottom: '3px' }}>
-            Network
-          </div>
+          <div style={{ color: 'var(--text-muted)', marginBottom: '3px' }}>Network</div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--accent-green)', fontFamily: 'monospace' }}>
               ↓ {formatSpeed(network.totalDownloadBytesPerSec)}
@@ -117,12 +104,15 @@ function TrayContent() {
           alignItems: 'center'
         }}>
           <span style={{ color: 'var(--text-muted)' }}>Battery</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600,
-                         color: battery.isCharging
-                           ? 'var(--accent-green)'
-                           : battery.chargePercent < 20
-                             ? 'var(--accent-red)'
-                             : 'var(--text-primary)' }}>
+          <span style={{
+            fontFamily: 'monospace',
+            fontWeight: 600,
+            color: battery.isCharging
+              ? 'var(--accent-green)'
+              : battery.chargePercent < 20
+                ? 'var(--accent-red)'
+                : 'var(--text-primary)'
+          }}>
             {battery.chargePercent}%
             {battery.isCharging ? ' ⚡' : ''}
           </span>

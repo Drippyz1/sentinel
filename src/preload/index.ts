@@ -24,6 +24,8 @@ if (process.contextIsolated) {
       toggleStartupItem:   (itemPath: string, enable: boolean) =>
                              ipcRenderer.invoke('toggle-startup-item', itemPath, enable),
 
+      killProcess: (pid: number) => ipcRenderer.invoke('kill-process', pid),
+
       // Settings
       getSettings:  () => ipcRenderer.invoke('get-settings'),
       saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
