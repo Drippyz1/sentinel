@@ -11,11 +11,12 @@ const TRAY_ICON_BASE64 = `iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSV
 
 function createTrayIcon(): Electron.NativeImage {
   try {
-    return nativeImage.createFromPath(
-      join(__dirname, '../../resources/icon.png')
-    ).resize({ width: 16, height: 16 })
+    const icon = nativeImage.createFromPath(
+      join(__dirname, '../../resources/tray-icon.png')
+    )
+    icon.setTemplateImage(true)  // macOS handles dark/light mode automatically
+    return icon
   } catch {
-    // Fix: createFromBase64 does not exist — use createFromDataURL instead
     return nativeImage.createFromDataURL(
       `data:image/png;base64,${TRAY_ICON_BASE64}`
     )

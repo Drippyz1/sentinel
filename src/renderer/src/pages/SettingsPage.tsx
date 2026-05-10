@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react'
 import { AppSettings } from '../../../main/storage/settings'
 
 const DEFAULT_SETTINGS: AppSettings = {
-  hideFromDock:       false,
-  dataRetentionDays:  7,
-  anomalySensitivity: 'balanced',
+  launchAtLogin:        false,
+  hideFromDock:         false,
+  pollIntervalMs:       2000,
+  tempUnit:             'C',
+  dataRetentionDays:    7,
+  anomalySensitivity:   'balanced',
+  anomalyNotifications: true,
 }
 
-// ── Small reusable primitives ──────────────────────────────────────────────
+// ── Reusable primitives ────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -33,9 +37,9 @@ function Row({
   description,
   children,
 }: {
-  label: string
+  label:        string
   description?: string
-  children: React.ReactNode
+  children:     React.ReactNode
 }) {
   return (
     <div className="flex items-center justify-between px-4 py-3 gap-4">
@@ -76,7 +80,7 @@ function Select<T extends string | number>({
   options,
   onChange,
 }: {
-  value: T
+  value:   T
   options: { label: string; value: T }[]
   onChange: (v: T) => void
 }) {
@@ -89,12 +93,12 @@ function Select<T extends string | number>({
       }}
       className="text-sm rounded-lg px-2 py-1 pr-6 appearance-none focus:outline-none"
       style={{
-        background:          'var(--card-bg)',
-        color:               'var(--text-primary)',
-        border:              '1px solid var(--border)',
-        backgroundImage:     `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-        backgroundRepeat:    'no-repeat',
-        backgroundPosition:  'right 6px center',
+        background:         'var(--card-bg)',
+        color:              'var(--text-primary)',
+        border:             '1px solid var(--border)',
+        backgroundImage:    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+        backgroundRepeat:   'no-repeat',
+        backgroundPosition: 'right 6px center',
       }}
     >
       {options.map((o) => (
@@ -124,14 +128,12 @@ export function SettingsPage() {
     const next = { ...settings, [key]: value }
     setSettings(next)
 
-    // Dock side-effect — instant feedback before the main process picks it up
     if (key === 'hideFromDock') {
       if (value) await window.electronAPI.hideDock()
       else       await window.electronAPI.showDock()
     }
 
     await window.electronAPI.saveSettings(next)
-
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
@@ -163,6 +165,62 @@ export function SettingsPage() {
         </span>
       </div>
 
+      {/* ── System — macOS only ──────────────────── */}
+      {isMac && (
+        <Section title="System">
+          <Row
+            label="Launch at login"
+            description="Start Sentinel automatically when you log in"
+          >
+            <Toggle
+              checked={settings.launchAtLogin}
+              onChange={(v) => update('launchAtLogin', v)}
+            />
+          </Row>
+          <Row
+            label="Hide from Dock"
+            description="Remove the app icon from the macOS Dock — still accessible via menu bar"
+          >
+            <Toggle
+              checked={settings.hideFromDock}
+              onChange={(v) => update('hideFromDock', v)}
+            />
+          </Row>
+        </Section>
+      )}
+
+      {/* ── Monitoring ───────────────────────────── */}
+      <Section title="Monitoring">
+        <Row
+          label="Poll interval"
+          description="How often hardware metrics are refreshed"
+        >
+          <Select
+            value={settings.pollIntervalMs}
+            onChange={(v) => update('pollIntervalMs', v)}
+            options={[
+              { label: '1 second',   value: 1000  },
+              { label: '2 seconds',  value: 2000  },
+              { label: '5 seconds',  value: 5000  },
+              { label: '10 seconds', value: 10000 },
+            ]}
+          />
+        </Row>
+        <Row
+          label="Temperature unit"
+          description="Unit used across all thermal readings"
+        >
+          <Select
+            value={settings.tempUnit}
+            onChange={(v) => update('tempUnit', v)}
+            options={[
+              { label: 'Celsius (°C)',    value: 'C' },
+              { label: 'Fahrenheit (°F)', value: 'F' },
+            ]}
+          />
+        </Row>
+      </Section>
+
       {/* ── Data & Storage ───────────────────────── */}
       <Section title="Data & Storage">
         <Row
@@ -193,28 +251,22 @@ export function SettingsPage() {
             value={settings.anomalySensitivity}
             onChange={(v) => update('anomalySensitivity', v)}
             options={[
-              { label: 'Sensitive — flags ~5% of readings',    value: 'sensitive'    },
-              { label: 'Balanced — flags ~1% of readings',     value: 'balanced'     },
+              { label: 'Sensitive — flags ~5% of readings',     value: 'sensitive'    },
+              { label: 'Balanced — flags ~1% of readings',      value: 'balanced'     },
               { label: 'Conservative — flags ~0.3% of readings', value: 'conservative' },
             ]}
           />
         </Row>
+        <Row
+          label="Anomaly notifications"
+          description="Send a system notification when an anomaly is detected"
+        >
+          <Toggle
+            checked={settings.anomalyNotifications}
+            onChange={(v) => update('anomalyNotifications', v)}
+          />
+        </Row>
       </Section>
-
-      {/* ── System — macOS only ──────────────────── */}
-      {isMac && (
-        <Section title="System">
-          <Row
-            label="Hide from Dock"
-            description="Remove the app icon from the macOS Dock (still accessible via menu bar)"
-          >
-            <Toggle
-              checked={settings.hideFromDock}
-              onChange={(v) => update('hideFromDock', v)}
-            />
-          </Row>
-        </Section>
-      )}
     </div>
   )
 }

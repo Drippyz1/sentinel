@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeImage, Notification } from 'electron'
 import { getCpuMetrics } from './collectors/cpu'
 import { getMemoryMetrics } from './collectors/memory'
 import { getDiskMetrics } from './collectors/disk'
@@ -19,10 +19,6 @@ import { checkForAnomalies, AnomalyReport, setThreshold } from './analysis/anoma
 import { setupTray, destroyTray } from './tray'
 import { loadSettings, saveSettings, AppSettings, SENSITIVITY_THRESHOLD } from './storage/settings'
 
-// ─────────────────────────────────────────────
-// createWindow now returns the BrowserWindow
-// so we can pass it to setupTray below
-// ─────────────────────────────────────────────
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -38,6 +34,11 @@ function createWindow(): BrowserWindow {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    if (process.platform === 'darwin') {
+      app.dock?.setIcon(nativeImage.createFromPath(
+        join(__dirname, '../../resources/icon.png')
+      ))
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -51,13 +52,9 @@ function createWindow(): BrowserWindow {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Return the window so the caller can use it
   return mainWindow
 }
 
-// ─────────────────────────────────────────────
-// App ready — everything starts here
-// ─────────────────────────────────────────────
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
 
@@ -66,8 +63,6 @@ app.whenReady().then(() => {
   })
 
   // ── Settings ──────────────────────────────
-  // Load persisted user preferences and apply
-  // any immediate effects (dock visibility, etc.)
   const currentSettings = loadSettings()
   setThreshold(SENSITIVITY_THRESHOLD[currentSettings.anomalySensitivity])
   if (currentSettings.hideFromDock && process.platform === 'darwin') {
@@ -75,88 +70,95 @@ app.whenReady().then(() => {
   }
 
   // ── Database ──────────────────────────────
-  // Initialize SQLite — creates the file if it
-  // doesn't exist yet and runs schema migrations
   getDatabase()
 
   // ── Anomaly report storage ─────────────────
-  // Stored at module level so the IPC handler
-  // can always serve the latest report instantly
-  // without having to re-run the detector
   let latestAnomalyReport: AnomalyReport | null = null
 
-  // ── Main polling loop (every 2 seconds) ────
-  // Fetches all hardware metrics, records them
-  // to SQLite, and runs anomaly detection
-  setInterval(async () => {
-    try {
-      const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
-        getCpuMetrics(),
-        getMemoryMetrics(),
-        getDiskMetrics(),
-        getNetworkMetrics(),
-        getGpuMetrics(),
-        getBatteryMetrics(),
-      ])
+  // Track last notification time so we don't spam —
+  // at most one notification per minute per anomaly
+  let lastNotificationAt = 0
 
-      // Write a row to the database
-      recordSnapshot({ cpu, memory, disk, network, gpu, battery })
+  // ── Main polling loop ─────────────────────
+  // Uses pollIntervalMs from settings, re-reads it
+  // on each tick so changes take effect immediately
+  let pollingTimer: ReturnType<typeof setInterval> | null = null
 
-      // Feed current values into the anomaly detector
-      // The detector maintains its own rolling window internally
-      latestAnomalyReport = checkForAnomalies({
-        cpu:       cpu.usagePercent,
-        memory:    memory.usagePercent,
-        diskRead:  disk.io.readBytesPerSec,
-        diskWrite: disk.io.writeBytesPerSec,
-        netDown:   network.totalDownloadBytesPerSec,
-        netUp:     network.totalUploadBytesPerSec,
-        gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
-      })
+  function startPolling() {
+    if (pollingTimer) clearInterval(pollingTimer)
+    const settings = loadSettings()
 
-    } catch (err) {
-      console.error('Main polling loop error:', err)
-    }
-  }, 2000)
+    pollingTimer = setInterval(async () => {
+      try {
+        const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
+          getCpuMetrics(),
+          getMemoryMetrics(),
+          getDiskMetrics(),
+          getNetworkMetrics(),
+          getGpuMetrics(),
+          getBatteryMetrics(),
+        ])
+
+        recordSnapshot({ cpu, memory, disk, network, gpu, battery })
+
+        latestAnomalyReport = checkForAnomalies({
+          cpu:       cpu.usagePercent,
+          memory:    memory.usagePercent,
+          diskRead:  disk.io.readBytesPerSec,
+          diskWrite: disk.io.writeBytesPerSec,
+          netDown:   network.totalDownloadBytesPerSec,
+          netUp:     network.totalUploadBytesPerSec,
+          gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
+        })
+
+        // Fire a system notification for anomalies if enabled
+        // Throttled to once per minute to avoid spam
+        const s = loadSettings()
+        if (
+          s.anomalyNotifications &&
+          latestAnomalyReport.hasAnomalies &&
+          latestAnomalyReport.isWarmedUp &&
+          Date.now() - lastNotificationAt > 60_000 &&
+          Notification.isSupported()
+        ) {
+          const top = latestAnomalyReport.anomalies[0]
+          new Notification({
+            title: 'Sentinel — Anomaly Detected',
+            body:  top.message,
+            silent: false,
+          }).show()
+          lastNotificationAt = Date.now()
+        }
+
+      } catch (err) {
+        console.error('Main polling loop error:', err)
+      }
+    }, settings.pollIntervalMs)
+  }
+
+  startPolling()
 
   // ── Housekeeping intervals ─────────────────
-  // Delete database rows older than the configured retention period
   cleanOldSnapshots(currentSettings.dataRetentionDays)
   setInterval(() => {
     const s = loadSettings()
     cleanOldSnapshots(s.dataRetentionDays)
   }, 60 * 60 * 1000)
 
-  // Invalidate the system info cache so uptime
-  // stays accurate — the cache refills on next request
   setInterval(invalidateSystemInfoCache, 60000)
 
-  // ── Windows ───────────────────────────────
-  // createWindow() now returns the BrowserWindow
-  // instance so we can hand it to setupTray
+  // ── Windows & tray ────────────────────────
   const mainWindow = createWindow()
-
-  // Set up the menubar tray icon and popover window
-  // Must be called after createWindow() so we can
-  // pass mainWindow in for the "Open →" button
   setupTray(mainWindow)
 
   // ── IPC handlers ──────────────────────────
-  // These respond to requests from the renderer
-  // (React UI) via window.electronAPI.*
 
-  // Startup item management
   ipcMain.handle('toggle-startup-item',
-  async (_event, itemPath: string, enable: boolean) => {
-    if (enable) {
-      return enableStartupItem(itemPath)
-    } else {
-      return disableStartupItem(itemPath)
+    async (_event, itemPath: string, enable: boolean) => {
+      return enable ? enableStartupItem(itemPath) : disableStartupItem(itemPath)
     }
-  }
-)
+  )
 
-  // Live hardware metrics
   ipcMain.handle('get-cpu-metrics',     async () => await getCpuMetrics())
   ipcMain.handle('get-memory-metrics',  async () => await getMemoryMetrics())
   ipcMain.handle('get-disk-metrics',    async () => await getDiskMetrics())
@@ -165,38 +167,37 @@ app.whenReady().then(() => {
   ipcMain.handle('get-battery-metrics', async () => await getBatteryMetrics())
   ipcMain.handle('get-process-metrics', async () => await getProcessMetrics())
 
-  // Advanced / slower collectors
   ipcMain.handle('get-system-info',     async () => await getSystemInfo())
   ipcMain.handle('get-thermal-metrics', async () => await getThermalMetrics())
   ipcMain.handle('get-startup-metrics', async () => await getStartupMetrics())
 
-  // Anomaly detection — returns latest cached report instantly
   ipcMain.handle('get-anomaly-report', () => latestAnomalyReport)
 
-  // Settings — read and persist user preferences
   ipcMain.handle('get-settings', () => loadSettings())
   ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
     saveSettings(newSettings)
     setThreshold(SENSITIVITY_THRESHOLD[newSettings.anomalySensitivity])
+
     if (process.platform === 'darwin') {
       newSettings.hideFromDock ? app.dock?.hide() : app.dock?.show()
     }
+
+    // Restart the polling loop if the interval changed
+    startPolling()
   })
 
   ipcMain.handle('kill-process', (_event, pid: number) => {
-  try {
-    process.kill(pid, 'SIGKILL')
-    return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err.message }
-  }
-})
+    try {
+      process.kill(pid, 'SIGKILL')
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
 
-  // Dock visibility — called directly from the toggle for instant feedback
   ipcMain.handle('hide-dock', () => { if (process.platform === 'darwin') app.dock?.hide() })
   ipcMain.handle('show-dock', () => { if (process.platform === 'darwin') app.dock?.show() })
 
-  // Historical database queries
   ipcMain.handle('get-history-snapshots',
     async (_event, minutes: number) => getSnapshots(minutes))
   ipcMain.handle('get-history-summary',
@@ -204,41 +205,25 @@ app.whenReady().then(() => {
   ipcMain.handle('get-history-downsampled',
     async (_event, minutes: number) => getDownsampled(minutes))
 
-  // ── macOS dock behaviour ───────────────────
-  // Re-create the main window if the user clicks
-  // the dock icon after closing all windows
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// ─────────────────────────────────────────────
-// On macOS we intentionally do NOT quit when all
-// windows are closed — the app lives in the tray
-// ─────────────────────────────────────────────
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-// ─────────────────────────────────────────────
-// Clean up before the process exits
-// ─────────────────────────────────────────────
 app.on('quit', () => {
   closeDatabase()
   destroyTray()
 })
 
-// Suppress the "write EIO" error that systeminformation throws
-// when the app closes and its streams are already torn down.
-// This is a known issue with the library during shutdown —
-// it's harmless but shows an ugly dialog without this handler.
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EIO' || err.message?.includes('write EIO')) {
-    // Silently ignore — this is expected during shutdown
     return
   }
-  // For any other uncaught exception, log it so we don't hide real bugs
   console.error('Uncaught exception:', err)
 })
