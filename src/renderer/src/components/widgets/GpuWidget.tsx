@@ -1,4 +1,5 @@
 import { useGpuMetrics } from '../../hooks/useMetrics'
+import { useTemp } from '../../hooks/useTemp'
 import { formatBytes } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
@@ -6,6 +7,7 @@ import { UsageBar } from '../ui/UsageBar'
 
 export function GpuWidget() {
   const gpu = useGpuMetrics()
+  const { formatTemp } = useTemp()
 
   if (!gpu || !gpu.hasGpu) {
     return (
@@ -21,10 +23,8 @@ export function GpuWidget() {
 
   return (
     <Card title="GPU" subtitle={controller.name}>
-
       <div className="flex items-end gap-2 mb-3">
-        <span className="text-4xl font-bold font-mono"
-              style={{ color: 'var(--text-primary)' }}>
+        <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
           {controller.utilizationPercent}
         </span>
         <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>%</span>
@@ -33,21 +33,9 @@ export function GpuWidget() {
       <UsageBar percent={controller.utilizationPercent} />
 
       <div className="mt-4 space-y-1">
-        <StatRow
-          label="Temperature"
-          value={controller.temperatureCelsius ? `${controller.temperatureCelsius}°C` : 'N/A'}
-          accent="amber"
-        />
-        <StatRow
-          label="Power Draw"
-          value={controller.powerDrawWatts ? `${controller.powerDrawWatts}W` : 'N/A'}
-          accent="blue"
-        />
-        <StatRow
-          label="Power Limit"
-          value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'}
-          accent="blue"
-        />
+        <StatRow label="Temperature" value={formatTemp(controller.temperatureCelsius)} accent="amber" />
+        <StatRow label="Power Draw"  value={controller.powerDrawWatts  ? `${controller.powerDrawWatts}W`  : 'N/A'} accent="blue" />
+        <StatRow label="Power Limit" value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'} accent="blue" />
       </div>
 
       {controller.vramBytes > 0 && (
@@ -63,7 +51,6 @@ export function GpuWidget() {
           </div>
         </div>
       )}
-
     </Card>
   )
 }

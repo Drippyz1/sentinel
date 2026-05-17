@@ -1,6 +1,7 @@
 import { useCpuMetrics } from '../../hooks/useMetrics'
 import { useHistoryStore } from '../../store/historyStore'
 import { formatPercent } from '../../utils/format'
+import { useTemp } from '../../hooks/useTemp'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
@@ -9,6 +10,7 @@ import { MiniChart } from '../ui/MiniChart'
 export function CpuWidget() {
   const cpu     = useCpuMetrics()
   const history = useHistoryStore(state => state.cpu)
+  const { formatTemp } = useTemp()
   if (!cpu) return null
 
   return (
@@ -32,9 +34,9 @@ export function CpuWidget() {
       </div>
 
       <div className="mt-3 space-y-1">
-        <StatRow label="Cores"       value={`${cpu.cores}`}        accent="blue"  />
-        <StatRow label="Speed"       value={`${cpu.speedGHz} GHz`} accent="blue"  />
-        <StatRow label="Temperature" value={cpu.temperature ? `${cpu.temperature}°C` : 'N/A'} accent="amber" />
+        <StatRow label="Cores"       value={`${cpu.cores}`}                   accent="blue"  />
+        <StatRow label="Speed"       value={`${cpu.speedGHz} GHz`}            accent="blue"  />
+        <StatRow label="Temperature" value={formatTemp(cpu.temperature)}       accent="amber" />
       </div>
 
       <div className="mt-4">
