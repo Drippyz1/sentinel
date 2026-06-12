@@ -8,21 +8,15 @@ Sentinel provides real-time system monitoring, process management, hardware info
 
 ## Screenshots
 
-### Dashboard
+<p align="center">
+  <img src="docs/images/dashboard.png" width="48%" alt="Dashboard">
+  <img src="docs/images/processes.png" width="48%" alt="Process Explorer">
+</p>
 
-![Dashboard](docs/images/dashboard.png)
-
-### Process Explorer
-
-![Process Explorer](docs/images/processes.png)
-
-### System Information
-
-![System Information](docs/images/system.png)
-
-### Settings
-
-![Settings](docs/images/settings.png)
+<p align="center">
+  <img src="docs/images/system.png" width="48%" alt="System Information">
+  <img src="docs/images/settings.png" width="48%" alt="Settings">
+</p>
 
 ---
 
