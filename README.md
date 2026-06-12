@@ -6,16 +6,19 @@ Sentinel provides real-time system monitoring, process management, hardware info
 
 > ⚠️ Sentinel is currently under active development and should be considered early-stage software.
 
-## Screenshots
+## Preview
+
+![Dashboard](docs/images/dashboard.png)
+
+## Additional Screenshots
 
 <p align="center">
-  <img src="docs/images/dashboard.png" width="48%" alt="Dashboard">
-  <img src="docs/images/processes.png" width="48%" alt="Process Explorer">
+  <img src="docs/images/processes.png" width="48%">
+  <img src="docs/images/system.png" width="48%">
 </p>
 
 <p align="center">
-  <img src="docs/images/system.png" width="48%" alt="System Information">
-  <img src="docs/images/settings.png" width="48%" alt="Settings">
+  <img src="docs/images/settings.png" width="48%">
 </p>
 
 ---
