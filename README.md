@@ -1,3 +1,13 @@
+<p align="center">
+  <img src="docs/images/logo.svg" width="140">
+</p>
+
+<h1 align="center">Sentinel</h1>
+
+<p align="center">
+  Local-first desktop system monitor
+</p>
+
 # Sentinel
 
 A local-first desktop system monitor built with Electron, React, and TypeScript.
