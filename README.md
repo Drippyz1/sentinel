@@ -1,34 +1,156 @@
-# sentinel
+# Sentinel
 
-An Electron application with React and TypeScript
+Sentinel is a desktop system monitoring app built with Electron, React, and TypeScript. It provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
 
-## Recommended IDE Setup
+> Sentinel is currently in active development.
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+## Features
 
-## Project Setup
+### Monitoring Dashboard
 
-### Install
+* Real-time CPU usage
+* Memory monitoring
+* Disk usage tracking
+* Network activity monitoring
+* GPU statistics
+* Battery information
+* Historical metric charts
+
+### Process Management
+
+* View running processes
+* Search processes
+* Sort by CPU, memory, PID, and name
+* Process termination with confirmation prompts
+
+### System Information
+
+* Hardware information
+* Operating system details
+* Thermal monitoring
+* Startup application management
+* Machine specifications
+
+### Built With
+
+* Electron
+* React
+* TypeScript
+* Tailwind CSS
+* Zustand
+* Recharts
+* better-sqlite3
+* systeminformation
+
+## Screenshots
+
+Screenshots and demo GIFs will be added soon.
+
+## Installation
+
+### Prerequisites
+
+* Node.js 20+
+* npm
+
+### Clone the Repository
 
 ```bash
-$ npm install
+git clone https://github.com/Drippyz1/sentinel.git
+cd sentinel
 ```
 
-### Development
+### Install Dependencies
 
 ```bash
-$ npm run dev
+npm install
 ```
 
-### Build
+## Development
+
+Start the development environment:
 
 ```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
+npm run dev
 ```
+
+## Quality Checks
+
+### Type Checking
+
+```bash
+npm run typecheck
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+### Formatting
+
+```bash
+npm run format
+```
+
+## Building
+
+### Windows
+
+```bash
+npm run build:win
+```
+
+### macOS
+
+```bash
+npm run build:mac
+```
+
+### Linux
+
+```bash
+npm run build:linux
+```
+
+## Roadmap
+
+### Near-Term Goals
+
+* [ ] Add screenshots
+* [ ] Add demo GIFs
+* [ ] Improve UI consistency
+* [ ] Expand historical metrics
+* [ ] Improve startup item support
+* [ ] Add settings persistence
+
+### Long-Term Goals
+
+* [ ] Exportable system reports
+* [ ] Plugin architecture
+* [ ] Alert and notification system
+* [ ] GitHub Actions CI/CD
+* [ ] Automatic update support
+* [ ] First stable release
+
+## Contributing
+
+Contributions are welcome.
+
+If you would like to contribute:
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Open a pull request
+
+Bug reports, feature requests, and documentation improvements are always appreciated.
+
+## Project Status
+
+Sentinel is currently an early-stage project and should be considered experimental. Features, APIs, and internal architecture may change between releases.
+
+## License
+
+A license will be added before the first public release.
