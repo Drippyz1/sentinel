@@ -1,46 +1,10 @@
 # Sentinel
 
-Sentinel is a desktop system monitoring app built with Electron, React, and TypeScript. It provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
+A local-first desktop system monitor built with Electron, React, and TypeScript.
 
-> Sentinel is currently in active development.
+Sentinel provides real-time system monitoring, process management, hardware information, startup application management, and historical metrics in a modern desktop interface.
 
-## Features
-
-### Monitoring Dashboard
-
-* Real-time CPU usage
-* Memory monitoring
-* Disk usage tracking
-* Network activity monitoring
-* GPU statistics
-* Battery information
-* Historical metric charts
-
-### Process Management
-
-* View running processes
-* Search processes
-* Sort by CPU, memory, PID, and name
-* Process termination with confirmation prompts
-
-### System Information
-
-* Hardware information
-* Operating system details
-* Thermal monitoring
-* Startup application management
-* Machine specifications
-
-### Built With
-
-* Electron
-* React
-* TypeScript
-* Tailwind CSS
-* Zustand
-* Recharts
-* better-sqlite3
-* systeminformation
+> ⚠️ Sentinel is currently under active development and should be considered early-stage software.
 
 ## Screenshots
 
@@ -59,6 +23,52 @@ Sentinel is a desktop system monitoring app built with Electron, React, and Type
 ### Settings
 
 ![Settings](docs/images/settings.png)
+
+---
+
+## Features
+
+### System Monitoring
+
+* Real-time CPU monitoring
+* Memory usage tracking
+* Disk usage statistics
+* Network activity monitoring
+* GPU monitoring
+* Battery information
+* Thermal monitoring
+
+### Process Management
+
+* View running processes
+* Search and filter processes
+* Sort by CPU, memory, PID, and name
+* Process termination tools
+
+### System Information
+
+* Hardware details
+* Operating system information
+* Startup application management
+* Machine specifications
+* System health metrics
+
+### Historical Data
+
+* Metrics collection
+* Historical usage charts
+* Resource trend analysis
+
+## Tech Stack
+
+* Electron
+* React
+* TypeScript
+* Tailwind CSS
+* Zustand
+* Recharts
+* better-sqlite3
+* systeminformation
 
 ## Installation
 
@@ -80,15 +90,13 @@ cd sentinel
 npm install
 ```
 
-## Development
-
-Start the development environment:
+### Start Development
 
 ```bash
 npm run dev
 ```
 
-## Quality Checks
+## Development Commands
 
 ### Type Checking
 
@@ -130,41 +138,30 @@ npm run build:linux
 
 ## Roadmap
 
-### Near-Term Goals
+### Short-Term
 
-* [ ] Add screenshots
-* [ ] Add demo GIFs
-* [ ] Improve UI consistency
-* [ ] Expand historical metrics
-* [ ] Improve startup item support
-* [ ] Add settings persistence
+* [ ] Additional dashboard customization
+* [ ] Improved historical analytics
+* [ ] Better startup application support
+* [ ] Exportable reports
+* [ ] Additional system widgets
 
-### Long-Term Goals
+### Long-Term
 
-* [ ] Exportable system reports
 * [ ] Plugin architecture
 * [ ] Alert and notification system
-* [ ] GitHub Actions CI/CD
-* [ ] Automatic update support
-* [ ] First stable release
+* [ ] Custom dashboards
+* [ ] Cross-device synchronization
+* [ ] Automated diagnostics
 
 ## Contributing
 
 Contributions are welcome.
 
-If you would like to contribute:
+Please read CONTRIBUTING.md before opening a pull request.
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Open a pull request
-
-Bug reports, feature requests, and documentation improvements are always appreciated.
-
-## Project Status
-
-Sentinel is currently an early-stage project and should be considered experimental. Features, APIs, and internal architecture may change between releases.
+Bug reports, feature requests, documentation improvements, and code contributions are appreciated.
 
 ## License
 
-A license will be added before the first public release.
+Distributed under the MIT License.
