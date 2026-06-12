@@ -44,7 +44,21 @@ Sentinel is a desktop system monitoring app built with Electron, React, and Type
 
 ## Screenshots
 
-Screenshots and demo GIFs will be added soon.
+### Dashboard
+
+![Dashboard](docs/images/dashboard.png)
+
+### Process Explorer
+
+![Process Explorer](docs/images/processes.png)
+
+### System Information
+
+![System Information](docs/images/system.png)
+
+### Settings
+
+![Settings](docs/images/settings.png)
 
 ## Installation
 
