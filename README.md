@@ -1,17 +1,16 @@
 <p align="center">
-  <img src="docs/images/logo.png
-  " width="140">
+  <img src="docs/images/logo.png" width="140" alt="Sentinel Logo">
 </p>
 
 <h1 align="center">Sentinel</h1>
 
 <p align="center">
-  Local-first desktop system monitor
+  Local-first desktop system monitor built with Electron, React, and TypeScript.
 </p>
 
-# Sentinel
+---
 
-Sentinel is a desktop system monitoring app built with Electron, React, and TypeScript. It provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
+Sentinel is a desktop system monitoring app that provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
 
 > Sentinel is currently in active development.
 
@@ -42,7 +41,19 @@ Sentinel is a desktop system monitoring app built with Electron, React, and Type
 * Startup application management
 * Machine specifications
 
-### Built With
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/dashboard.png" width="48%" alt="Dashboard">
+  <img src="docs/images/processes.png" width="48%" alt="Process Explorer">
+</p>
+
+<p align="center">
+  <img src="docs/images/system.png" width="48%" alt="System Information">
+  <img src="docs/images/settings.png" width="48%" alt="Settings">
+</p>
+
+## Tech Stack
 
 * Electron
 * React
@@ -52,24 +63,6 @@ Sentinel is a desktop system monitoring app built with Electron, React, and Type
 * Recharts
 * better-sqlite3
 * systeminformation
-
-## Screenshots
-
-### Dashboard
-
-![Dashboard](docs/images/dashboard.png)
-
-### Process Explorer
-
-![Process Explorer](docs/images/processes.png)
-
-### System Information
-
-![System Information](docs/images/system.png)
-
-### Settings
-
-![Settings](docs/images/settings.png)
 
 ## Installation
 
@@ -143,19 +136,18 @@ npm run build:linux
 
 ### Near-Term Goals
 
-* [ ] Add screenshots
 * [ ] Add demo GIFs
 * [ ] Improve UI consistency
 * [ ] Expand historical metrics
 * [ ] Improve startup item support
 * [ ] Add settings persistence
+* [ ] Add GitHub Actions CI/CD
 
 ### Long-Term Goals
 
 * [ ] Exportable system reports
 * [ ] Plugin architecture
 * [ ] Alert and notification system
-* [ ] GitHub Actions CI/CD
 * [ ] Automatic update support
 * [ ] First stable release
 
@@ -163,14 +155,9 @@ npm run build:linux
 
 Contributions are welcome.
 
-If you would like to contribute:
+Please read [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request.
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Open a pull request
-
-Bug reports, feature requests, and documentation improvements are always appreciated.
+Bug reports, feature requests, documentation improvements, and code contributions are appreciated.
 
 ## Project Status
 
@@ -178,4 +165,5 @@ Sentinel is currently an early-stage project and should be considered experiment
 
 ## License
 
-A license will be added before the first public release.
+Distributed under the MIT License.
+::: 
