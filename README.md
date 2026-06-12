@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="docs/images/logo.svg" width="140">
+  <img src="docs/images/logo.png
+  " width="140">
 </p>
 
 <h1 align="center">Sentinel</h1>
@@ -10,63 +11,38 @@
 
 # Sentinel
 
-A local-first desktop system monitor built with Electron, React, and TypeScript.
+Sentinel is a desktop system monitoring app built with Electron, React, and TypeScript. It provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
 
-Sentinel provides real-time system monitoring, process management, hardware information, startup application management, and historical metrics in a modern desktop interface.
-
-> ⚠️ Sentinel is currently under active development and should be considered early-stage software.
-
-## Preview
-
-![Dashboard](docs/images/dashboard.png)
-
-## Additional Screenshots
-
-<p align="center">
-  <img src="docs/images/processes.png" width="48%">
-  <img src="docs/images/system.png" width="48%">
-</p>
-
-<p align="center">
-  <img src="docs/images/settings.png" width="48%">
-</p>
-
----
+> Sentinel is currently in active development.
 
 ## Features
 
-### System Monitoring
+### Monitoring Dashboard
 
-* Real-time CPU monitoring
-* Memory usage tracking
-* Disk usage statistics
+* Real-time CPU usage
+* Memory monitoring
+* Disk usage tracking
 * Network activity monitoring
-* GPU monitoring
+* GPU statistics
 * Battery information
-* Thermal monitoring
+* Historical metric charts
 
 ### Process Management
 
 * View running processes
-* Search and filter processes
+* Search processes
 * Sort by CPU, memory, PID, and name
-* Process termination tools
+* Process termination with confirmation prompts
 
 ### System Information
 
-* Hardware details
-* Operating system information
+* Hardware information
+* Operating system details
+* Thermal monitoring
 * Startup application management
 * Machine specifications
-* System health metrics
 
-### Historical Data
-
-* Metrics collection
-* Historical usage charts
-* Resource trend analysis
-
-## Tech Stack
+### Built With
 
 * Electron
 * React
@@ -76,6 +52,24 @@ Sentinel provides real-time system monitoring, process management, hardware info
 * Recharts
 * better-sqlite3
 * systeminformation
+
+## Screenshots
+
+### Dashboard
+
+![Dashboard](docs/images/dashboard.png)
+
+### Process Explorer
+
+![Process Explorer](docs/images/processes.png)
+
+### System Information
+
+![System Information](docs/images/system.png)
+
+### Settings
+
+![Settings](docs/images/settings.png)
 
 ## Installation
 
@@ -97,13 +91,15 @@ cd sentinel
 npm install
 ```
 
-### Start Development
+## Development
+
+Start the development environment:
 
 ```bash
 npm run dev
 ```
 
-## Development Commands
+## Quality Checks
 
 ### Type Checking
 
@@ -145,30 +141,41 @@ npm run build:linux
 
 ## Roadmap
 
-### Short-Term
+### Near-Term Goals
 
-* [ ] Additional dashboard customization
-* [ ] Improved historical analytics
-* [ ] Better startup application support
-* [ ] Exportable reports
-* [ ] Additional system widgets
+* [ ] Add screenshots
+* [ ] Add demo GIFs
+* [ ] Improve UI consistency
+* [ ] Expand historical metrics
+* [ ] Improve startup item support
+* [ ] Add settings persistence
 
-### Long-Term
+### Long-Term Goals
 
+* [ ] Exportable system reports
 * [ ] Plugin architecture
 * [ ] Alert and notification system
-* [ ] Custom dashboards
-* [ ] Cross-device synchronization
-* [ ] Automated diagnostics
+* [ ] GitHub Actions CI/CD
+* [ ] Automatic update support
+* [ ] First stable release
 
 ## Contributing
 
 Contributions are welcome.
 
-Please read CONTRIBUTING.md before opening a pull request.
+If you would like to contribute:
 
-Bug reports, feature requests, documentation improvements, and code contributions are appreciated.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Open a pull request
+
+Bug reports, feature requests, and documentation improvements are always appreciated.
+
+## Project Status
+
+Sentinel is currently an early-stage project and should be considered experimental. Features, APIs, and internal architecture may change between releases.
 
 ## License
 
-Distributed under the MIT License.
+A license will be added before the first public release.
