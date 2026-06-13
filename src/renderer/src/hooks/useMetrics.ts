@@ -7,11 +7,21 @@ export function useMetricsPolling({ respectUiPause = true } = {}) {
   const fetchAll = useMetricsStore((state) => state.fetchAll)
   const fetchProcesses = useMetricsStore((state) => state.fetchProcesses)
   const fetchBattery = useMetricsStore((state) => state.fetchBattery)
+  const lastUpdated = useMetricsStore((state) => state.lastUpdated)
   const uiSettingsInitialized = useUiSettingsStore((state) => state.initialized)
   const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
 
   useEffect(() => {
-    if (respectUiPause && (!uiSettingsInitialized || isPollingPaused)) return
+    if (respectUiPause && !uiSettingsInitialized) return
+
+    if (respectUiPause && isPollingPaused) {
+      if (!lastUpdated) {
+        void fetchAll()
+        void fetchProcesses()
+        void fetchBattery()
+      }
+      return
+    }
 
     // Hardware + GPU — every 2 seconds
     fetchAll()
@@ -35,6 +45,7 @@ export function useMetricsPolling({ respectUiPause = true } = {}) {
     fetchBattery,
     fetchProcesses,
     isPollingPaused,
+    lastUpdated,
     respectUiPause,
     uiSettingsInitialized
   ])
@@ -84,11 +95,15 @@ export function useAnomalyReport() {
 
   useEffect(() => {
     const fetch = async () => {
-      const data = await window.electronAPI.getAnomalyReport()
-      setReport(data)
+      try {
+        const data = await window.electronAPI.getAnomalyReport()
+        setReport(data)
+      } catch (error) {
+        console.error('Failed to fetch anomaly report:', error)
+      }
     }
-    fetch()
-    const interval = setInterval(fetch, 2000)
+    void fetch()
+    const interval = setInterval(() => void fetch(), 2000)
     return () => clearInterval(interval)
   }, [])
 

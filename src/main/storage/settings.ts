@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, renameSync, writeFileSync } from 'fs'
 
 export type HistoryView = 'chart' | 'table'
 export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
@@ -114,6 +114,8 @@ export function updateUiSettings(patch: UiSettingsPatch): boolean {
 function writeSettings(settings: AppSettings, applyLoginItem: boolean): boolean {
   try {
     const normalized = normalizeSettings(settings)
+    const destination = settingsPath()
+    const temporary = `${destination}.tmp`
 
     if (applyLoginItem) {
       app.setLoginItemSettings({
@@ -122,7 +124,8 @@ function writeSettings(settings: AppSettings, applyLoginItem: boolean): boolean 
       })
     }
 
-    writeFileSync(settingsPath(), JSON.stringify(normalized, null, 2), 'utf8')
+    writeFileSync(temporary, JSON.stringify(normalized, null, 2), 'utf8')
+    renameSync(temporary, destination)
     return true
   } catch (err) {
     console.error('Failed to save settings:', err)

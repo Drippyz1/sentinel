@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { UiSettingsPatch } from '../main/storage/settings'
+import type { AppSettings, UiSettingsPatch } from '../main/storage/settings'
 
 if (process.contextIsolated) {
   try {
@@ -28,7 +28,7 @@ if (process.contextIsolated) {
 
       // Settings
       getSettings: () => ipcRenderer.invoke('get-settings'),
-      saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
+      saveSettings: (settings: AppSettings) => ipcRenderer.invoke('save-settings', settings),
       saveUiSettings: (patch: UiSettingsPatch) => ipcRenderer.invoke('save-ui-settings', patch),
       showDock: () => ipcRenderer.invoke('show-dock'),
       hideDock: () => ipcRenderer.invoke('hide-dock'),

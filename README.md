@@ -14,6 +14,10 @@ Sentinel is a desktop system monitoring app that provides a clean local dashboar
 
 > Sentinel is currently in active development.
 
+## Download
+
+Prebuilt packages are available from the [latest GitHub release](https://github.com/Drippyz1/sentinel/releases/latest).
+
 ## Features
 
 ### Monitoring Dashboard
@@ -24,13 +28,17 @@ Sentinel is a desktop system monitoring app that provides a clean local dashboar
 * Network activity monitoring
 * GPU statistics
 * Battery information
-* Historical metric charts
+* Pause and resume live dashboard updates
+* Historical metric charts and tables
+* CSV history export
+* Local anomaly detection and system notifications
 
 ### Process Management
 
 * View running processes
 * Search processes
 * Sort by CPU, memory, PID, and name
+* Quick filters and compact/comfortable table density
 * Process termination with confirmation prompts
 
 ### System Information
@@ -40,6 +48,12 @@ Sentinel is a desktop system monitoring app that provides a clean local dashboar
 * Thermal monitoring
 * Startup application management
 * Machine specifications
+* Simple and advanced system views
+
+### Local Preferences
+
+* Persistent dashboard, history, process, and system view preferences
+* Configurable polling interval, temperature unit, retention, and anomaly sensitivity
 
 ## Screenshots
 
@@ -51,6 +65,10 @@ Sentinel is a desktop system monitoring app that provides a clean local dashboar
 <p align="center">
   <img src="docs/images/system.png" width="48%" alt="System Information">
   <img src="docs/images/settings.png" width="48%" alt="Settings">
+</p>
+
+<p align="center">
+  <img src="docs/images/history.png" width="72%" alt="History charts and controls">
 </p>
 
 ## Tech Stack
@@ -69,7 +87,7 @@ Sentinel is a desktop system monitoring app that provides a clean local dashboar
 ### Prerequisites
 
 * Node.js 20+
-* npm
+* npm 10+
 
 ### Clone the Repository
 
@@ -81,7 +99,7 @@ cd sentinel
 ### Install Dependencies
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Development
@@ -132,22 +150,21 @@ npm run build:mac
 npm run build:linux
 ```
 
+Platform packages are written to `dist/`. Build each target on its native operating system because Sentinel includes the native `better-sqlite3` module.
+
+> Startup item management and detailed thermal information currently use macOS system services. Other monitoring features use cross-platform collectors where supported by the host.
+
 ## Roadmap
 
 ### Near-Term Goals
 
 * [ ] Add demo GIFs
-* [ ] Improve UI consistency
-* [ ] Expand historical metrics
 * [ ] Improve startup item support
-* [ ] Add settings persistence
-* [ ] Add GitHub Actions CI/CD
+* [ ] Expand automated testing
 
 ### Long-Term Goals
 
-* [ ] Exportable system reports
 * [ ] Plugin architecture
-* [ ] Alert and notification system
 * [ ] Automatic update support
 * [ ] First stable release
 
@@ -166,4 +183,3 @@ Sentinel is currently an early-stage project and should be considered experiment
 ## License
 
 Distributed under the MIT License.
-::: 

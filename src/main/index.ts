@@ -26,8 +26,12 @@ import {
   SENSITIVITY_THRESHOLD
 } from './storage/settings'
 
+const APP_ID = 'io.github.drippyz1.sentinel'
+let mainWindow: BrowserWindow | null = null
+let isQuitting = false
+
 function createWindow(): BrowserWindow {
-  const mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
@@ -39,29 +43,46 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  mainWindow = window
+
+  window.on('ready-to-show', () => {
+    window.show()
     if (process.platform === 'darwin') {
       app.dock?.setIcon(nativeImage.createFromPath(join(__dirname, '../../resources/icon.png')))
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  window.on('close', (event) => {
+    if (process.platform === 'darwin' && !isQuitting) {
+      event.preventDefault()
+      window.hide()
+    }
+  })
+
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null
+  })
+
+  window.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    void window
+      .loadURL(process.env['ELECTRON_RENDERER_URL'])
+      .catch((error) => console.error('Failed to load renderer:', error))
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    void window
+      .loadFile(join(__dirname, '../renderer/index.html'))
+      .catch((error) => console.error('Failed to load renderer:', error))
   }
 
-  return mainWindow
+  return window
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId(APP_ID)
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -155,8 +176,8 @@ app.whenReady().then(() => {
   setInterval(invalidateSystemInfoCache, 60000)
 
   // ── Windows & tray ────────────────────────
-  const mainWindow = createWindow()
-  setupTray(mainWindow)
+  createWindow()
+  setupTray(() => mainWindow)
 
   // ── IPC handlers ──────────────────────────
 
@@ -180,15 +201,22 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-settings', () => loadSettings())
   ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
-    saveSettings(newSettings)
-    setThreshold(SENSITIVITY_THRESHOLD[newSettings.anomalySensitivity])
+    const settings = {
+      ...newSettings,
+      ui: loadSettings().ui
+    }
+    const saved = saveSettings(settings)
+    if (!saved) return false
+
+    setThreshold(SENSITIVITY_THRESHOLD[settings.anomalySensitivity])
 
     if (process.platform === 'darwin') {
-      newSettings.hideFromDock ? app.dock?.hide() : app.dock?.show()
+      settings.hideFromDock ? app.dock?.hide() : app.dock?.show()
     }
 
     // Restart the polling loop if the interval changed
     startPolling()
+    return true
   })
   ipcMain.handle('save-ui-settings', (_event, patch: UiSettingsPatch) => updateUiSettings(patch))
 
@@ -215,7 +243,13 @@ app.whenReady().then(() => {
   )
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+
+    mainWindow.show()
+    mainWindow.focus()
   })
 })
 
@@ -228,6 +262,10 @@ app.on('window-all-closed', () => {
 app.on('quit', () => {
   closeDatabase()
   destroyTray()
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {

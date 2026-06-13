@@ -195,6 +195,7 @@ function HistoryEmptyState({ title, message }: { title: string; message: string 
 export function HistoryPage() {
   const [data, setData] = useState<SnapshotRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const historyRangeMinutes = useUiSettingsStore((state) => state.historyRangeMinutes)
   const setHistoryRangeMinutes = useUiSettingsStore((state) => state.setHistoryRangeMinutes)
@@ -206,12 +207,14 @@ export function HistoryPage() {
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
+    setLoadError(null)
     try {
       const rows = await window.electronAPI.getHistoryDownsampled(selectedRange.minutes)
       setData(rows)
       setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to load history:', err)
+      setLoadError('History could not be loaded. Sentinel will try again automatically.')
     } finally {
       setIsLoading(false)
     }
@@ -240,7 +243,7 @@ export function HistoryPage() {
         snapshot.battery ?? ''
       ].join(',')
     )
-    const csv = [CSV_HEADER.join(','), ...rows].join('\n')
+    const csv = `\uFEFF${[CSV_HEADER.join(','), ...rows].join('\r\n')}`
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
 
@@ -249,7 +252,7 @@ export function HistoryPage() {
     document.body.appendChild(link)
     link.click()
     link.remove()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
   function toggleMetric(metric: HistoryMetric) {
@@ -367,6 +370,8 @@ export function HistoryPage() {
 
       {isLoading && data.length === 0 ? (
         <HistoryEmptyState title="Loading history" message="Preparing recent metric snapshots..." />
+      ) : loadError && data.length === 0 ? (
+        <HistoryEmptyState title="Unable to load history" message={loadError} />
       ) : data.length === 0 ? (
         <HistoryEmptyState
           title="No history yet"

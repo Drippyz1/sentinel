@@ -134,28 +134,37 @@ function Select<T extends string | number>({
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [saved, setSaved] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    window.electronAPI.getSettings().then((s) => {
-      setSettings(s)
-      setLoading(false)
-    })
+    window.electronAPI
+      .getSettings()
+      .then(setSettings)
+      .catch((error) => {
+        console.error('Failed to load settings:', error)
+        setLoadError(true)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   async function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+    const previous = settings
     const next = { ...settings, [key]: value }
     setSettings(next)
+    setSaveStatus('idle')
 
-    if (key === 'hideFromDock') {
-      if (value) await window.electronAPI.hideDock()
-      else await window.electronAPI.showDock()
+    try {
+      const saved = await window.electronAPI.saveSettings(next)
+      if (!saved) throw new Error('Settings write failed')
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+      setSettings(previous)
+      setSaveStatus('error')
     }
-
-    await window.electronAPI.saveSettings(next)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
   }
 
   if (loading) {
@@ -164,6 +173,21 @@ export function SettingsPage() {
         <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Loading settings…
         </span>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-40 text-center">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Settings could not be loaded
+          </p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Restart Sentinel and try again.
+          </p>
+        </div>
       </div>
     )
   }
@@ -177,12 +201,16 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Settings
         </h2>
-        <span
-          className="text-xs transition-opacity duration-300"
-          style={{ color: 'var(--accent-green)', opacity: saved ? 1 : 0 }}
-        >
-          ✓ Saved
-        </span>
+        {saveStatus !== 'idle' && (
+          <span
+            className="text-xs transition-opacity duration-300"
+            style={{
+              color: saveStatus === 'saved' ? 'var(--accent-green)' : 'var(--accent-red)'
+            }}
+          >
+            {saveStatus === 'saved' ? 'Saved' : 'Could not save'}
+          </span>
+        )}
       </div>
 
       {/* ── System — macOS only ──────────────────── */}

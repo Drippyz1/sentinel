@@ -47,13 +47,11 @@ function createTrayWindow(): BrowserWindow {
   return win
 }
 
-export function setupTray(mainWindow: BrowserWindow) {
+export function setupTray(getMainWindow: () => BrowserWindow | null) {
   const icon = createTrayIcon()
   tray = new Tray(icon)
   tray.setToolTip('Sentinel')
 
-  // Fix: mainWindow param was unused because createTrayWindow didn't
-  // need it — removed the param to fix the TS6133 unused variable error
   trayWindow = createTrayWindow()
 
   tray.on('click', () => {
@@ -75,6 +73,9 @@ export function setupTray(mainWindow: BrowserWindow) {
   })
 
   ipcMain.handle('open-main-window', () => {
+    const mainWindow = getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
     mainWindow.show()
     mainWindow.focus()
     trayWindow?.hide()

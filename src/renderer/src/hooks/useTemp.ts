@@ -19,14 +19,17 @@ export function useTemp() {
   const [unit, setUnit] = useState<AppSettings['tempUnit']>('C')
 
   useEffect(() => {
-    // Load initial value
-    window.electronAPI.getSettings().then((s) => setUnit(s.tempUnit))
+    const refreshUnit = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings()
+        setUnit(settings.tempUnit)
+      } catch (error) {
+        console.error('Failed to refresh temperature unit:', error)
+      }
+    }
 
-    // Re-read every 5 seconds so changing the setting in the
-    // Settings page is reflected without a full page reload
-    const interval = setInterval(() => {
-      window.electronAPI.getSettings().then((s) => setUnit(s.tempUnit))
-    }, 5000)
+    void refreshUnit()
+    const interval = setInterval(() => void refreshUnit(), 5000)
 
     return () => clearInterval(interval)
   }, [])

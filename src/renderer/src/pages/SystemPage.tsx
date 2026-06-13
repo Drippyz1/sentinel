@@ -291,24 +291,30 @@ export function SystemPage() {
     window.electronAPI
       .getStartupMetrics()
       .then(setStartup)
+      .catch((error) => console.error('Failed to load startup items:', error))
       .finally(() => setLoadingStartup(false))
   }, [])
 
   useEffect(() => {
-    // Static machine info — fetch once, it never changes during a session
-    window.electronAPI.getSystemInfo().then(setSystemInfo)
-
-    // Thermal — fetch now then poll every 10 seconds
-    window.electronAPI.getThermalMetrics().then((metrics) => {
-      setThermal(metrics)
-      setLastRefreshed(new Date())
-    })
-    const thermalInterval = setInterval(() => {
-      window.electronAPI.getThermalMetrics().then((metrics) => {
+    const refreshThermal = async () => {
+      try {
+        const metrics = await window.electronAPI.getThermalMetrics()
         setThermal(metrics)
         setLastRefreshed(new Date())
-      })
-    }, 10000)
+      } catch (error) {
+        console.error('Failed to load thermal metrics:', error)
+      }
+    }
+
+    // Static machine info — fetch once, it never changes during a session
+    void window.electronAPI
+      .getSystemInfo()
+      .then(setSystemInfo)
+      .catch((error) => console.error('Failed to load system information:', error))
+
+    // Thermal — fetch now then poll every 10 seconds
+    void refreshThermal()
+    const thermalInterval = setInterval(() => void refreshThermal(), 10000)
 
     // Startup items — heavier scan, fetch separately
     const startupLoad = setTimeout(refreshStartup, 0)
