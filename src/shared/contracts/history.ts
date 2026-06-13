@@ -10,6 +10,8 @@ export interface SnapshotRow {
   net_up: number
   gpu_usage: number | null
   battery: number | null
+  cpu_temperature: number | null
+  gpu_temperature: number | null
 }
 
 export interface HistorySummary {

@@ -31,6 +31,8 @@ const CSV_HEADER = [
   'net_down',
   'net_up',
   'gpu_usage',
+  'cpu_temperature',
+  'gpu_temperature',
   'battery'
 ]
 
@@ -83,6 +85,10 @@ function formatXAxis(timestamp: number): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function formatTemperature(value: number): string {
+  return `${value}°C`
 }
 
 interface ChartCardProps {
@@ -239,6 +245,8 @@ export function HistoryPage() {
         snapshot.net_down,
         snapshot.net_up,
         snapshot.gpu_usage ?? '',
+        snapshot.cpu_temperature ?? '',
+        snapshot.gpu_temperature ?? '',
         snapshot.battery ?? ''
       ].join(',')
     )
@@ -261,10 +269,24 @@ export function HistoryPage() {
   const hasVisibleMetrics = Object.values(visibility).some(Boolean)
   const hasGpuData = data.some((snapshot) => snapshot.gpu_usage !== null)
   const hasBatteryData = data.some((snapshot) => snapshot.battery !== null)
+  const hasCpuTemperatureData = data.some((snapshot) => snapshot.cpu_temperature !== null)
+  const hasGpuTemperatureData = data.some((snapshot) => snapshot.gpu_temperature !== null)
   const maxNetDown = Math.max(...data.map((d) => d.net_down), 1)
   const maxNetUp = Math.max(...data.map((d) => d.net_up), 1)
   const maxDiskRead = Math.max(...data.map((d) => d.disk_read), 1)
   const maxDiskWrite = Math.max(...data.map((d) => d.disk_write), 1)
+  const maxCpuTemperature = Math.max(
+    ...data.flatMap((snapshot) =>
+      snapshot.cpu_temperature === null ? [] : [snapshot.cpu_temperature]
+    ),
+    100
+  )
+  const maxGpuTemperature = Math.max(
+    ...data.flatMap((snapshot) =>
+      snapshot.gpu_temperature === null ? [] : [snapshot.gpu_temperature]
+    ),
+    100
+  )
 
   return (
     <div>
@@ -393,7 +415,12 @@ export function HistoryPage() {
                   >
                     Timestamp
                   </th>
-                  {visibility.cpu && <HistoryTableHeader label="CPU" />}
+                  {visibility.cpu && (
+                    <>
+                      <HistoryTableHeader label="CPU" />
+                      {hasCpuTemperatureData && <HistoryTableHeader label="CPU Temp" />}
+                    </>
+                  )}
                   {visibility.memory && <HistoryTableHeader label="Memory" />}
                   {visibility.network && (
                     <>
@@ -407,7 +434,12 @@ export function HistoryPage() {
                       <HistoryTableHeader label="Disk Write" />
                     </>
                   )}
-                  {visibility.gpu && hasGpuData && <HistoryTableHeader label="GPU" />}
+                  {visibility.gpu && (
+                    <>
+                      {hasGpuData && <HistoryTableHeader label="GPU" />}
+                      {hasGpuTemperatureData && <HistoryTableHeader label="GPU Temp" />}
+                    </>
+                  )}
                   {visibility.battery && hasBatteryData && <HistoryTableHeader label="Battery" />}
                 </tr>
               </thead>
@@ -428,7 +460,20 @@ export function HistoryPage() {
                       value={new Date(snapshot.timestamp).toLocaleString()}
                       align="left"
                     />
-                    {visibility.cpu && <HistoryTableCell value={`${snapshot.cpu_usage}%`} />}
+                    {visibility.cpu && (
+                      <>
+                        <HistoryTableCell value={`${snapshot.cpu_usage}%`} />
+                        {hasCpuTemperatureData && (
+                          <HistoryTableCell
+                            value={
+                              snapshot.cpu_temperature === null
+                                ? '—'
+                                : formatTemperature(snapshot.cpu_temperature)
+                            }
+                          />
+                        )}
+                      </>
+                    )}
                     {visibility.memory && <HistoryTableCell value={`${snapshot.memory_usage}%`} />}
                     {visibility.network && (
                       <>
@@ -442,10 +487,23 @@ export function HistoryPage() {
                         <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
                       </>
                     )}
-                    {visibility.gpu && hasGpuData && (
-                      <HistoryTableCell
-                        value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
-                      />
+                    {visibility.gpu && (
+                      <>
+                        {hasGpuData && (
+                          <HistoryTableCell
+                            value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
+                          />
+                        )}
+                        {hasGpuTemperatureData && (
+                          <HistoryTableCell
+                            value={
+                              snapshot.gpu_temperature === null
+                                ? '—'
+                                : formatTemperature(snapshot.gpu_temperature)
+                            }
+                          />
+                        )}
+                      </>
                     )}
                     {visibility.battery && hasBatteryData && (
                       <HistoryTableCell
@@ -461,14 +519,26 @@ export function HistoryPage() {
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {visibility.cpu && (
-            <ChartCard
-              title="CPU Usage"
-              data={data}
-              dataKey="cpu_usage"
-              color="#3b82f6"
-              formatValue={(v) => `${v}%`}
-              domain={[0, 100]}
-            />
+            <>
+              <ChartCard
+                title="CPU Usage"
+                data={data}
+                dataKey="cpu_usage"
+                color="#3b82f6"
+                formatValue={(v) => `${v}%`}
+                domain={[0, 100]}
+              />
+              {hasCpuTemperatureData && (
+                <ChartCard
+                  title="CPU Temperature"
+                  data={data}
+                  dataKey="cpu_temperature"
+                  color="#f59e0b"
+                  formatValue={formatTemperature}
+                  domain={[0, maxCpuTemperature]}
+                />
+              )}
+            </>
           )}
           {visibility.memory && (
             <ChartCard
@@ -520,15 +590,29 @@ export function HistoryPage() {
               />
             </>
           )}
-          {visibility.gpu && hasGpuData && (
-            <ChartCard
-              title="GPU Usage"
-              data={data}
-              dataKey="gpu_usage"
-              color="#ec4899"
-              formatValue={(v) => `${v}%`}
-              domain={[0, 100]}
-            />
+          {visibility.gpu && (
+            <>
+              {hasGpuData && (
+                <ChartCard
+                  title="GPU Usage"
+                  data={data}
+                  dataKey="gpu_usage"
+                  color="#ec4899"
+                  formatValue={(v) => `${v}%`}
+                  domain={[0, 100]}
+                />
+              )}
+              {hasGpuTemperatureData && (
+                <ChartCard
+                  title="GPU Temperature"
+                  data={data}
+                  dataKey="gpu_temperature"
+                  color="#ef4444"
+                  formatValue={formatTemperature}
+                  domain={[0, maxGpuTemperature]}
+                />
+              )}
+            </>
           )}
           {visibility.battery && hasBatteryData && (
             <ChartCard

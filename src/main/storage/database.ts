@@ -36,7 +36,9 @@ function initializeSchema(db: Database.Database) {
       net_down     REAL,
       net_up       REAL,
       gpu_usage    REAL,
-      battery      REAL
+      battery      REAL,
+      cpu_temperature REAL,
+      gpu_temperature REAL
     )
   `)
 
@@ -55,7 +57,7 @@ function initializeSchema(db: Database.Database) {
 
 function migrateSchema(db: Database.Database) {
   try {
-    const cols = db.pragma('table_info(metric_snapshots)') as {
+    let cols = db.pragma('table_info(metric_snapshots)') as {
       name: string
       notnull: number
     }[]
@@ -81,13 +83,15 @@ function migrateSchema(db: Database.Database) {
           net_down     REAL,
           net_up       REAL,
           gpu_usage    REAL,
-          battery      REAL
+          battery      REAL,
+          cpu_temperature REAL,
+          gpu_temperature REAL
         );
 
         INSERT INTO metric_snapshots_new
           SELECT id, timestamp, cpu_usage, memory_usage, memory_used,
                  disk_usage, disk_read, disk_write, net_down, net_up,
-                 gpu_usage, battery
+                 gpu_usage, battery, NULL, NULL
           FROM metric_snapshots;
 
         DROP TABLE metric_snapshots;
@@ -101,6 +105,20 @@ function migrateSchema(db: Database.Database) {
       `)
 
       console.log('Schema migration complete')
+      cols = db.pragma('table_info(metric_snapshots)') as {
+        name: string
+        notnull: number
+      }[]
+    }
+
+    const columnNames = new Set(cols.map((column) => column.name))
+    if (!columnNames.has('cpu_temperature')) {
+      db.exec('ALTER TABLE metric_snapshots ADD COLUMN cpu_temperature REAL')
+      console.log('Schema migration complete: added CPU temperature history')
+    }
+    if (!columnNames.has('gpu_temperature')) {
+      db.exec('ALTER TABLE metric_snapshots ADD COLUMN gpu_temperature REAL')
+      console.log('Schema migration complete: added GPU temperature history')
     }
   } catch (err) {
     console.error('Schema migration failed:', err)

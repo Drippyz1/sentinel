@@ -32,11 +32,13 @@ function getInsertStmt(): Database.Statement {
     INSERT INTO metric_snapshots (
       timestamp, cpu_usage, memory_usage, memory_used,
       disk_usage, disk_read, disk_write,
-      net_down, net_up, gpu_usage, battery
+      net_down, net_up, gpu_usage, battery,
+      cpu_temperature, gpu_temperature
     ) VALUES (
       @timestamp, @cpu_usage, @memory_usage, @memory_used,
       @disk_usage, @disk_read, @disk_write,
-      @net_down, @net_up, @gpu_usage, @battery
+      @net_down, @net_up, @gpu_usage, @battery,
+      @cpu_temperature, @gpu_temperature
     )
   `)
   return insertStmt
@@ -65,11 +67,17 @@ export function recordSnapshot(data: SnapshotData) {
       net_down: data.network.totalDownloadBytesPerSec ?? 0,
       net_up: data.network.totalUploadBytesPerSec ?? 0,
       gpu_usage: data.gpu?.controllers[0]?.utilizationPercent ?? null,
-      battery: data.battery?.hasBattery ? data.battery.chargePercent : null
+      battery: data.battery?.hasBattery ? data.battery.chargePercent : null,
+      cpu_temperature: finiteOrNull(data.cpu.temperature),
+      gpu_temperature: finiteOrNull(data.gpu?.controllers[0]?.temperatureCelsius)
     })
   } catch (err) {
     console.error('Failed to record snapshot:', err)
   }
+}
+
+function finiteOrNull(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export function cleanOldSnapshots(retentionDays = RETENTION_DAYS) {

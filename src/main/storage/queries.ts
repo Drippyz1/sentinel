@@ -67,7 +67,9 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
       ROUND(AVG(net_down), 0)     as net_down,
       ROUND(AVG(net_up), 0)       as net_up,
       ROUND(AVG(gpu_usage), 1)    as gpu_usage,
-      ROUND(AVG(battery), 1)      as battery
+      ROUND(AVG(battery), 1)      as battery,
+      ROUND(AVG(cpu_temperature), 1) as cpu_temperature,
+      ROUND(AVG(gpu_temperature), 1) as gpu_temperature
     FROM metric_snapshots
     WHERE timestamp > ?
     GROUP BY timestamp / ${bucketMs}
