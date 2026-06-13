@@ -22,7 +22,9 @@ export function BatteryWidget() {
   if (!battery) {
     return (
       <Card title="Battery">
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading...</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Loading...
+        </p>
       </Card>
     )
   }
@@ -53,13 +55,13 @@ export function BatteryWidget() {
 
   return (
     <Card title="Battery" subtitle={statusLabel}>
-
       <div className="flex items-end gap-2 mb-3">
-        <span className="text-4xl font-bold font-mono"
-              style={{ color: 'var(--text-primary)' }}>
+        <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
           {battery.chargePercent}
         </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>%</span>
+        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
+          %
+        </span>
         {battery.isCharging && (
           <span className="text-sm mb-1.5 ml-1" style={{ color: 'var(--accent-green)' }}>
             ⚡
@@ -78,18 +80,10 @@ export function BatteryWidget() {
           />
         )}
         {battery.cycleCount !== null && (
-          <StatRow
-            label="Cycle count"
-            value={`${battery.cycleCount}`}
-            accent="blue"
-          />
+          <StatRow label="Cycle count" value={`${battery.cycleCount}`} accent="blue" />
         )}
         {battery.voltage !== null && (
-          <StatRow
-            label="Voltage"
-            value={`${battery.voltage.toFixed(2)}V`}
-            accent="blue"
-          />
+          <StatRow label="Voltage" value={`${battery.voltage.toFixed(2)}V`} accent="blue" />
         )}
       </div>
 
@@ -98,10 +92,7 @@ export function BatteryWidget() {
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
             Battery Health
           </p>
-          <UsageBar
-            percent={battery.healthPercent}
-            accent={healthColor(battery.healthPercent)}
-          />
+          <UsageBar percent={battery.healthPercent} accent={healthColor(battery.healthPercent)} />
           <div className="mt-2 space-y-1">
             <StatRow
               label="Health"
@@ -125,7 +116,6 @@ export function BatteryWidget() {
           </div>
         </div>
       )}
-
     </Card>
   )
 }

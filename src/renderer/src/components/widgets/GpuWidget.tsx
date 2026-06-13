@@ -27,15 +27,29 @@ export function GpuWidget() {
         <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
           {controller.utilizationPercent}
         </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>%</span>
+        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
+          %
+        </span>
       </div>
 
       <UsageBar percent={controller.utilizationPercent} />
 
       <div className="mt-4 space-y-1">
-        <StatRow label="Temperature" value={formatTemp(controller.temperatureCelsius)} accent="amber" />
-        <StatRow label="Power Draw"  value={controller.powerDrawWatts  ? `${controller.powerDrawWatts}W`  : 'N/A'} accent="blue" />
-        <StatRow label="Power Limit" value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'} accent="blue" />
+        <StatRow
+          label="Temperature"
+          value={formatTemp(controller.temperatureCelsius)}
+          accent="amber"
+        />
+        <StatRow
+          label="Power Draw"
+          value={controller.powerDrawWatts ? `${controller.powerDrawWatts}W` : 'N/A'}
+          accent="blue"
+        />
+        <StatRow
+          label="Power Limit"
+          value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'}
+          accent="blue"
+        />
       </div>
 
       {controller.vramBytes > 0 && (
@@ -45,9 +59,9 @@ export function GpuWidget() {
           </p>
           <UsageBar percent={controller.vramUsagePercent} accent="purple" />
           <div className="mt-2 space-y-1">
-            <StatRow label="Used"  value={formatBytes(controller.vramUsedBytes)} accent="purple" />
-            <StatRow label="Free"  value={formatBytes(controller.vramFreeBytes)} accent="green"  />
-            <StatRow label="Total" value={formatBytes(controller.vramBytes)}     accent="blue"   />
+            <StatRow label="Used" value={formatBytes(controller.vramUsedBytes)} accent="purple" />
+            <StatRow label="Free" value={formatBytes(controller.vramFreeBytes)} accent="green" />
+            <StatRow label="Total" value={formatBytes(controller.vramBytes)} accent="blue" />
           </div>
         </div>
       )}

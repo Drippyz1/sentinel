@@ -1,46 +1,55 @@
 import { useMetricsPolling } from './hooks/useMetrics'
-import { useCpuMetrics, useMemoryMetrics,
-         useNetworkMetrics, useBatteryMetrics } from './hooks/useMetrics'
+import {
+  useCpuMetrics,
+  useMemoryMetrics,
+  useNetworkMetrics,
+  useBatteryMetrics
+} from './hooks/useMetrics'
 import { formatSpeed } from './utils/format'
 import { UsageBar } from './components/ui/UsageBar'
 
 function TrayContent() {
   useMetricsPolling()
 
-  const cpu     = useCpuMetrics()
-  const memory  = useMemoryMetrics()
+  const cpu = useCpuMetrics()
+  const memory = useMemoryMetrics()
   const network = useNetworkMetrics()
   const battery = useBatteryMetrics()
 
   if (!cpu || !memory) {
     return (
-      <div className="flex items-center justify-center h-full"
-           style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+      <div
+        className="flex items-center justify-center h-full"
+        style={{ color: 'var(--text-muted)', fontSize: '12px' }}
+      >
         Loading...
       </div>
     )
   }
 
   return (
-    <div style={{
-      padding: '12px',
-      backgroundColor: 'var(--bg-base)',
-      color: 'var(--text-primary)',
-      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-      fontSize: '12px',
-      height: '100%',
-      overflow: 'hidden'
-    }}>
-
+    <div
+      style={{
+        padding: '12px',
+        backgroundColor: 'var(--bg-base)',
+        color: 'var(--text-primary)',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        fontSize: '12px',
+        height: '100%',
+        overflow: 'hidden'
+      }}
+    >
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '10px',
-        paddingBottom: '8px',
-        borderBottom: '1px solid var(--border)'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '10px',
+          paddingBottom: '8px',
+          borderBottom: '1px solid var(--border)'
+        }}
+      >
         <span style={{ fontWeight: 600, fontSize: '13px' }}>Sentinel</span>
         <button
           onClick={() => window.electronAPI.openMainWindow()}
@@ -96,29 +105,31 @@ function TrayContent() {
 
       {/* Battery */}
       {battery?.hasBattery && (
-        <div style={{
-          paddingTop: '8px',
-          borderTop: '1px solid var(--border)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+        <div
+          style={{
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
           <span style={{ color: 'var(--text-muted)' }}>Battery</span>
-          <span style={{
-            fontFamily: 'monospace',
-            fontWeight: 600,
-            color: battery.isCharging
-              ? 'var(--accent-green)'
-              : battery.chargePercent < 20
-                ? 'var(--accent-red)'
-                : 'var(--text-primary)'
-          }}>
-            {battery.chargePercent}%
-            {battery.isCharging ? ' ⚡' : ''}
+          <span
+            style={{
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              color: battery.isCharging
+                ? 'var(--accent-green)'
+                : battery.chargePercent < 20
+                  ? 'var(--accent-red)'
+                  : 'var(--text-primary)'
+            }}
+          >
+            {battery.chargePercent}%{battery.isCharging ? ' ⚡' : ''}
           </span>
         </div>
       )}
-
     </div>
   )
 }

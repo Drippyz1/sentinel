@@ -1,42 +1,42 @@
 import { create } from 'zustand'
-import { CpuMetrics }     from '../../../main/collectors/cpu'
-import { MemoryMetrics }  from '../../../main/collectors/memory'
-import { DiskMetrics }    from '../../../main/collectors/disk'
+import { CpuMetrics } from '../../../main/collectors/cpu'
+import { MemoryMetrics } from '../../../main/collectors/memory'
+import { DiskMetrics } from '../../../main/collectors/disk'
 import { NetworkMetrics } from '../../../main/collectors/network'
 import { ProcessMetrics } from '../../../main/collectors/processes'
-import { GpuMetrics }     from '../../../main/collectors/gpu'
+import { GpuMetrics } from '../../../main/collectors/gpu'
 import { BatteryMetrics } from '../../../main/collectors/battery'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {
-  cpu:       CpuMetrics     | null
-  memory:    MemoryMetrics  | null
-  disk:      DiskMetrics    | null
-  network:   NetworkMetrics | null
+  cpu: CpuMetrics | null
+  memory: MemoryMetrics | null
+  disk: DiskMetrics | null
+  network: NetworkMetrics | null
   processes: ProcessMetrics | null
-  gpu:       GpuMetrics     | null
-  battery:   BatteryMetrics | null
+  gpu: GpuMetrics | null
+  battery: BatteryMetrics | null
 
-  isLoading:   boolean
-  error:       string | null
+  isLoading: boolean
+  error: string | null
   lastUpdated: Date | null
 
-  fetchAll:       () => Promise<void>
+  fetchAll: () => Promise<void>
   fetchProcesses: () => Promise<void>
-  fetchBattery:   () => Promise<void>
+  fetchBattery: () => Promise<void>
 }
 
 export const useMetricsStore = create<MetricsState>()((set) => ({
-  cpu:       null,
-  memory:    null,
-  disk:      null,
-  network:   null,
+  cpu: null,
+  memory: null,
+  disk: null,
+  network: null,
   processes: null,
-  gpu:       null,
-  battery:   null,
+  gpu: null,
+  battery: null,
 
-  isLoading:   false,
-  error:       null,
+  isLoading: false,
+  error: null,
   lastUpdated: null,
 
   fetchAll: async () => {
@@ -47,7 +47,7 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
         window.electronAPI.getMemoryMetrics(),
         window.electronAPI.getDiskMetrics(),
         window.electronAPI.getNetworkMetrics(),
-        window.electronAPI.getGpuMetrics(),
+        window.electronAPI.getGpuMetrics()
       ])
 
       set({ cpu, memory, disk, network, gpu, isLoading: false, lastUpdated: new Date() })
@@ -59,9 +59,11 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
       history.pushDiskWrite(disk.io.writeBytesPerSec)
       history.pushNetworkDown(network.totalDownloadBytesPerSec)
       history.pushNetworkUp(network.totalUploadBytesPerSec)
-
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to fetch metrics', isLoading: false })
+      set({
+        error: err instanceof Error ? err.message : 'Failed to fetch metrics',
+        isLoading: false
+      })
     }
   },
 

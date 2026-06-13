@@ -7,10 +7,10 @@ export interface NetworkMetrics {
 }
 
 export interface NetworkInterface {
-  name: string                  // e.g. "en0", "Wi-Fi"
+  name: string // e.g. "en0", "Wi-Fi"
   downloadBytesPerSec: number
   uploadBytesPerSec: number
-  totalDownloaded: number       // total since app started
+  totalDownloaded: number // total since app started
   totalUploaded: number
   ipAddress: string
   isActive: boolean
@@ -18,22 +18,22 @@ export interface NetworkInterface {
 
 export async function getNetworkMetrics(): Promise<NetworkMetrics> {
   const [stats, interfaces] = await Promise.all([
-    si.networkStats(),      // real-time transfer speeds
-    si.networkInterfaces()  // interface info like IP address
+    si.networkStats(), // real-time transfer speeds
+    si.networkInterfaces() // interface info like IP address
   ])
 
   // Build a lookup map from interface name → IP info
   // A "Map" is like an object but optimized for lookups by key
   const ifaceMap = new Map<string, string>()
   if (Array.isArray(interfaces)) {
-    interfaces.forEach(iface => {
+    interfaces.forEach((iface) => {
       if (iface.ip4) ifaceMap.set(iface.iface, iface.ip4)
     })
   }
 
   const activeInterfaces: NetworkInterface[] = stats
-    .filter(stat => stat.iface && (stat.rx_sec ?? 0) >= 0)
-    .map(stat => ({
+    .filter((stat) => stat.iface && (stat.rx_sec ?? 0) >= 0)
+    .map((stat) => ({
       name: stat.iface,
       downloadBytesPerSec: Math.max(0, stat.rx_sec ?? 0),
       uploadBytesPerSec: Math.max(0, stat.tx_sec ?? 0),
@@ -43,11 +43,15 @@ export async function getNetworkMetrics(): Promise<NetworkMetrics> {
       isActive: (stat.rx_sec ?? 0) > 0 || (stat.tx_sec ?? 0) > 0
     }))
 
-  const totalDownloadBytesPerSec = activeInterfaces
-    .reduce((sum, iface) => sum + iface.downloadBytesPerSec, 0)
+  const totalDownloadBytesPerSec = activeInterfaces.reduce(
+    (sum, iface) => sum + iface.downloadBytesPerSec,
+    0
+  )
 
-  const totalUploadBytesPerSec = activeInterfaces
-    .reduce((sum, iface) => sum + iface.uploadBytesPerSec, 0)
+  const totalUploadBytesPerSec = activeInterfaces.reduce(
+    (sum, iface) => sum + iface.uploadBytesPerSec,
+    0
+  )
 
   return {
     interfaces: activeInterfaces,

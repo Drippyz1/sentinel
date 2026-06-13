@@ -1,31 +1,36 @@
 import { useState, useEffect } from 'react'
-import { SystemInfo }     from '../../../main/collectors/systemInfo'
+import { SystemInfo } from '../../../main/collectors/systemInfo'
 import { ThermalMetrics } from '../../../main/collectors/thermal'
 import { StartupMetrics } from '../../../main/collectors/startup'
-import { formatBytes }    from '../utils/format'
-import { Card }           from '../components/ui/Card'
-import { StatRow }        from '../components/ui/StatRow'
+import { formatBytes } from '../utils/format'
+import { Card } from '../components/ui/Card'
+import { StatRow } from '../components/ui/StatRow'
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
 
 function formatUptime(seconds: number): string {
-  const days  = Math.floor(seconds / 86400)
+  const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
-  const mins  = Math.floor((seconds % 3600) / 60)
-  if (days > 0)  return `${days}d ${hours}h ${mins}m`
+  const mins = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h ${mins}m`
   if (hours > 0) return `${hours}h ${mins}m`
   return `${mins}m`
 }
 
 function thermalColor(level: string): string {
   switch (level) {
-    case 'nominal':  return 'var(--accent-green)'
-    case 'moderate': return 'var(--accent-amber)'
-    case 'heavy':    return 'var(--accent-red)'
-    case 'trapping': return 'var(--accent-red)'
-    default:         return 'var(--text-muted)'
+    case 'nominal':
+      return 'var(--accent-green)'
+    case 'moderate':
+      return 'var(--accent-amber)'
+    case 'heavy':
+      return 'var(--accent-red)'
+    case 'trapping':
+      return 'var(--accent-red)'
+    default:
+      return 'var(--text-muted)'
   }
 }
 
@@ -43,16 +48,13 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
             style={{ backgroundColor: 'var(--text-muted)' }}
           />
           <div>
-            <p className="text-sm font-medium mb-1"
-               style={{ color: 'var(--text-primary)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
               Thermal data unavailable
             </p>
-            <p className="text-xs leading-relaxed"
-               style={{ color: 'var(--text-muted)' }}>
-              Apple Silicon Macs restrict thermal sensor access on recent
-              versions of macOS. This data is only available when running
-              with elevated permissions, which Sentinel avoids for security.
-              If your Mac is throttling, you'll typically notice it through
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              Apple Silicon Macs restrict thermal sensor access on recent versions of macOS. This
+              data is only available when running with elevated permissions, which Sentinel avoids
+              for security. If your Mac is throttling, you&apos;ll typically notice it through
               reduced CPU performance and fan noise.
             </p>
           </div>
@@ -77,10 +79,7 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
         <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
           — {thermal.description}
         </span>
-        <span
-          className="text-xs font-mono ml-auto"
-          style={{ color: 'var(--text-muted)' }}
-        >
+        <span className="text-xs font-mono ml-auto" style={{ color: 'var(--text-muted)' }}>
           via {thermal.source}
         </span>
       </div>
@@ -95,8 +94,7 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
                 CPU Speed Limit
               </p>
-              <p className="text-lg font-bold font-mono"
-                 style={{ color: 'var(--accent-amber)' }}>
+              <p className="text-lg font-bold font-mono" style={{ color: 'var(--accent-amber)' }}>
                 {thermal.cpuSpeedLimit}%
               </p>
             </div>
@@ -106,8 +104,7 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
                 Scheduler Limit
               </p>
-              <p className="text-lg font-bold font-mono"
-                 style={{ color: 'var(--accent-amber)' }}>
+              <p className="text-lg font-bold font-mono" style={{ color: 'var(--accent-amber)' }}>
                 {thermal.schedulerLimit}%
               </p>
             </div>
@@ -117,8 +114,7 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
                 Disk Speed Limit
               </p>
-              <p className="text-lg font-bold font-mono"
-                 style={{ color: 'var(--accent-amber)' }}>
+              <p className="text-lg font-bold font-mono" style={{ color: 'var(--accent-amber)' }}>
                 {thermal.diskSpeedLimit}%
               </p>
             </div>
@@ -134,16 +130,16 @@ function StartupCard({
   loadingStartup,
   onRefresh
 }: {
-  startup:        StartupMetrics | null
+  startup: StartupMetrics | null
   loadingStartup: boolean
-  onRefresh:      () => void
+  onRefresh: () => void
 }) {
   return (
     <Card
       title="Startup Items"
-      subtitle={startup
-        ? `${startup.enabledCount} enabled of ${startup.totalCount} total`
-        : undefined}
+      subtitle={
+        startup ? `${startup.enabledCount} enabled of ${startup.totalCount} total` : undefined
+      }
     >
       {loadingStartup && (
         <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
@@ -159,14 +155,13 @@ function StartupCard({
 
       {startup && startup.items.length > 0 && (
         <div className="overflow-y-auto" style={{ maxHeight: '360px' }}>
-
           {/* Table header */}
           <div
             className="grid gap-4 px-2 pb-2 mb-1 text-xs font-semibold uppercase tracking-wider"
             style={{
               gridTemplateColumns: '1fr 110px 80px 80px',
-              borderBottom:        '1px solid var(--border)',
-              color:               'var(--text-muted)'
+              borderBottom: '1px solid var(--border)',
+              color: 'var(--text-muted)'
             }}
           >
             <span>Name</span>
@@ -181,13 +176,11 @@ function StartupCard({
               key={i}
               className="grid gap-4 px-2 py-2 rounded-lg items-center"
               style={{ gridTemplateColumns: '1fr 110px 80px 80px' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.backgroundColor =
-                  'var(--bg-card-hover)'
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--bg-card-hover)'
               }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.backgroundColor =
-                  'transparent'
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
               }}
             >
               {/* Name + description */}
@@ -213,9 +206,7 @@ function StartupCard({
               <span
                 className="text-xs font-medium"
                 style={{
-                  color: item.enabled
-                    ? 'var(--accent-green)'
-                    : 'var(--text-muted)'
+                  color: item.enabled ? 'var(--accent-green)' : 'var(--text-muted)'
                 }}
               >
                 {item.enabled ? 'Enabled' : 'Disabled'}
@@ -226,9 +217,7 @@ function StartupCard({
                   1. It's a LaunchAgent (not a Daemon or LoginItem)
                   2. It's in the user's own folder (not system-level)
                   3. The plist file passed the editability check */}
-              {item.type === 'LaunchAgent'
-               && item.path.includes('/Users/')
-               && item.editable ? (
+              {item.type === 'LaunchAgent' && item.path.includes('/Users/') && item.editable ? (
                 <button
                   onClick={async () => {
                     const success = await window.electronAPI.toggleStartupItem(
@@ -242,12 +231,10 @@ function StartupCard({
                     backgroundColor: item.enabled
                       ? 'rgba(239, 68, 68, 0.1)'
                       : 'rgba(34, 197, 94, 0.1)',
-                    color: item.enabled
-                      ? 'var(--accent-red)'
-                      : 'var(--accent-green)',
-                    border: `1px solid ${item.enabled
-                      ? 'rgba(239, 68, 68, 0.2)'
-                      : 'rgba(34, 197, 94, 0.2)'}`,
+                    color: item.enabled ? 'var(--accent-red)' : 'var(--accent-green)',
+                    border: `1px solid ${
+                      item.enabled ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)'
+                    }`,
                     cursor: 'pointer'
                   }}
                 >
@@ -271,9 +258,9 @@ function StartupCard({
 // ─────────────────────────────────────────────
 
 export function SystemPage() {
-  const [systemInfo,     setSystemInfo]     = useState<SystemInfo | null>(null)
-  const [thermal,        setThermal]        = useState<ThermalMetrics | null>(null)
-  const [startup,        setStartup]        = useState<StartupMetrics | null>(null)
+  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
+  const [thermal, setThermal] = useState<ThermalMetrics | null>(null)
+  const [startup, setStartup] = useState<StartupMetrics | null>(null)
   const [loadingStartup, setLoadingStartup] = useState(false)
 
   useEffect(() => {
@@ -294,54 +281,63 @@ export function SystemPage() {
 
   function refreshStartup() {
     setLoadingStartup(true)
-    window.electronAPI.getStartupMetrics()
+    window.electronAPI
+      .getStartupMetrics()
       .then(setStartup)
       .finally(() => setLoadingStartup(false))
   }
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4"
-          style={{ color: 'var(--text-primary)' }}>
+      <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
         System
       </h2>
 
       {/* Machine + Hardware side by side */}
       <div className="grid grid-cols-2 gap-4 mb-4">
-
         {systemInfo ? (
           <Card title="Machine">
-            <StatRow label="Model"    value={systemInfo.model}                              accent="blue"  />
-            <StatRow label="OS"       value={`${systemInfo.distro} ${systemInfo.release}`} accent="blue"  />
-            <StatRow label="Hostname" value={systemInfo.hostname}                           accent="blue"  />
-            <StatRow label="Arch"     value={systemInfo.arch}                               accent="blue"  />
-            <StatRow label="Uptime"   value={formatUptime(systemInfo.uptimeSeconds)}        accent="green" />
-            <StatRow label="Serial"   value={systemInfo.serial}                             accent="blue"  />
+            <StatRow label="Model" value={systemInfo.model} accent="blue" />
+            <StatRow
+              label="OS"
+              value={`${systemInfo.distro} ${systemInfo.release}`}
+              accent="blue"
+            />
+            <StatRow label="Hostname" value={systemInfo.hostname} accent="blue" />
+            <StatRow label="Arch" value={systemInfo.arch} accent="blue" />
+            <StatRow label="Uptime" value={formatUptime(systemInfo.uptimeSeconds)} accent="green" />
+            <StatRow label="Serial" value={systemInfo.serial} accent="blue" />
           </Card>
         ) : (
           <Card title="Machine">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading...</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Loading...
+            </p>
           </Card>
         )}
 
         {systemInfo ? (
           <Card title="Hardware">
-            <StatRow label="CPU"
-              value={systemInfo.cpuBrand} accent="blue" />
-            <StatRow label="Cores"
+            <StatRow label="CPU" value={systemInfo.cpuBrand} accent="blue" />
+            <StatRow
+              label="Cores"
               value={`${systemInfo.cpuCores} cores / ${systemInfo.cpuThreads} threads`}
-              accent="blue" />
-            <StatRow label="Base Speed"
-              value={`${systemInfo.cpuBaseSpeed} GHz`} accent="blue" />
-            <StatRow label="Total RAM"
-              value={formatBytes(systemInfo.totalMemory)} accent="purple" />
+              accent="blue"
+            />
+            <StatRow label="Base Speed" value={`${systemInfo.cpuBaseSpeed} GHz`} accent="blue" />
+            <StatRow
+              label="Total RAM"
+              value={formatBytes(systemInfo.totalMemory)}
+              accent="purple"
+            />
           </Card>
         ) : (
           <Card title="Hardware">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading...</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Loading...
+            </p>
           </Card>
         )}
-
       </div>
 
       {/* Thermal pressure — full width */}
@@ -356,12 +352,7 @@ export function SystemPage() {
       )}
 
       {/* Startup items — full width */}
-      <StartupCard
-        startup={startup}
-        loadingStartup={loadingStartup}
-        onRefresh={refreshStartup}
-      />
-
+      <StartupCard startup={startup} loadingStartup={loadingStartup} onRefresh={refreshStartup} />
     </div>
   )
 }

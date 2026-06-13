@@ -1,7 +1,7 @@
 // A reusable card container — every widget will use this
 interface CardProps {
   children: React.ReactNode
-  className?: string        // lets callers add extra classes
+  className?: string // lets callers add extra classes
   title?: string
   subtitle?: string
 }
@@ -17,8 +17,10 @@ export function Card({ children, className = '', title, subtitle }: CardProps) {
     >
       {title && (
         <div className="mb-3">
-          <h3 className="text-sm font-semibold uppercase tracking-widest"
-              style={{ color: 'var(--text-muted)' }}>
+          <h3
+            className="text-sm font-semibold uppercase tracking-widest"
+            style={{ color: 'var(--text-muted)' }}
+          >
             {title}
           </h3>
           {subtitle && (

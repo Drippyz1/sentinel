@@ -1,38 +1,36 @@
 import si from 'systeminformation'
 
 export interface MemoryMetrics {
-  totalBytes:       number
-  usedBytes:        number
-  freeBytes:        number
-  activeBytes:      number
-  inactiveBytes:    number
-  cachedBytes:      number
-  swapTotalBytes:   number
-  swapUsedBytes:    number
-  usagePercent:     number
+  totalBytes: number
+  usedBytes: number
+  freeBytes: number
+  activeBytes: number
+  inactiveBytes: number
+  cachedBytes: number
+  swapTotalBytes: number
+  swapUsedBytes: number
+  usagePercent: number
   swapUsagePercent: number
 }
 
 export async function getMemoryMetrics(): Promise<MemoryMetrics> {
   const mem = await si.mem()
 
-  const swapUsagePercent = mem.swaptotal > 0
-    ? Math.round((mem.swapused / mem.swaptotal) * 100)
-    : 0
+  const swapUsagePercent = mem.swaptotal > 0 ? Math.round((mem.swapused / mem.swaptotal) * 100) : 0
 
   return {
-    totalBytes:       mem.total,
-    usedBytes:        mem.active,
-    freeBytes:        mem.free,
-    activeBytes:      mem.active,
+    totalBytes: mem.total,
+    usedBytes: mem.active,
+    freeBytes: mem.free,
+    activeBytes: mem.active,
     // Fix: mem.inactive does not exist in systeminformation types;
     // use mem.available - mem.free as a proxy for reclaimable memory,
     // or fall back to 0 if unavailable
-    inactiveBytes:    (mem as any).inactive ?? 0,
-    cachedBytes:      mem.cached            ?? 0,
-    swapTotalBytes:   mem.swaptotal,
-    swapUsedBytes:    mem.swapused,
-    usagePercent:     Math.round((mem.active / mem.total) * 100),
-    swapUsagePercent,
+    inactiveBytes: (mem as typeof mem & { inactive?: number }).inactive ?? 0,
+    cachedBytes: mem.cached ?? 0,
+    swapTotalBytes: mem.swaptotal,
+    swapUsedBytes: mem.swapused,
+    usagePercent: Math.round((mem.active / mem.total) * 100),
+    swapUsagePercent
   }
 }

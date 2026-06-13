@@ -35,9 +35,7 @@ function createWindow(): BrowserWindow {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     if (process.platform === 'darwin') {
-      app.dock?.setIcon(nativeImage.createFromPath(
-        join(__dirname, '../../resources/icon.png')
-      ))
+      app.dock?.setIcon(nativeImage.createFromPath(join(__dirname, '../../resources/icon.png')))
     }
   })
 
@@ -96,19 +94,19 @@ app.whenReady().then(() => {
           getDiskMetrics(),
           getNetworkMetrics(),
           getGpuMetrics(),
-          getBatteryMetrics(),
+          getBatteryMetrics()
         ])
 
         recordSnapshot({ cpu, memory, disk, network, gpu, battery })
 
         latestAnomalyReport = checkForAnomalies({
-          cpu:       cpu.usagePercent,
-          memory:    memory.usagePercent,
-          diskRead:  disk.io.readBytesPerSec,
+          cpu: cpu.usagePercent,
+          memory: memory.usagePercent,
+          diskRead: disk.io.readBytesPerSec,
           diskWrite: disk.io.writeBytesPerSec,
-          netDown:   network.totalDownloadBytesPerSec,
-          netUp:     network.totalUploadBytesPerSec,
-          gpu:       gpu?.controllers[0]?.utilizationPercent ?? null,
+          netDown: network.totalDownloadBytesPerSec,
+          netUp: network.totalUploadBytesPerSec,
+          gpu: gpu?.controllers[0]?.utilizationPercent ?? null
         })
 
         // Fire a system notification for anomalies if enabled
@@ -124,12 +122,11 @@ app.whenReady().then(() => {
           const top = latestAnomalyReport.anomalies[0]
           new Notification({
             title: 'Sentinel — Anomaly Detected',
-            body:  top.message,
-            silent: false,
+            body: top.message,
+            silent: false
           }).show()
           lastNotificationAt = Date.now()
         }
-
       } catch (err) {
         console.error('Main polling loop error:', err)
       }
@@ -140,10 +137,13 @@ app.whenReady().then(() => {
 
   // ── Housekeeping intervals ─────────────────
   cleanOldSnapshots(currentSettings.dataRetentionDays)
-  setInterval(() => {
-    const s = loadSettings()
-    cleanOldSnapshots(s.dataRetentionDays)
-  }, 60 * 60 * 1000)
+  setInterval(
+    () => {
+      const s = loadSettings()
+      cleanOldSnapshots(s.dataRetentionDays)
+    },
+    60 * 60 * 1000
+  )
 
   setInterval(invalidateSystemInfoCache, 60000)
 
@@ -153,21 +153,19 @@ app.whenReady().then(() => {
 
   // ── IPC handlers ──────────────────────────
 
-  ipcMain.handle('toggle-startup-item',
-    async (_event, itemPath: string, enable: boolean) => {
-      return enable ? enableStartupItem(itemPath) : disableStartupItem(itemPath)
-    }
-  )
+  ipcMain.handle('toggle-startup-item', async (_event, itemPath: string, enable: boolean) => {
+    return enable ? enableStartupItem(itemPath) : disableStartupItem(itemPath)
+  })
 
-  ipcMain.handle('get-cpu-metrics',     async () => await getCpuMetrics())
-  ipcMain.handle('get-memory-metrics',  async () => await getMemoryMetrics())
-  ipcMain.handle('get-disk-metrics',    async () => await getDiskMetrics())
+  ipcMain.handle('get-cpu-metrics', async () => await getCpuMetrics())
+  ipcMain.handle('get-memory-metrics', async () => await getMemoryMetrics())
+  ipcMain.handle('get-disk-metrics', async () => await getDiskMetrics())
   ipcMain.handle('get-network-metrics', async () => await getNetworkMetrics())
-  ipcMain.handle('get-gpu-metrics',     async () => await getGpuMetrics())
+  ipcMain.handle('get-gpu-metrics', async () => await getGpuMetrics())
   ipcMain.handle('get-battery-metrics', async () => await getBatteryMetrics())
   ipcMain.handle('get-process-metrics', async () => await getProcessMetrics())
 
-  ipcMain.handle('get-system-info',     async () => await getSystemInfo())
+  ipcMain.handle('get-system-info', async () => await getSystemInfo())
   ipcMain.handle('get-thermal-metrics', async () => await getThermalMetrics())
   ipcMain.handle('get-startup-metrics', async () => await getStartupMetrics())
 
@@ -190,20 +188,23 @@ app.whenReady().then(() => {
     try {
       process.kill(pid, 'SIGKILL')
       return { success: true }
-    } catch (err: any) {
-      return { success: false, error: err.message }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
 
-  ipcMain.handle('hide-dock', () => { if (process.platform === 'darwin') app.dock?.hide() })
-  ipcMain.handle('show-dock', () => { if (process.platform === 'darwin') app.dock?.show() })
+  ipcMain.handle('hide-dock', () => {
+    if (process.platform === 'darwin') app.dock?.hide()
+  })
+  ipcMain.handle('show-dock', () => {
+    if (process.platform === 'darwin') app.dock?.show()
+  })
 
-  ipcMain.handle('get-history-snapshots',
-    async (_event, minutes: number) => getSnapshots(minutes))
-  ipcMain.handle('get-history-summary',
-    async (_event, minutes: number) => getSummary(minutes))
-  ipcMain.handle('get-history-downsampled',
-    async (_event, minutes: number) => getDownsampled(minutes))
+  ipcMain.handle('get-history-snapshots', async (_event, minutes: number) => getSnapshots(minutes))
+  ipcMain.handle('get-history-summary', async (_event, minutes: number) => getSummary(minutes))
+  ipcMain.handle('get-history-downsampled', async (_event, minutes: number) =>
+    getDownsampled(minutes)
+  )
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

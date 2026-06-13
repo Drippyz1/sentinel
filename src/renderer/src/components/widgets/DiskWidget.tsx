@@ -7,12 +7,12 @@ import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
 
 export function DiskWidget() {
-  const disk         = useDiskMetrics()
-  const readHistory  = useHistoryStore(state => state.diskRead)
-  const writeHistory = useHistoryStore(state => state.diskWrite)
+  const disk = useDiskMetrics()
+  const readHistory = useHistoryStore((state) => state.diskRead)
+  const writeHistory = useHistoryStore((state) => state.diskWrite)
   if (!disk) return null
 
-  const primaryDrive = disk.drives.find(d => d.mount === '/') ?? disk.drives[0]
+  const primaryDrive = disk.drives.find((d) => d.mount === '/') ?? disk.drives[0]
   if (!primaryDrive) return null
 
   return (
@@ -21,15 +21,17 @@ export function DiskWidget() {
         <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
           {primaryDrive.usagePercent}
         </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>%</span>
+        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
+          %
+        </span>
       </div>
 
       <UsageBar percent={primaryDrive.usagePercent} />
 
       <div className="mt-3 space-y-1">
-        <StatRow label="Used"  value={formatBytes(primaryDrive.usedBytes)}  accent="blue"  />
-        <StatRow label="Free"  value={formatBytes(primaryDrive.freeBytes)}  accent="green" />
-        <StatRow label="Total" value={formatBytes(primaryDrive.totalBytes)} accent="blue"  />
+        <StatRow label="Used" value={formatBytes(primaryDrive.usedBytes)} accent="blue" />
+        <StatRow label="Free" value={formatBytes(primaryDrive.freeBytes)} accent="green" />
+        <StatRow label="Total" value={formatBytes(primaryDrive.totalBytes)} accent="blue" />
       </div>
 
       <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
@@ -42,7 +44,7 @@ export function DiskWidget() {
               data={readHistory}
               color="#22c55e"
               formatValue={formatSpeed}
-              domain={[0, Math.max(...readHistory.map(p => p.value), 1)]}
+              domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
               height={50}
             />
           </div>
@@ -54,7 +56,7 @@ export function DiskWidget() {
               data={writeHistory}
               color="#f59e0b"
               formatValue={formatSpeed}
-              domain={[0, Math.max(...writeHistory.map(p => p.value), 1)]}
+              domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
               height={50}
             />
           </div>

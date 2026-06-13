@@ -3,7 +3,7 @@ import { AppSettings } from '../../../main/storage/settings'
 
 // Converts Celsius to Fahrenheit
 function toF(c: number): number {
-  return Math.round(c * 9 / 5 + 32)
+  return Math.round((c * 9) / 5 + 32)
 }
 
 // Formats a nullable Celsius value using the user's preferred unit
@@ -20,12 +20,12 @@ export function useTemp() {
 
   useEffect(() => {
     // Load initial value
-    window.electronAPI.getSettings().then(s => setUnit(s.tempUnit))
+    window.electronAPI.getSettings().then((s) => setUnit(s.tempUnit))
 
     // Re-read every 5 seconds so changing the setting in the
     // Settings page is reflected without a full page reload
     const interval = setInterval(() => {
-      window.electronAPI.getSettings().then(s => setUnit(s.tempUnit))
+      window.electronAPI.getSettings().then((s) => setUnit(s.tempUnit))
     }, 5000)
 
     return () => clearInterval(interval)
@@ -33,6 +33,6 @@ export function useTemp() {
 
   return {
     unit,
-    formatTemp: (celsius: number | null) => fmt(celsius, unit),
+    formatTemp: (celsius: number | null) => fmt(celsius, unit)
   }
 }

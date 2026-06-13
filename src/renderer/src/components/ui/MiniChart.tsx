@@ -1,23 +1,21 @@
-import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  YAxis,
-  Tooltip,
-} from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts'
 import { DataPoint } from '../../store/historyStore'
 
 interface MiniChartProps {
-  data:          DataPoint[]
-  color:         string
-  formatValue?:  (value: number) => string
-  domain?:       [number, number]
-  height?:       number
+  data: DataPoint[]
+  color: string
+  formatValue?: (value: number) => string
+  domain?: [number, number]
+  height?: number
 }
 
-function CustomTooltip({ active, payload, formatValue }: {
-  active?:      boolean
-  payload?:     { value?: number }[]
+function CustomTooltip({
+  active,
+  payload,
+  formatValue
+}: {
+  active?: boolean
+  payload?: { value?: number }[]
   formatValue?: (v: number) => string
 }) {
   if (!active || !payload?.length) return null
@@ -43,7 +41,7 @@ export function MiniChart({
   domain = [0, 100],
   height = 60
 }: MiniChartProps) {
-  const chartData = data.map(p => ({ t: p.timestamp, v: p.value }))
+  const chartData = data.map((p) => ({ t: p.timestamp, v: p.value }))
 
   return (
     <ResponsiveContainer width="100%" height={height}>

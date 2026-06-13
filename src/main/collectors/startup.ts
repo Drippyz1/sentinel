@@ -4,38 +4,38 @@ import * as path from 'path'
 import * as os from 'os'
 
 export interface StartupItem {
-  name:        string
-  path:        string
-  type:        'LaunchAgent' | 'LaunchDaemon' | 'LoginItem'
-  enabled:     boolean
-  editable:    boolean
+  name: string
+  path: string
+  type: 'LaunchAgent' | 'LaunchDaemon' | 'LoginItem'
+  enabled: boolean
+  editable: boolean
   description: string
 }
 
 export interface StartupMetrics {
-  items:        StartupItem[]
-  totalCount:   number
+  items: StartupItem[]
+  totalCount: number
   enabledCount: number
 }
 
 export async function getStartupMetrics(): Promise<StartupMetrics> {
   const items: StartupItem[] = []
 
-  const userAgentsPath   = path.join(os.homedir(), 'Library', 'LaunchAgents')
+  const userAgentsPath = path.join(os.homedir(), 'Library', 'LaunchAgents')
   const systemAgentsPath = '/Library/LaunchAgents'
-  const daemonsPath      = '/Library/LaunchDaemons'
+  const daemonsPath = '/Library/LaunchDaemons'
 
-  items.push(...readPlistDirectory(userAgentsPath,   'LaunchAgent'))
+  items.push(...readPlistDirectory(userAgentsPath, 'LaunchAgent'))
   items.push(...readPlistDirectory(systemAgentsPath, 'LaunchAgent'))
-  items.push(...readPlistDirectory(daemonsPath,      'LaunchDaemon'))
+  items.push(...readPlistDirectory(daemonsPath, 'LaunchDaemon'))
   items.push(...getLoginItems())
 
   items.sort((a, b) => a.name.localeCompare(b.name))
 
   return {
     items,
-    totalCount:   items.length,
-    enabledCount: items.filter(i => i.enabled).length,
+    totalCount: items.length,
+    enabledCount: items.filter((i) => i.enabled).length
   }
 }
 
@@ -98,10 +98,7 @@ export function disableStartupItem(itemPath: string): boolean {
     if (content.includes('<dict/>')) {
       // Format 1: empty self-closing dict — expand it and add Disabled=true
       // Google Keystone uses this as a placeholder plist
-      content = content.replace(
-        '<dict/>',
-        '<dict>\n\t<key>Disabled</key>\n\t<true/>\n</dict>'
-      )
+      content = content.replace('<dict/>', '<dict>\n\t<key>Disabled</key>\n\t<true/>\n</dict>')
     } else if (content.includes('<key>Disabled</key>')) {
       // Format 2: Disabled key already exists — flip it to true
       content = content.replace(
@@ -119,7 +116,6 @@ export function disableStartupItem(itemPath: string): boolean {
 
     fs.writeFileSync(itemPath, content, 'utf8')
     return true
-
   } catch (err) {
     console.error('Failed to disable startup item:', err)
     return false
@@ -179,7 +175,6 @@ export function enableStartupItem(itemPath: string): boolean {
     }
 
     return true
-
   } catch (err) {
     console.error('Failed to enable startup item:', err)
     return false
@@ -190,39 +185,37 @@ export function enableStartupItem(itemPath: string): boolean {
 // Private helpers
 // ─────────────────────────────────────────────
 
-function readPlistDirectory(
-  dirPath: string,
-  type: 'LaunchAgent' | 'LaunchDaemon'
-): StartupItem[] {
+function readPlistDirectory(dirPath: string, type: 'LaunchAgent' | 'LaunchDaemon'): StartupItem[] {
   const items: StartupItem[] = []
 
   try {
     if (!fs.existsSync(dirPath)) return items
 
-    const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.plist'))
+    const files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.plist'))
 
     for (const file of files) {
       try {
         const fullPath = path.join(dirPath, file)
-        const name     = file.replace('.plist', '')
-        const content  = fs.readFileSync(fullPath, 'utf8')
+        const name = file.replace('.plist', '')
+        const content = fs.readFileSync(fullPath, 'utf8')
 
         // A plist with no Disabled key is enabled by default
         // An empty <dict/> is also effectively enabled
-        const enabled = content.includes('<dict/>') ||
-                        !content.includes('<key>Disabled</key>') ||
-                        content.includes('<key>Disabled</key>\n\t<false/>')
+        const enabled =
+          content.includes('<dict/>') ||
+          !content.includes('<key>Disabled</key>') ||
+          content.includes('<key>Disabled</key>\n\t<false/>')
 
         // Only show a toggle button if the file passes validation
         const editable = isPlistEditable(fullPath)
 
         items.push({
           name,
-          path:        fullPath,
+          path: fullPath,
           type,
           enabled,
           editable,
-          description: getItemDescription(name),
+          description: getItemDescription(name)
         })
       } catch {
         // Skip files we can't read (permission denied, binary format, etc.)
@@ -244,13 +237,13 @@ function getLoginItems(): StartupItem[] {
 
     if (!output) return []
 
-    return output.split(', ').map(name => ({
-      name:        name.trim(),
-      path:        '',
-      type:        'LoginItem' as const,
-      enabled:     true,
-      editable:    false,
-      description: 'Login item',
+    return output.split(', ').map((name) => ({
+      name: name.trim(),
+      path: '',
+      type: 'LoginItem' as const,
+      enabled: true,
+      editable: false,
+      description: 'Login item'
     }))
   } catch {
     return []
@@ -259,19 +252,19 @@ function getLoginItems(): StartupItem[] {
 
 function getItemDescription(name: string): string {
   const known: Record<string, string> = {
-    'com.apple.AirPlayXPCHelper':   'AirPlay streaming service',
-    'com.apple.AddressBook.abd':    'Contacts background sync',
-    'com.docker.helper':            'Docker Desktop helper',
-    'com.google.keystone.agent':    'Google software updater',
+    'com.apple.AirPlayXPCHelper': 'AirPlay streaming service',
+    'com.apple.AddressBook.abd': 'Contacts background sync',
+    'com.docker.helper': 'Docker Desktop helper',
+    'com.google.keystone.agent': 'Google software updater',
     'com.google.keystone.xpcservice': 'Google updater service',
-    'com.google.GoogleUpdater':     'Google software updater',
+    'com.google.GoogleUpdater': 'Google software updater',
     'com.adobe.AdobeCreativeCloud': 'Adobe Creative Cloud',
-    'com.spotify.webhelper':        'Spotify web helper',
+    'com.spotify.webhelper': 'Spotify web helper',
     'com.microsoft.autoupdate.fba': 'Microsoft AutoUpdate',
-    'homebrew.mxcl':                'Homebrew service',
-    'com.epicgames.launcher':       'Epic Games Launcher',
+    'homebrew.mxcl': 'Homebrew service',
+    'com.epicgames.launcher': 'Epic Games Launcher',
     'com.valvesoftware.steamclean': 'Steam cleanup service',
-    'com.DigiDNA.iMazing':          'iMazing helper',
+    'com.DigiDNA.iMazing': 'iMazing helper'
   }
 
   for (const [key, desc] of Object.entries(known)) {

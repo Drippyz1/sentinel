@@ -2,25 +2,25 @@ import si from 'systeminformation'
 
 export interface SystemInfo {
   // OS
-  platform:     string    // 'darwin', 'win32'
-  distro:       string    // 'macOS'
-  release:      string    // '14.4.1'
-  arch:         string    // 'arm64'
-  hostname:     string    // machine name
+  platform: string // 'darwin', 'win32'
+  distro: string // 'macOS'
+  release: string // '14.4.1'
+  arch: string // 'arm64'
+  hostname: string // machine name
 
   // CPU
-  cpuBrand:     string
-  cpuCores:     number
-  cpuThreads:   number
+  cpuBrand: string
+  cpuCores: number
+  cpuThreads: number
   cpuBaseSpeed: number
 
   // Memory
-  totalMemory:  number    // bytes
+  totalMemory: number // bytes
 
   // Machine
-  model:        string    // e.g. 'MacBook Pro'
-  manufacturer: string    // e.g. 'Apple Inc.'
-  serial:       string    // serial number (partially redacted)
+  model: string // e.g. 'MacBook Pro'
+  manufacturer: string // e.g. 'Apple Inc.'
+  serial: string // serial number (partially redacted)
 
   // Uptime
   uptimeSeconds: number
@@ -36,29 +36,29 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     si.osInfo(),
     si.cpu(),
     si.mem(),
-    si.system(),
+    si.system()
   ])
 
   cachedInfo = {
-    platform:     osInfo.platform,
-    distro:       osInfo.distro,
-    release:      osInfo.release,
-    arch:         osInfo.arch,
-    hostname:     osInfo.hostname,
+    platform: osInfo.platform,
+    distro: osInfo.distro,
+    release: osInfo.release,
+    arch: osInfo.arch,
+    hostname: osInfo.hostname,
 
-    cpuBrand:     cpu.brand,
-    cpuCores:     cpu.physicalCores,
-    cpuThreads:   cpu.cores,
+    cpuBrand: cpu.brand,
+    cpuCores: cpu.physicalCores,
+    cpuThreads: cpu.cores,
     cpuBaseSpeed: cpu.speed,
 
-    totalMemory:  mem.total,
+    totalMemory: mem.total,
 
-    model:        system.model,
+    model: system.model,
     manufacturer: system.manufacturer,
     // Redact middle of serial for privacy when sharing screenshots
-    serial:       redactSerial(system.serial ?? ''),
+    serial: redactSerial(system.serial ?? ''),
 
-    uptimeSeconds: Math.floor(process.uptime()),
+    uptimeSeconds: Math.floor(process.uptime())
   }
 
   return cachedInfo

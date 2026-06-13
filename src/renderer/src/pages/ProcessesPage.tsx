@@ -8,19 +8,24 @@ type SortDir = 'asc' | 'desc'
 
 function cpuColor(pct: number): string {
   if (pct >= 20) return 'var(--accent-red)'
-  if (pct >= 5)  return 'var(--accent-amber)'
+  if (pct >= 5) return 'var(--accent-amber)'
   return 'var(--accent-green)'
 }
 
 function ColHeader({
-  label, sortKey, current, direction, onSort, align = 'left'
+  label,
+  sortKey,
+  current,
+  direction,
+  onSort,
+  align = 'left'
 }: {
-  label:     string
-  sortKey:   SortKey
-  current:   SortKey
+  label: string
+  sortKey: SortKey
+  current: SortKey
   direction: SortDir
-  onSort:    (key: SortKey) => void
-  align?:    'left' | 'right'
+  onSort: (key: SortKey) => void
+  align?: 'left' | 'right'
 }) {
   const isActive = current === sortKey
   return (
@@ -32,9 +37,7 @@ function ColHeader({
       style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
     >
       {label}
-      <span style={{ opacity: isActive ? 1 : 0 }}>
-        {direction === 'desc' ? '↓' : '↑'}
-      </span>
+      <span style={{ opacity: isActive ? 1 : 0 }}>{direction === 'desc' ? '↓' : '↑'}</span>
     </button>
   )
 }
@@ -45,12 +48,12 @@ function KillDialog({
   name,
   pid,
   onConfirm,
-  onCancel,
+  onCancel
 }: {
-  name:      string
-  pid:       number
+  name: string
+  pid: number
   onConfirm: () => void
-  onCancel:  () => void
+  onCancel: () => void
 }) {
   return (
     <div
@@ -62,16 +65,16 @@ function KillDialog({
         className="rounded-xl p-5 w-80 shadow-xl"
         style={{
           backgroundColor: 'var(--card-bg)',
-          border: '1px solid var(--border)',
+          border: '1px solid var(--border)'
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
           Kill process?
         </h3>
         <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
-          This will send SIGKILL to <span style={{ color: 'var(--text-primary)' }}>{name}</span> (PID {pid}).
-          Any unsaved work in that process will be lost.
+          This will send SIGKILL to <span style={{ color: 'var(--text-primary)' }}>{name}</span>{' '}
+          (PID {pid}). Any unsaved work in that process will be lost.
         </p>
         <div className="flex gap-2 justify-end">
           <button
@@ -80,7 +83,7 @@ function KillDialog({
             style={{
               backgroundColor: 'var(--bg-base)',
               border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
+              color: 'var(--text-primary)'
             }}
           >
             Cancel
@@ -91,7 +94,7 @@ function KillDialog({
             style={{
               backgroundColor: 'var(--accent-red)',
               color: 'white',
-              border: 'none',
+              border: 'none'
             }}
           >
             Kill Process
@@ -106,17 +109,17 @@ function KillDialog({
 
 export function ProcessesPage() {
   const processes = useProcessMetrics()
-  const [search,    setSearch]    = useState('')
-  const [sortKey,   setSortKey]   = useState<SortKey>('cpuPercent')
-  const [sortDir,   setSortDir]   = useState<SortDir>('desc')
-  const [selected,  setSelected]  = useState<number | null>(null)  // hovered PID
-  const [killing,   setKilling]   = useState<{ pid: number; name: string } | null>(null)
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('cpuPercent')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [selected, setSelected] = useState<number | null>(null) // hovered PID
+  const [killing, setKilling] = useState<{ pid: number; name: string } | null>(null)
   const [killError, setKillError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     if (!processes) return []
     return processes.list
-      .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => {
         const aVal = a[sortKey]
         const bVal = b[sortKey]
@@ -131,7 +134,7 @@ export function ProcessesPage() {
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
-      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
     } else {
       setSortKey(key)
       setSortDir('desc')
@@ -145,7 +148,7 @@ export function ProcessesPage() {
       if (!result.success) {
         setKillError(result.error ?? 'Failed to kill process')
       }
-    } catch (err) {
+    } catch {
       setKillError('Failed to kill process')
     } finally {
       setKilling(null)
@@ -169,11 +172,13 @@ export function ProcessesPage() {
           style={{
             backgroundColor: 'rgba(239,68,68,0.1)',
             border: '1px solid var(--accent-red)',
-            color: 'var(--accent-red)',
+            color: 'var(--accent-red)'
           }}
         >
           {killError}
-          <button onClick={() => setKillError(null)} style={{ opacity: 0.7 }}>✕</button>
+          <button onClick={() => setKillError(null)} style={{ opacity: 0.7 }}>
+            ✕
+          </button>
         </div>
       )}
 
@@ -193,12 +198,12 @@ export function ProcessesPage() {
           type="text"
           placeholder="Search..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full text-sm px-3 py-2 rounded-lg mb-4 outline-none"
           style={{
             backgroundColor: 'var(--bg-base)',
             border: '1px solid var(--border)',
-            color: 'var(--text-primary)',
+            color: 'var(--text-primary)'
           }}
         />
 
@@ -210,21 +215,45 @@ export function ProcessesPage() {
             borderBottom: '1px solid var(--border)'
           }}
         >
-          <ColHeader label="Name"   sortKey="name"        current={sortKey} direction={sortDir} onSort={handleSort} />
-          <ColHeader label="CPU"    sortKey="cpuPercent"  current={sortKey} direction={sortDir} onSort={handleSort} />
-          <ColHeader label="Memory" sortKey="memoryBytes" current={sortKey} direction={sortDir} onSort={handleSort} />
-          <ColHeader label="PID"    sortKey="pid"         current={sortKey} direction={sortDir} onSort={handleSort} />
+          <ColHeader
+            label="Name"
+            sortKey="name"
+            current={sortKey}
+            direction={sortDir}
+            onSort={handleSort}
+          />
+          <ColHeader
+            label="CPU"
+            sortKey="cpuPercent"
+            current={sortKey}
+            direction={sortDir}
+            onSort={handleSort}
+          />
+          <ColHeader
+            label="Memory"
+            sortKey="memoryBytes"
+            current={sortKey}
+            direction={sortDir}
+            onSort={handleSort}
+          />
+          <ColHeader
+            label="PID"
+            sortKey="pid"
+            current={sortKey}
+            direction={sortDir}
+            onSort={handleSort}
+          />
           <div /> {/* spacer for kill column */}
         </div>
 
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-          {filtered.map(process => (
+          {filtered.map((process) => (
             <div
               key={process.pid}
               className="grid gap-4 px-3 py-2 rounded-lg items-center group"
               style={{
                 gridTemplateColumns: '1fr 100px 120px 80px 32px',
-                backgroundColor: selected === process.pid ? 'var(--bg-card-hover)' : 'transparent',
+                backgroundColor: selected === process.pid ? 'var(--bg-card-hover)' : 'transparent'
               }}
               onMouseEnter={() => setSelected(process.pid)}
               onMouseLeave={() => setSelected(null)}
@@ -258,7 +287,7 @@ export function ProcessesPage() {
                   border: 'none',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  lineHeight: 1,
+                  lineHeight: 1
                 }}
               >
                 ✕

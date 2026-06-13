@@ -1,36 +1,49 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid
 } from 'recharts'
 import { SnapshotRow } from '../../../main/storage/queries'
 import { formatBytes } from '../utils/format'
 import { Card } from '../components/ui/Card'
 
 const RANGES = [
-  { label: '30 min',  minutes: 30   },
-  { label: '1 hour',  minutes: 60   },
-  { label: '3 hours', minutes: 180  },
-  { label: '6 hours', minutes: 360  },
-  { label: '24 hours',minutes: 1440 },
+  { label: '30 min', minutes: 30 },
+  { label: '1 hour', minutes: 60 },
+  { label: '3 hours', minutes: 180 },
+  { label: '6 hours', minutes: 360 },
+  { label: '24 hours', minutes: 1440 }
 ]
 
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit', minute: '2-digit'
+    hour: '2-digit',
+    minute: '2-digit'
   })
 }
 
 interface ChartCardProps {
-  title:       string
-  data:        SnapshotRow[]
-  dataKey:     keyof SnapshotRow
-  color:       string
+  title: string
+  data: SnapshotRow[]
+  dataKey: keyof SnapshotRow
+  color: string
   formatValue: (v: number) => string
-  domain?:     [number, number]
+  domain?: [number, number]
 }
 
-function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100] }: ChartCardProps) {
+function ChartCard({
+  title,
+  data,
+  dataKey,
+  color,
+  formatValue,
+  domain = [0, 100]
+}: ChartCardProps) {
   return (
     <Card title={title}>
       <ResponsiveContainer width="100%" height={160}>
@@ -80,16 +93,10 @@ function ChartCard({ title, data, dataKey, color, formatValue, domain = [0, 100]
 
 export function HistoryPage() {
   const [selectedRange, setSelectedRange] = useState(RANGES[1])
-  const [data, setData]                   = useState<SnapshotRow[]>([])
-  const [isLoading, setIsLoading]         = useState(true)
+  const [data, setData] = useState<SnapshotRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    loadHistory()
-    const interval = setInterval(loadHistory, 30000)
-    return () => clearInterval(interval)
-  }, [selectedRange])
-
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     setIsLoading(true)
     try {
       const rows = await window.electronAPI.getHistoryDownsampled(selectedRange.minutes)
@@ -99,12 +106,21 @@ export function HistoryPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [selectedRange.minutes])
 
-  const maxNetDown   = Math.max(...data.map(d => d.net_down),   1)
-  const maxNetUp     = Math.max(...data.map(d => d.net_up),     1)
-  const maxDiskRead  = Math.max(...data.map(d => d.disk_read),  1)
-  const maxDiskWrite = Math.max(...data.map(d => d.disk_write), 1)
+  useEffect(() => {
+    const initialLoad = setTimeout(loadHistory, 0)
+    const interval = setInterval(loadHistory, 30000)
+    return () => {
+      clearTimeout(initialLoad)
+      clearInterval(interval)
+    }
+  }, [loadHistory])
+
+  const maxNetDown = Math.max(...data.map((d) => d.net_down), 1)
+  const maxNetUp = Math.max(...data.map((d) => d.net_up), 1)
+  const maxDiskRead = Math.max(...data.map((d) => d.disk_read), 1)
+  const maxDiskWrite = Math.max(...data.map((d) => d.disk_write), 1)
 
   return (
     <div>
@@ -113,16 +129,15 @@ export function HistoryPage() {
           History
         </h2>
         <div className="flex gap-1">
-          {RANGES.map(range => (
+          {RANGES.map((range) => (
             <button
               key={range.minutes}
               onClick={() => setSelectedRange(range)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
-                backgroundColor: selectedRange.minutes === range.minutes
-                  ? 'var(--accent-blue)' : 'var(--bg-card)',
-                color: selectedRange.minutes === range.minutes
-                  ? 'white' : 'var(--text-muted)',
+                backgroundColor:
+                  selectedRange.minutes === range.minutes ? 'var(--accent-blue)' : 'var(--bg-card)',
+                color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
                 border: '1px solid var(--border)'
               }}
             >
@@ -144,17 +159,73 @@ export function HistoryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
-          <ChartCard title="CPU Usage"        data={data} dataKey="cpu_usage"    color="#3b82f6" formatValue={v => `${v}%`}              domain={[0, 100]}       />
-          <ChartCard title="Memory Usage"     data={data} dataKey="memory_usage" color="#a855f7" formatValue={v => `${v}%`}              domain={[0, 100]}       />
-          <ChartCard title="Network Download" data={data} dataKey="net_down"     color="#22c55e" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxNetDown]}   />
-          <ChartCard title="Network Upload"   data={data} dataKey="net_up"       color="#f59e0b" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxNetUp]}     />
-          <ChartCard title="Disk Read"        data={data} dataKey="disk_read"    color="#22c55e" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxDiskRead]}  />
-          <ChartCard title="Disk Write"       data={data} dataKey="disk_write"   color="#ef4444" formatValue={v => formatBytes(v) + '/s'} domain={[0, maxDiskWrite]} />
-          {data.some(d => d.gpu_usage !== null) && (
-            <ChartCard title="GPU Usage" data={data} dataKey="gpu_usage" color="#ec4899" formatValue={v => `${v}%`} domain={[0, 100]} />
+          <ChartCard
+            title="CPU Usage"
+            data={data}
+            dataKey="cpu_usage"
+            color="#3b82f6"
+            formatValue={(v) => `${v}%`}
+            domain={[0, 100]}
+          />
+          <ChartCard
+            title="Memory Usage"
+            data={data}
+            dataKey="memory_usage"
+            color="#a855f7"
+            formatValue={(v) => `${v}%`}
+            domain={[0, 100]}
+          />
+          <ChartCard
+            title="Network Download"
+            data={data}
+            dataKey="net_down"
+            color="#22c55e"
+            formatValue={(v) => formatBytes(v) + '/s'}
+            domain={[0, maxNetDown]}
+          />
+          <ChartCard
+            title="Network Upload"
+            data={data}
+            dataKey="net_up"
+            color="#f59e0b"
+            formatValue={(v) => formatBytes(v) + '/s'}
+            domain={[0, maxNetUp]}
+          />
+          <ChartCard
+            title="Disk Read"
+            data={data}
+            dataKey="disk_read"
+            color="#22c55e"
+            formatValue={(v) => formatBytes(v) + '/s'}
+            domain={[0, maxDiskRead]}
+          />
+          <ChartCard
+            title="Disk Write"
+            data={data}
+            dataKey="disk_write"
+            color="#ef4444"
+            formatValue={(v) => formatBytes(v) + '/s'}
+            domain={[0, maxDiskWrite]}
+          />
+          {data.some((d) => d.gpu_usage !== null) && (
+            <ChartCard
+              title="GPU Usage"
+              data={data}
+              dataKey="gpu_usage"
+              color="#ec4899"
+              formatValue={(v) => `${v}%`}
+              domain={[0, 100]}
+            />
           )}
-          {data.some(d => d.battery !== null) && (
-            <ChartCard title="Battery" data={data} dataKey="battery" color="#84cc16" formatValue={v => `${v}%`} domain={[0, 100]} />
+          {data.some((d) => d.battery !== null) && (
+            <ChartCard
+              title="Battery"
+              data={data}
+              dataKey="battery"
+              color="#84cc16"
+              formatValue={(v) => `${v}%`}
+              domain={[0, 100]}
+            />
           )}
         </div>
       )}

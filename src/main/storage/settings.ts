@@ -4,32 +4,32 @@ import { readFileSync, writeFileSync } from 'fs'
 
 export interface AppSettings {
   // System
-  launchAtLogin:      boolean
-  hideFromDock:       boolean
+  launchAtLogin: boolean
+  hideFromDock: boolean
   // Monitoring
-  pollIntervalMs:     number
-  tempUnit:           'C' | 'F'
+  pollIntervalMs: number
+  tempUnit: 'C' | 'F'
   // Data
-  dataRetentionDays:  number
+  dataRetentionDays: number
   // Anomaly detection
   anomalySensitivity: 'sensitive' | 'balanced' | 'conservative'
   anomalyNotifications: boolean
 }
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
-  sensitive:    2.0,
-  balanced:     2.5,
-  conservative: 3.0,
+  sensitive: 2.0,
+  balanced: 2.5,
+  conservative: 3.0
 }
 
 const DEFAULTS: AppSettings = {
-  launchAtLogin:        false,
-  hideFromDock:         false,
-  pollIntervalMs:       2000,
-  tempUnit:             'C',
-  dataRetentionDays:    7,
-  anomalySensitivity:   'balanced',
-  anomalyNotifications: true,
+  launchAtLogin: false,
+  hideFromDock: false,
+  pollIntervalMs: 2000,
+  tempUnit: 'C',
+  dataRetentionDays: 7,
+  anomalySensitivity: 'balanced',
+  anomalyNotifications: true
 }
 
 function settingsPath(): string {
@@ -50,7 +50,7 @@ export function saveSettings(settings: AppSettings): boolean {
     // Apply launch at login via Electron's native API
     app.setLoginItemSettings({
       openAtLogin: settings.launchAtLogin,
-      openAsHidden: true,   // start minimised to tray, not foregrounded
+      openAsHidden: true // start minimised to tray, not foregrounded
     })
 
     writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf8')

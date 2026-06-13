@@ -2,8 +2,8 @@
 // e.g. 4294967296 → "4.0 GB"
 export function formatBytes(bytes: number, decimals = 1): string {
   if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(decimals)} GB`
-  if (bytes >= 1_000_000)     return `${(bytes / 1_000_000).toFixed(decimals)} MB`
-  if (bytes >= 1_000)         return `${(bytes / 1_000).toFixed(decimals)} KB`
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(decimals)} MB`
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(decimals)} KB`
   return `${bytes} B`
 }
 

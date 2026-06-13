@@ -60,7 +60,7 @@ function migrateSchema(db: Database.Database) {
       notnull: number
     }[]
 
-    const diskRead = cols.find(c => c.name === 'disk_read')
+    const diskRead = cols.find((c) => c.name === 'disk_read')
 
     // If disk_read still has NOT NULL, recreate the table without that constraint
     if (diskRead?.notnull === 1) {

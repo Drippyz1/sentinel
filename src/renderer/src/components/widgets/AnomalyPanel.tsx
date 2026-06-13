@@ -3,8 +3,8 @@ import { Anomaly } from '../../../../main/analysis/anomalyDetector'
 import { Card } from '../ui/Card'
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024)              return `${bytes.toFixed(0)} B`
-  if (bytes < 1024 * 1024)      return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024) return `${bytes.toFixed(0)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
@@ -23,17 +23,23 @@ function formatValue(metric: string, value: number): string {
 
 function severityColor(severity: string): string {
   switch (severity) {
-    case 'critical': return 'var(--accent-red)'
-    case 'warning':  return 'var(--accent-amber)'
-    default:         return 'var(--accent-blue)'
+    case 'critical':
+      return 'var(--accent-red)'
+    case 'warning':
+      return 'var(--accent-amber)'
+    default:
+      return 'var(--accent-blue)'
   }
 }
 
 function severityBg(severity: string): string {
   switch (severity) {
-    case 'critical': return 'rgba(239, 68, 68, 0.08)'
-    case 'warning':  return 'rgba(245, 158, 11, 0.08)'
-    default:         return 'rgba(59, 130, 246, 0.08)'
+    case 'critical':
+      return 'rgba(239, 68, 68, 0.08)'
+    case 'warning':
+      return 'rgba(245, 158, 11, 0.08)'
+    default:
+      return 'rgba(59, 130, 246, 0.08)'
   }
 }
 
@@ -54,7 +60,8 @@ function AnomalyItem({ anomaly }: { anomaly: Anomaly }) {
           {anomaly.message}
         </p>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          Current: {formatValue(anomaly.metric, anomaly.currentValue)} · Baseline: {formatValue(anomaly.metric, anomaly.meanValue)} · Z-score: {anomaly.zScore}
+          Current: {formatValue(anomaly.metric, anomaly.currentValue)} · Baseline:{' '}
+          {formatValue(anomaly.metric, anomaly.meanValue)} · Z-score: {anomaly.zScore}
         </p>
       </div>
 
@@ -108,8 +115,10 @@ export function AnomalyPanel() {
     return (
       <Card title="Anomaly Detection">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full"
-               style={{ backgroundColor: 'var(--accent-green)' }} />
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: 'var(--accent-green)' }}
+          />
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             All metrics within normal range
           </p>

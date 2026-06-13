@@ -3,9 +3,9 @@ import { useMetricsStore } from '../store/metricsStore'
 import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 
 export function useMetricsPolling() {
-  const fetchAll       = useMetricsStore(state => state.fetchAll)
-  const fetchProcesses = useMetricsStore(state => state.fetchProcesses)
-  const fetchBattery   = useMetricsStore(state => state.fetchBattery)
+  const fetchAll = useMetricsStore((state) => state.fetchAll)
+  const fetchProcesses = useMetricsStore((state) => state.fetchProcesses)
+  const fetchBattery = useMetricsStore((state) => state.fetchBattery)
 
   useEffect(() => {
     // Hardware + GPU — every 2 seconds
@@ -25,41 +25,41 @@ export function useMetricsPolling() {
       clearInterval(processInterval)
       clearInterval(batteryInterval)
     }
-  }, [])
+  }, [fetchAll, fetchBattery, fetchProcesses])
 }
 
 export function useCpuMetrics() {
-  return useMetricsStore(state => state.cpu)
+  return useMetricsStore((state) => state.cpu)
 }
 
 export function useMemoryMetrics() {
-  return useMetricsStore(state => state.memory)
+  return useMetricsStore((state) => state.memory)
 }
 
 export function useDiskMetrics() {
-  return useMetricsStore(state => state.disk)
+  return useMetricsStore((state) => state.disk)
 }
 
 export function useNetworkMetrics() {
-  return useMetricsStore(state => state.network)
+  return useMetricsStore((state) => state.network)
 }
 
 export function useProcessMetrics() {
-  return useMetricsStore(state => state.processes)
+  return useMetricsStore((state) => state.processes)
 }
 
 export function useGpuMetrics() {
-  return useMetricsStore(state => state.gpu)
+  return useMetricsStore((state) => state.gpu)
 }
 
 export function useBatteryMetrics() {
-  return useMetricsStore(state => state.battery)
+  return useMetricsStore((state) => state.battery)
 }
 
 export function useMetricsStatus() {
-  const isLoading   = useMetricsStore(state => state.isLoading)
-  const error       = useMetricsStore(state => state.error)
-  const lastUpdated = useMetricsStore(state => state.lastUpdated)
+  const isLoading = useMetricsStore((state) => state.isLoading)
+  const error = useMetricsStore((state) => state.error)
+  const lastUpdated = useMetricsStore((state) => state.lastUpdated)
   return { isLoading, error, lastUpdated }
 }
 

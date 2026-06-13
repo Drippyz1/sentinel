@@ -15,30 +15,30 @@ const MIN_SAMPLES = 60
 export type AnomalySeverity = 'info' | 'warning' | 'critical'
 
 export interface Anomaly {
-  metric:       string
+  metric: string
   currentValue: number
-  meanValue:    number
-  stdDev:       number
-  zScore:       number
-  severity:     AnomalySeverity
-  message:      string
-  timestamp:    number
+  meanValue: number
+  stdDev: number
+  zScore: number
+  severity: AnomalySeverity
+  message: string
+  timestamp: number
 }
 
 class CircularBuffer {
   private buffer: number[]
-  private size:   number
-  private head:   number = 0
-  private count:  number = 0
+  private size: number
+  private head: number = 0
+  private count: number = 0
 
   constructor(size: number) {
-    this.size   = size
+    this.size = size
     this.buffer = new Array(size).fill(0)
   }
 
   push(value: number) {
     this.buffer[this.head] = value
-    this.head  = (this.head + 1) % this.size
+    this.head = (this.head + 1) % this.size
     this.count = Math.min(this.count + 1, this.size)
   }
 
@@ -47,7 +47,9 @@ class CircularBuffer {
     return [...this.buffer.slice(this.head), ...this.buffer.slice(0, this.head)]
   }
 
-  get length(): number { return this.count }
+  get length(): number {
+    return this.count
+  }
 }
 
 function mean(values: number[]): number {
@@ -57,7 +59,7 @@ function mean(values: number[]): number {
 
 function stdDev(values: number[], avg: number): number {
   if (values.length === 0) return 0
-  return Math.sqrt(mean(values.map(v => Math.pow(v - avg, 2))))
+  return Math.sqrt(mean(values.map((v) => Math.pow(v - avg, 2))))
 }
 
 function getSeverity(zScore: number): AnomalySeverity {
@@ -69,27 +71,29 @@ function getSeverity(zScore: number): AnomalySeverity {
 
 class MetricDetector {
   private buffer: CircularBuffer
-  private name:   string
+  private name: string
 
   // Exposed as a getter so checkForAnomalies can read
   // the sample count without bracket-notation hacks
-  get sampleCount(): number { return this.buffer.length }
+  get sampleCount(): number {
+    return this.buffer.length
+  }
 
   constructor(name: string) {
-    this.name   = name
+    this.name = name
     this.buffer = new CircularBuffer(WINDOW_SIZE)
   }
 
   check(value: number): Anomaly | null {
     // Sanitize — NaN/Infinity poison mean() via reduce forever
-    const safe = (typeof value === 'number' && isFinite(value)) ? value : 0
+    const safe = typeof value === 'number' && isFinite(value) ? value : 0
     this.buffer.push(safe)
 
     if (this.buffer.length < MIN_SAMPLES) return null
 
     const values = this.buffer.getValues()
-    const avg    = mean(values)
-    const std    = stdDev(values, avg)
+    const avg = mean(values)
+    const std = stdDev(values, avg)
 
     if (std < 0.5) return null
 
@@ -98,30 +102,29 @@ class MetricDetector {
     if (zScore < THRESHOLD) return null
 
     return {
-      metric:       this.name,
+      metric: this.name,
       currentValue: Math.round(safe * 10) / 10,
-      meanValue:    Math.round(avg * 10) / 10,
-      stdDev:       Math.round(std * 10) / 10,
-      zScore:       Math.round(zScore * 100) / 100,
-      severity:     getSeverity(zScore),
-      message:      this.buildMessage(safe, avg),
-      timestamp:    Date.now(),
+      meanValue: Math.round(avg * 10) / 10,
+      stdDev: Math.round(std * 10) / 10,
+      zScore: Math.round(zScore * 100) / 100,
+      severity: getSeverity(zScore),
+      message: this.buildMessage(safe, avg),
+      timestamp: Date.now()
     }
   }
 
   private buildMessage(value: number, avg: number): string {
-    const pctAbove = (avg > 0 && isFinite(avg) && isFinite(value))
-      ? Math.round(((value - avg) / avg) * 100)
-      : 0
+    const pctAbove =
+      avg > 0 && isFinite(avg) && isFinite(value) ? Math.round(((value - avg) / avg) * 100) : 0
 
     const messages: Record<string, string> = {
-      cpu:        `CPU is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,
-      memory:     `Memory usage is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,
-      disk_read:  `Disk read speed is unusually high (${pctAbove}% above normal)`,
+      cpu: `CPU is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,
+      memory: `Memory usage is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,
+      disk_read: `Disk read speed is unusually high (${pctAbove}% above normal)`,
       disk_write: `Disk write speed is unusually high (${pctAbove}% above normal)`,
-      net_down:   `Download speed spike detected (${pctAbove}% above normal)`,
-      net_up:     `Upload spike detected — something may be syncing or uploading`,
-      gpu:        `GPU usage is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`,
+      net_down: `Download speed spike detected (${pctAbove}% above normal)`,
+      net_up: `Upload spike detected — something may be syncing or uploading`,
+      gpu: `GPU usage is ${pctAbove}% above your usual ${Math.round(avg)}% baseline`
     }
 
     return messages[this.name] ?? `${this.name} is ${pctAbove}% above normal`
@@ -129,41 +132,41 @@ class MetricDetector {
 }
 
 const detectors: Record<string, MetricDetector> = {
-  cpu:        new MetricDetector('cpu'),
-  memory:     new MetricDetector('memory'),
-  disk_read:  new MetricDetector('disk_read'),
+  cpu: new MetricDetector('cpu'),
+  memory: new MetricDetector('memory'),
+  disk_read: new MetricDetector('disk_read'),
   disk_write: new MetricDetector('disk_write'),
-  net_down:   new MetricDetector('net_down'),
-  net_up:     new MetricDetector('net_up'),
-  gpu:        new MetricDetector('gpu'),
+  net_down: new MetricDetector('net_down'),
+  net_up: new MetricDetector('net_up'),
+  gpu: new MetricDetector('gpu')
 }
 
 export interface AnomalyReport {
-  anomalies:    Anomaly[]
+  anomalies: Anomaly[]
   hasAnomalies: boolean
   samplesCount: number
-  isWarmedUp:   boolean
+  isWarmedUp: boolean
 }
 
 export function checkForAnomalies(metrics: {
-  cpu:       number
-  memory:    number
-  diskRead:  number
+  cpu: number
+  memory: number
+  diskRead: number
   diskWrite: number
-  netDown:   number
-  netUp:     number
-  gpu:       number | null
+  netDown: number
+  netUp: number
+  gpu: number | null
 }): AnomalyReport {
   const anomalies: Anomaly[] = []
 
   const checks = [
-    { key: 'cpu',        value: metrics.cpu        },
-    { key: 'memory',     value: metrics.memory      },
-    { key: 'disk_read',  value: metrics.diskRead    },
-    { key: 'disk_write', value: metrics.diskWrite   },
-    { key: 'net_down',   value: metrics.netDown     },
-    { key: 'net_up',     value: metrics.netUp       },
-    { key: 'gpu',        value: metrics.gpu ?? 0    },
+    { key: 'cpu', value: metrics.cpu },
+    { key: 'memory', value: metrics.memory },
+    { key: 'disk_read', value: metrics.diskRead },
+    { key: 'disk_write', value: metrics.diskWrite },
+    { key: 'net_down', value: metrics.netDown },
+    { key: 'net_up', value: metrics.netUp },
+    { key: 'gpu', value: metrics.gpu ?? 0 }
   ]
 
   for (const { key, value } of checks) {
@@ -173,12 +176,12 @@ export function checkForAnomalies(metrics: {
 
   // Use the getter — never bracket-notation on a private field
   const samplesCount = detectors['cpu'].sampleCount
-  const isWarmedUp   = samplesCount >= MIN_SAMPLES
+  const isWarmedUp = samplesCount >= MIN_SAMPLES
 
   return {
     anomalies,
     hasAnomalies: anomalies.length > 0,
     samplesCount,
-    isWarmedUp,
+    isWarmedUp
   }
 }

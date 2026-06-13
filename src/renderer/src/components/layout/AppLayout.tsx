@@ -7,14 +7,11 @@ export function AppLayout() {
   const { lastUpdated } = useMetricsStatus()
 
   return (
-    <div className="h-screen flex overflow-hidden"
-         style={{ backgroundColor: 'var(--bg-base)' }}>
-
+    <div className="h-screen flex overflow-hidden" style={{ backgroundColor: 'var(--bg-base)' }}>
       <Sidebar />
 
       {/* Main content area */}
       <div className="flex flex-col flex-1 overflow-hidden">
-
         {/* Top bar */}
         <header
           className="flex items-center justify-end px-6 py-3 shrink-0"
@@ -31,7 +28,6 @@ export function AppLayout() {
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
-
       </div>
     </div>
   )
