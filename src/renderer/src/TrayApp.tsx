@@ -9,7 +9,7 @@ import { formatSpeed } from './utils/format'
 import { UsageBar } from './components/ui/UsageBar'
 
 function TrayContent() {
-  useMetricsPolling()
+  useMetricsPolling({ respectUiPause: false })
 
   const cpu = useCpuMetrics()
   const memory = useMemoryMetrics()

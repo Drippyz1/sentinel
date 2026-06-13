@@ -6,10 +6,13 @@ import { GpuWidget } from '../components/widgets/GpuWidget'
 import { BatteryWidget } from '../components/widgets/BatteryWidget'
 import { AnomalyPanel } from '../components/widgets/AnomalyPanel'
 import { useMetricsStatus } from '../hooks/useMetrics'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 import { formatTime } from '../utils/format'
 
 export function DashboardPage() {
-  const { lastUpdated, isPollingPaused, setPollingPaused } = useMetricsStatus()
+  const { lastUpdated } = useMetricsStatus()
+  const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+  const setPollingPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
 
   return (
     <div>

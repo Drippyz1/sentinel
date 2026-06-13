@@ -10,7 +10,7 @@ import { ThermalMetrics } from '../../../main/collectors/thermal'
 import { StartupMetrics } from '../../../main/collectors/startup'
 import { SnapshotRow } from '../../../main/storage/queries'
 import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
-import { AppSettings } from '../../../main/storage/settings'
+import { AppSettings, UiSettingsPatch } from '../../../main/storage/settings'
 
 export interface HistorySummary {
   avg_cpu: number
@@ -47,6 +47,7 @@ declare global {
       // Settings
       getSettings: () => Promise<AppSettings>
       saveSettings: (settings: AppSettings) => Promise<boolean>
+      saveUiSettings: (patch: UiSettingsPatch) => Promise<boolean>
       showDock: () => Promise<void>
       hideDock: () => Promise<void>
 

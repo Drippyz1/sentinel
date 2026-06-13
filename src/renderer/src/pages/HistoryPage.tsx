@@ -12,9 +12,8 @@ import { SnapshotRow } from '../../../main/storage/queries'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
-
-type HistoryView = 'chart' | 'table'
-type MetricGroup = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
+import type { HistoryMetric } from '../../../main/storage/settings'
 
 const RANGES = [
   { label: '30 min', minutes: 30 },
@@ -38,7 +37,7 @@ const CSV_HEADER = [
 
 const METRIC_GROUPS: {
   label: string
-  value: MetricGroup
+  value: HistoryMetric
   color: string
   background: string
 }[] = [
@@ -79,15 +78,6 @@ const METRIC_GROUPS: {
     background: 'rgba(132, 204, 22, 0.1)'
   }
 ]
-
-const INITIAL_VISIBILITY: Record<MetricGroup, boolean> = {
-  cpu: true,
-  memory: true,
-  network: true,
-  disk: true,
-  gpu: true,
-  battery: true
-}
 
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -203,12 +193,16 @@ function HistoryEmptyState({ title, message }: { title: string; message: string 
 }
 
 export function HistoryPage() {
-  const [selectedRange, setSelectedRange] = useState(RANGES[1])
   const [data, setData] = useState<SnapshotRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [view, setView] = useState<HistoryView>('chart')
-  const [visibility, setVisibility] = useState<Record<MetricGroup, boolean>>(INITIAL_VISIBILITY)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const historyRangeMinutes = useUiSettingsStore((state) => state.historyRangeMinutes)
+  const setHistoryRangeMinutes = useUiSettingsStore((state) => state.setHistoryRangeMinutes)
+  const view = useUiSettingsStore((state) => state.historyView)
+  const setView = useUiSettingsStore((state) => state.setHistoryView)
+  const visibility = useUiSettingsStore((state) => state.historyMetrics)
+  const setHistoryMetricVisible = useUiSettingsStore((state) => state.setHistoryMetricVisible)
+  const selectedRange = RANGES.find((range) => range.minutes === historyRangeMinutes) ?? RANGES[1]
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
@@ -258,8 +252,8 @@ export function HistoryPage() {
     URL.revokeObjectURL(url)
   }
 
-  function toggleMetric(metric: MetricGroup) {
-    setVisibility((current) => ({ ...current, [metric]: !current[metric] }))
+  function toggleMetric(metric: HistoryMetric) {
+    setHistoryMetricVisible(metric, !visibility[metric])
   }
 
   const hasVisibleMetrics = Object.values(visibility).some(Boolean)
@@ -302,7 +296,7 @@ export function HistoryPage() {
             {RANGES.map((range) => (
               <button
                 key={range.minutes}
-                onClick={() => setSelectedRange(range)}
+                onClick={() => setHistoryRangeMinutes(range.minutes)}
                 className="min-h-9 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
                 style={{
                   backgroundColor:

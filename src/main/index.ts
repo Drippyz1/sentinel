@@ -17,7 +17,14 @@ import { getThermalMetrics } from './collectors/thermal'
 import { getStartupMetrics, enableStartupItem, disableStartupItem } from './collectors/startup'
 import { checkForAnomalies, AnomalyReport, setThreshold } from './analysis/anomalyDetector'
 import { setupTray, destroyTray } from './tray'
-import { loadSettings, saveSettings, AppSettings, SENSITIVITY_THRESHOLD } from './storage/settings'
+import {
+  loadSettings,
+  saveSettings,
+  updateUiSettings,
+  AppSettings,
+  UiSettingsPatch,
+  SENSITIVITY_THRESHOLD
+} from './storage/settings'
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -183,6 +190,7 @@ app.whenReady().then(() => {
     // Restart the polling loop if the interval changed
     startPolling()
   })
+  ipcMain.handle('save-ui-settings', (_event, patch: UiSettingsPatch) => updateUiSettings(patch))
 
   ipcMain.handle('kill-process', (_event, pid: number) => {
     try {

@@ -3,11 +3,10 @@ import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
 import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 type SortKey = 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
 type SortDir = 'asc' | 'desc'
-type Density = 'compact' | 'comfortable'
-type ProcessFilter = 'all' | 'cpu' | 'memory'
 
 function cpuColor(pct: number): string {
   if (pct >= 20) return 'var(--accent-red)'
@@ -116,8 +115,10 @@ export function ProcessesPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('cpuPercent')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [density, setDensity] = useState<Density>('comfortable')
-  const [quickFilter, setQuickFilter] = useState<ProcessFilter>('all')
+  const density = useUiSettingsStore((state) => state.processDensity)
+  const setDensity = useUiSettingsStore((state) => state.setProcessDensity)
+  const quickFilter = useUiSettingsStore((state) => state.processQuickFilter)
+  const setQuickFilter = useUiSettingsStore((state) => state.setProcessQuickFilter)
   const [selected, setSelected] = useState<number | null>(null) // hovered PID
   const [killing, setKilling] = useState<{ pid: number; name: string } | null>(null)
   const [killError, setKillError] = useState<string | null>(null)

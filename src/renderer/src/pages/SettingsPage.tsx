@@ -2,13 +2,30 @@ import { useEffect, useState } from 'react'
 import { AppSettings } from '../../../main/storage/settings'
 
 const DEFAULT_SETTINGS: AppSettings = {
+  settingsVersion: 1,
   launchAtLogin: false,
   hideFromDock: false,
   pollIntervalMs: 2000,
   tempUnit: 'C',
   dataRetentionDays: 7,
   anomalySensitivity: 'balanced',
-  anomalyNotifications: true
+  anomalyNotifications: true,
+  ui: {
+    dashboardPollingPaused: false,
+    historyView: 'chart',
+    historyMetrics: {
+      cpu: true,
+      memory: true,
+      network: true,
+      disk: true,
+      gpu: true,
+      battery: true
+    },
+    historyRangeMinutes: 60,
+    processDensity: 'comfortable',
+    processQuickFilter: 'all',
+    systemView: 'advanced'
+  }
 }
 
 // ── Reusable primitives ────────────────────────────────────────────────────

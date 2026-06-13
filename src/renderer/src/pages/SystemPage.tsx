@@ -6,8 +6,7 @@ import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
-
-type SystemView = 'simple' | 'advanced'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -283,7 +282,8 @@ export function SystemPage() {
   const [thermal, setThermal] = useState<ThermalMetrics | null>(null)
   const [startup, setStartup] = useState<StartupMetrics | null>(null)
   const [loadingStartup, setLoadingStartup] = useState(false)
-  const [view, setView] = useState<SystemView>('advanced')
+  const view = useUiSettingsStore((state) => state.systemView)
+  const setView = useUiSettingsStore((state) => state.setSystemView)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
   const refreshStartup = useCallback(() => {

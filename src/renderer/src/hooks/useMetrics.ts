@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useMetricsStore } from '../store/metricsStore'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 
-export function useMetricsPolling() {
+export function useMetricsPolling({ respectUiPause = true } = {}) {
   const fetchAll = useMetricsStore((state) => state.fetchAll)
   const fetchProcesses = useMetricsStore((state) => state.fetchProcesses)
   const fetchBattery = useMetricsStore((state) => state.fetchBattery)
-  const isPollingPaused = useMetricsStore((state) => state.isPollingPaused)
+  const uiSettingsInitialized = useUiSettingsStore((state) => state.initialized)
+  const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
 
   useEffect(() => {
-    if (isPollingPaused) return
+    if (respectUiPause && (!uiSettingsInitialized || isPollingPaused)) return
 
     // Hardware + GPU — every 2 seconds
     fetchAll()
@@ -28,7 +30,14 @@ export function useMetricsPolling() {
       clearInterval(processInterval)
       clearInterval(batteryInterval)
     }
-  }, [fetchAll, fetchBattery, fetchProcesses, isPollingPaused])
+  }, [
+    fetchAll,
+    fetchBattery,
+    fetchProcesses,
+    isPollingPaused,
+    respectUiPause,
+    uiSettingsInitialized
+  ])
 }
 
 export function useCpuMetrics() {
@@ -67,9 +76,7 @@ export function useMetricsStatus() {
   const isLoading = useMetricsStore((state) => state.isLoading)
   const error = useMetricsStore((state) => state.error)
   const lastUpdated = useMetricsStore((state) => state.lastUpdated)
-  const isPollingPaused = useMetricsStore((state) => state.isPollingPaused)
-  const setPollingPaused = useMetricsStore((state) => state.setPollingPaused)
-  return { isLoading, error, lastUpdated, isPollingPaused, setPollingPaused }
+  return { isLoading, error, lastUpdated }
 }
 
 export function useAnomalyReport() {
