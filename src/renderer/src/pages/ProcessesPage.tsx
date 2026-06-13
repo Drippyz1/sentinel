@@ -1,10 +1,13 @@
 import { useState, useMemo } from 'react'
-import { useProcessMetrics } from '../hooks/useMetrics'
-import { formatBytes } from '../utils/format'
+import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
+import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
 
 type SortKey = 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
 type SortDir = 'asc' | 'desc'
+type Density = 'compact' | 'comfortable'
+type ProcessFilter = 'all' | 'cpu' | 'memory'
 
 function cpuColor(pct: number): string {
   if (pct >= 20) return 'var(--accent-red)'
@@ -109,9 +112,12 @@ function KillDialog({
 
 export function ProcessesPage() {
   const processes = useProcessMetrics()
+  const processesUpdatedAt = useProcessMetricsStatus()
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('cpuPercent')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [density, setDensity] = useState<Density>('comfortable')
+  const [quickFilter, setQuickFilter] = useState<ProcessFilter>('all')
   const [selected, setSelected] = useState<number | null>(null) // hovered PID
   const [killing, setKilling] = useState<{ pid: number; name: string } | null>(null)
   const [killError, setKillError] = useState<string | null>(null)
@@ -119,6 +125,11 @@ export function ProcessesPage() {
   const filtered = useMemo(() => {
     if (!processes) return []
     return processes.list
+      .filter((process) => {
+        if (quickFilter === 'cpu') return process.cpuPercent >= 5
+        if (quickFilter === 'memory') return process.memoryPercent >= 1
+        return true
+      })
       .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => {
         const aVal = a[sortKey]
@@ -130,7 +141,7 @@ export function ProcessesPage() {
           ? (aVal as number) - (bVal as number)
           : (bVal as number) - (aVal as number)
       })
-  }, [processes, search, sortKey, sortDir])
+  }, [processes, quickFilter, search, sortKey, sortDir])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -186,26 +197,54 @@ export function ProcessesPage() {
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Processes
         </h2>
-        {processes && (
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {processes.total} total — showing top {filtered.length}
-          </span>
-        )}
+        <div className="text-right">
+          {processes && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              {processes.total} total — showing {filtered.length}
+            </p>
+          )}
+          {processesUpdatedAt && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Refreshed {formatTime(processesUpdatedAt)}
+            </p>
+          )}
+        </div>
       </div>
 
       <Card>
-        <input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full text-sm px-3 py-2 rounded-lg mb-4 outline-none"
-          style={{
-            backgroundColor: 'var(--bg-base)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-primary)'
-          }}
-        />
+        <div className="flex items-center gap-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg outline-none"
+            style={{
+              backgroundColor: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)'
+            }}
+          />
+          <SegmentedControl
+            value={quickFilter}
+            onChange={setQuickFilter}
+            ariaLabel="Process filter"
+            options={[
+              { label: 'All', value: 'all' },
+              { label: 'High CPU', value: 'cpu' },
+              { label: 'High Memory', value: 'memory' }
+            ]}
+          />
+          <SegmentedControl
+            value={density}
+            onChange={setDensity}
+            ariaLabel="Process list density"
+            options={[
+              { label: 'Compact', value: 'compact' },
+              { label: 'Comfortable', value: 'comfortable' }
+            ]}
+          />
+        </div>
 
         {/* Column headers — now with an extra column for the kill button */}
         <div
@@ -250,7 +289,9 @@ export function ProcessesPage() {
           {filtered.map((process) => (
             <div
               key={process.pid}
-              className="grid gap-4 px-3 py-2 rounded-lg items-center group"
+              className={`grid gap-4 px-3 rounded-lg items-center group ${
+                density === 'compact' ? 'py-1' : 'py-2.5'
+              }`}
               style={{
                 gridTemplateColumns: '1fr 100px 120px 80px 32px',
                 backgroundColor: selected === process.pid ? 'var(--bg-card-hover)' : 'transparent'
@@ -297,7 +338,7 @@ export function ProcessesPage() {
 
           {filtered.length === 0 && (
             <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
-              {search ? 'No matches.' : 'Loading...'}
+              {processes ? 'No processes match these filters.' : 'Loading...'}
             </p>
           )}
         </div>

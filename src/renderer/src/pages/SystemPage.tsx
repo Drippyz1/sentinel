@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { SystemInfo } from '../../../main/collectors/systemInfo'
 import { ThermalMetrics } from '../../../main/collectors/thermal'
 import { StartupMetrics } from '../../../main/collectors/startup'
-import { formatBytes } from '../utils/format'
+import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
+
+type SystemView = 'simple' | 'advanced'
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -38,7 +41,7 @@ function thermalColor(level: string): string {
 // Sub-components
 // ─────────────────────────────────────────────
 
-function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
+function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced: boolean }) {
   if (thermal.requiresSudo) {
     return (
       <Card title="Thermal Pressure" className="mb-4">
@@ -79,12 +82,14 @@ function ThermalCard({ thermal }: { thermal: ThermalMetrics }) {
         <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
           — {thermal.description}
         </span>
-        <span className="text-xs font-mono ml-auto" style={{ color: 'var(--text-muted)' }}>
-          via {thermal.source}
-        </span>
+        {advanced && (
+          <span className="text-xs font-mono ml-auto" style={{ color: 'var(--text-muted)' }}>
+            via {thermal.source}
+          </span>
+        )}
       </div>
 
-      {thermal.isThrottling && (
+      {advanced && thermal.isThrottling && (
         <div
           className="grid grid-cols-3 gap-4 mt-3 pt-3"
           style={{ borderTop: '1px solid var(--border)' }}
@@ -262,36 +267,65 @@ export function SystemPage() {
   const [thermal, setThermal] = useState<ThermalMetrics | null>(null)
   const [startup, setStartup] = useState<StartupMetrics | null>(null)
   const [loadingStartup, setLoadingStartup] = useState(false)
+  const [view, setView] = useState<SystemView>('advanced')
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+
+  const refreshStartup = useCallback(() => {
+    setLoadingStartup(true)
+    window.electronAPI
+      .getStartupMetrics()
+      .then(setStartup)
+      .finally(() => setLoadingStartup(false))
+  }, [])
 
   useEffect(() => {
     // Static machine info — fetch once, it never changes during a session
     window.electronAPI.getSystemInfo().then(setSystemInfo)
 
     // Thermal — fetch now then poll every 10 seconds
-    window.electronAPI.getThermalMetrics().then(setThermal)
+    window.electronAPI.getThermalMetrics().then((metrics) => {
+      setThermal(metrics)
+      setLastRefreshed(new Date())
+    })
     const thermalInterval = setInterval(() => {
-      window.electronAPI.getThermalMetrics().then(setThermal)
+      window.electronAPI.getThermalMetrics().then((metrics) => {
+        setThermal(metrics)
+        setLastRefreshed(new Date())
+      })
     }, 10000)
 
     // Startup items — heavier scan, fetch separately
-    refreshStartup()
+    const startupLoad = setTimeout(refreshStartup, 0)
 
-    return () => clearInterval(thermalInterval)
-  }, [])
-
-  function refreshStartup() {
-    setLoadingStartup(true)
-    window.electronAPI
-      .getStartupMetrics()
-      .then(setStartup)
-      .finally(() => setLoadingStartup(false))
-  }
+    return () => {
+      clearTimeout(startupLoad)
+      clearInterval(thermalInterval)
+    }
+  }, [refreshStartup])
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-        System
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            System
+          </h2>
+          {lastRefreshed && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Refreshed {formatTime(lastRefreshed)}
+            </p>
+          )}
+        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          ariaLabel="System detail level"
+          options={[
+            { label: 'Simple', value: 'simple' },
+            { label: 'Advanced', value: 'advanced' }
+          ]}
+        />
+      </div>
 
       {/* Machine + Hardware side by side */}
       <div className="grid grid-cols-2 gap-4 mb-4">
@@ -303,10 +337,14 @@ export function SystemPage() {
               value={`${systemInfo.distro} ${systemInfo.release}`}
               accent="blue"
             />
-            <StatRow label="Hostname" value={systemInfo.hostname} accent="blue" />
-            <StatRow label="Arch" value={systemInfo.arch} accent="blue" />
             <StatRow label="Uptime" value={formatUptime(systemInfo.uptimeSeconds)} accent="green" />
-            <StatRow label="Serial" value={systemInfo.serial} accent="blue" />
+            {view === 'advanced' && (
+              <>
+                <StatRow label="Hostname" value={systemInfo.hostname} accent="blue" />
+                <StatRow label="Arch" value={systemInfo.arch} accent="blue" />
+                <StatRow label="Serial" value={systemInfo.serial} accent="blue" />
+              </>
+            )}
           </Card>
         ) : (
           <Card title="Machine">
@@ -320,16 +358,24 @@ export function SystemPage() {
           <Card title="Hardware">
             <StatRow label="CPU" value={systemInfo.cpuBrand} accent="blue" />
             <StatRow
-              label="Cores"
-              value={`${systemInfo.cpuCores} cores / ${systemInfo.cpuThreads} threads`}
-              accent="blue"
-            />
-            <StatRow label="Base Speed" value={`${systemInfo.cpuBaseSpeed} GHz`} accent="blue" />
-            <StatRow
               label="Total RAM"
               value={formatBytes(systemInfo.totalMemory)}
               accent="purple"
             />
+            {view === 'advanced' && (
+              <>
+                <StatRow
+                  label="Cores"
+                  value={`${systemInfo.cpuCores} cores / ${systemInfo.cpuThreads} threads`}
+                  accent="blue"
+                />
+                <StatRow
+                  label="Base Speed"
+                  value={`${systemInfo.cpuBaseSpeed} GHz`}
+                  accent="blue"
+                />
+              </>
+            )}
           </Card>
         ) : (
           <Card title="Hardware">
@@ -342,7 +388,7 @@ export function SystemPage() {
 
       {/* Thermal pressure — full width */}
       {thermal ? (
-        <ThermalCard thermal={thermal} />
+        <ThermalCard thermal={thermal} advanced={view === 'advanced'} />
       ) : (
         <Card title="Thermal Pressure" className="mb-4">
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -352,7 +398,9 @@ export function SystemPage() {
       )}
 
       {/* Startup items — full width */}
-      <StartupCard startup={startup} loadingStartup={loadingStartup} onRefresh={refreshStartup} />
+      {view === 'advanced' && (
+        <StartupCard startup={startup} loadingStartup={loadingStartup} onRefresh={refreshStartup} />
+      )}
     </div>
   )
 }

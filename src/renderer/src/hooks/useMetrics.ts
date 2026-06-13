@@ -48,6 +48,10 @@ export function useProcessMetrics() {
   return useMetricsStore((state) => state.processes)
 }
 
+export function useProcessMetricsStatus() {
+  return useMetricsStore((state) => state.processesUpdatedAt)
+}
+
 export function useGpuMetrics() {
   return useMetricsStore((state) => state.gpu)
 }

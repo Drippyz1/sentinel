@@ -20,6 +20,7 @@ interface MetricsState {
   isLoading: boolean
   error: string | null
   lastUpdated: Date | null
+  processesUpdatedAt: Date | null
 
   fetchAll: () => Promise<void>
   fetchProcesses: () => Promise<void>
@@ -38,6 +39,7 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   isLoading: false,
   error: null,
   lastUpdated: null,
+  processesUpdatedAt: null,
 
   fetchAll: async () => {
     set({ isLoading: true, error: null })
@@ -70,7 +72,7 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   fetchProcesses: async () => {
     try {
       const processes = await window.electronAPI.getProcessMetrics()
-      set({ processes })
+      set({ processes, processesUpdatedAt: new Date() })
     } catch (err) {
       console.error('Failed to fetch processes:', err)
     }
