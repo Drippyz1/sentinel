@@ -20,6 +20,18 @@ const RANGES = [
   { label: '24 hours', minutes: 1440 }
 ]
 
+const CSV_HEADER = [
+  'timestamp',
+  'cpu_usage',
+  'memory_usage',
+  'disk_read',
+  'disk_write',
+  'net_down',
+  'net_up',
+  'gpu_usage',
+  'battery'
+]
+
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
@@ -117,6 +129,32 @@ export function HistoryPage() {
     }
   }, [loadHistory])
 
+  function exportCsv() {
+    const rows = data.map((snapshot) =>
+      [
+        new Date(snapshot.timestamp).toISOString(),
+        snapshot.cpu_usage,
+        snapshot.memory_usage,
+        snapshot.disk_read,
+        snapshot.disk_write,
+        snapshot.net_down,
+        snapshot.net_up,
+        snapshot.gpu_usage ?? '',
+        snapshot.battery ?? ''
+      ].join(',')
+    )
+    const csv = [CSV_HEADER.join(','), ...rows].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = 'sentinel-history.csv'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const maxNetDown = Math.max(...data.map((d) => d.net_down), 1)
   const maxNetUp = Math.max(...data.map((d) => d.net_up), 1)
   const maxDiskRead = Math.max(...data.map((d) => d.disk_read), 1)
@@ -128,22 +166,40 @@ export function HistoryPage() {
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           History
         </h2>
-        <div className="flex gap-1">
-          {RANGES.map((range) => (
-            <button
-              key={range.minutes}
-              onClick={() => setSelectedRange(range)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              style={{
-                backgroundColor:
-                  selectedRange.minutes === range.minutes ? 'var(--accent-blue)' : 'var(--bg-card)',
-                color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              {range.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCsv}
+            disabled={data.length === 0}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+              cursor: data.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: data.length === 0 ? 0.5 : 1
+            }}
+          >
+            Export CSV
+          </button>
+          <div className="flex gap-1">
+            {RANGES.map((range) => (
+              <button
+                key={range.minutes}
+                onClick={() => setSelectedRange(range)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  backgroundColor:
+                    selectedRange.minutes === range.minutes
+                      ? 'var(--accent-blue)'
+                      : 'var(--bg-card)',
+                  color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
