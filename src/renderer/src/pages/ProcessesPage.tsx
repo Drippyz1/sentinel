@@ -67,7 +67,7 @@ function KillDialog({
       <div
         className="rounded-xl p-5 w-80 shadow-xl"
         style={{
-          backgroundColor: 'var(--card-bg)',
+          backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)'
         }}
         onClick={(e) => e.stopPropagation()}
@@ -75,7 +75,7 @@ function KillDialog({
         <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
           Kill process?
         </h3>
-        <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           This will send SIGKILL to <span style={{ color: 'var(--text-primary)' }}>{name}</span>{' '}
           (PID {pid}). Any unsaved work in that process will be lost.
         </p>
@@ -143,6 +143,22 @@ export function ProcessesPage() {
       })
   }, [processes, quickFilter, search, sortKey, sortDir])
 
+  const topConsumers = useMemo(() => {
+    if (!processes || processes.list.length === 0) {
+      return { cpuPid: null, memoryPid: null }
+    }
+
+    let topCpu = processes.list[0]
+    let topMemory = processes.list[0]
+
+    for (const process of processes.list.slice(1)) {
+      if (process.cpuPercent > topCpu.cpuPercent) topCpu = process
+      if (process.memoryBytes > topMemory.memoryBytes) topMemory = process
+    }
+
+    return { cpuPid: topCpu.pid, memoryPid: topMemory.pid }
+  }, [processes])
+
   function handleSort(key: SortKey) {
     if (key === sortKey) {
       setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
@@ -193,7 +209,7 @@ export function ProcessesPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Processes
         </h2>
@@ -212,135 +228,184 @@ export function ProcessesPage() {
       </div>
 
       <Card>
-        <div className="flex items-center gap-3 mb-4">
+        <div className="mb-4">
           <input
             type="text"
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg outline-none"
+            className="w-full min-h-10 text-sm px-3.5 py-2.5 rounded-lg outline-none transition-colors"
             style={{
               backgroundColor: 'var(--bg-base)',
-              border: '1px solid var(--border)',
+              border: '1px solid var(--accent-blue)',
               color: 'var(--text-primary)'
             }}
           />
-          <SegmentedControl
-            value={quickFilter}
-            onChange={setQuickFilter}
-            ariaLabel="Process filter"
-            options={[
-              { label: 'All', value: 'all' },
-              { label: 'High CPU', value: 'cpu' },
-              { label: 'High Memory', value: 'memory' }
-            ]}
-          />
-          <SegmentedControl
-            value={density}
-            onChange={setDensity}
-            ariaLabel="Process list density"
-            options={[
-              { label: 'Compact', value: 'compact' },
-              { label: 'Comfortable', value: 'comfortable' }
-            ]}
-          />
         </div>
 
-        {/* Column headers — now with an extra column for the kill button */}
         <div
-          className="grid gap-4 px-3 pb-2 mb-1"
-          style={{
-            gridTemplateColumns: '1fr 100px 120px 80px 32px',
-            borderBottom: '1px solid var(--border)'
-          }}
+          className="flex flex-wrap items-end justify-between gap-4 mb-4 rounded-xl p-3"
+          style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
         >
-          <ColHeader
-            label="Name"
-            sortKey="name"
-            current={sortKey}
-            direction={sortDir}
-            onSort={handleSort}
-          />
-          <ColHeader
-            label="CPU"
-            sortKey="cpuPercent"
-            current={sortKey}
-            direction={sortDir}
-            onSort={handleSort}
-          />
-          <ColHeader
-            label="Memory"
-            sortKey="memoryBytes"
-            current={sortKey}
-            direction={sortDir}
-            onSort={handleSort}
-          />
-          <ColHeader
-            label="PID"
-            sortKey="pid"
-            current={sortKey}
-            direction={sortDir}
-            onSort={handleSort}
-          />
-          <div /> {/* spacer for kill column */}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              Quick filter
+            </p>
+            <SegmentedControl
+              value={quickFilter}
+              onChange={setQuickFilter}
+              ariaLabel="Process filter"
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'High CPU', value: 'cpu' },
+                { label: 'High Memory', value: 'memory' }
+              ]}
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              Row density
+            </p>
+            <SegmentedControl
+              value={density}
+              onChange={setDensity}
+              ariaLabel="Process list density"
+              options={[
+                { label: 'Compact', value: 'compact' },
+                { label: 'Comfortable', value: 'comfortable' }
+              ]}
+            />
+          </div>
         </div>
 
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-          {filtered.map((process) => (
-            <div
-              key={process.pid}
-              className={`grid gap-4 px-3 rounded-lg items-center group ${
-                density === 'compact' ? 'py-1' : 'py-2.5'
-              }`}
-              style={{
-                gridTemplateColumns: '1fr 100px 120px 80px 32px',
-                backgroundColor: selected === process.pid ? 'var(--bg-card-hover)' : 'transparent'
-              }}
-              onMouseEnter={() => setSelected(process.pid)}
-              onMouseLeave={() => setSelected(null)}
-            >
-              <span
-                className="text-sm font-medium truncate"
-                style={{ color: 'var(--text-primary)' }}
-                title={process.name}
-              >
-                {process.name}
-              </span>
-              <span className="text-sm font-mono" style={{ color: cpuColor(process.cpuPercent) }}>
-                {process.cpuPercent.toFixed(1)}%
-              </span>
-              <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
-                {formatBytes(process.memoryBytes)}
-              </span>
-              <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
-                {process.pid}
-              </span>
+        <div className="overflow-x-auto">
+          <div
+            className="grid gap-4 px-3 pb-2 mb-1 min-w-[620px]"
+            style={{
+              gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 80px 32px',
+              borderBottom: '1px solid var(--border)'
+            }}
+          >
+            <ColHeader
+              label="Name"
+              sortKey="name"
+              current={sortKey}
+              direction={sortDir}
+              onSort={handleSort}
+            />
+            <ColHeader
+              label="CPU"
+              sortKey="cpuPercent"
+              current={sortKey}
+              direction={sortDir}
+              onSort={handleSort}
+            />
+            <ColHeader
+              label="Memory"
+              sortKey="memoryBytes"
+              current={sortKey}
+              direction={sortDir}
+              onSort={handleSort}
+            />
+            <ColHeader
+              label="PID"
+              sortKey="pid"
+              current={sortKey}
+              direction={sortDir}
+              onSort={handleSort}
+            />
+            <div />
+          </div>
 
-              {/* Kill button — only visible on hover */}
-              <button
-                onClick={() => setKilling({ pid: process.pid, name: process.name })}
-                title={`Kill ${process.name}`}
-                className="flex items-center justify-center w-6 h-6 rounded transition-all"
-                style={{
-                  opacity: selected === process.pid ? 1 : 0,
-                  backgroundColor: 'rgba(239,68,68,0.15)',
-                  color: 'var(--accent-red)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  lineHeight: 1
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          <div
+            className="overflow-y-auto min-w-[620px]"
+            style={{ maxHeight: 'calc(100vh - 340px)' }}
+          >
+            {filtered.map((process) => {
+              const isTopCpu = process.pid === topConsumers.cpuPid
+              const isTopMemory = process.pid === topConsumers.memoryPid
+              const isHovered = selected === process.pid
 
-          {filtered.length === 0 && (
-            <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
-              {processes ? 'No processes match these filters.' : 'Loading...'}
-            </p>
-          )}
+              return (
+                <div
+                  key={process.pid}
+                  className={`grid gap-4 px-3 rounded-lg items-center group transition-colors ${
+                    density === 'compact' ? 'py-1' : 'py-2.5'
+                  }`}
+                  style={{
+                    gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 80px 32px',
+                    backgroundColor: isHovered
+                      ? 'var(--bg-card-hover)'
+                      : isTopCpu || isTopMemory
+                        ? 'rgba(59, 130, 246, 0.05)'
+                        : 'transparent',
+                    boxShadow:
+                      isTopCpu || isTopMemory
+                        ? 'inset 2px 0 0 var(--accent-blue)'
+                        : 'inset 0 0 0 transparent'
+                  }}
+                  onMouseEnter={() => setSelected(process.pid)}
+                  onMouseLeave={() => setSelected(null)}
+                >
+                  <div className="min-w-0">
+                    <span
+                      className="block text-sm font-medium truncate"
+                      style={{ color: 'var(--text-primary)' }}
+                      title={process.name}
+                    >
+                      {process.name}
+                    </span>
+                    {(isTopCpu || isTopMemory) && density === 'comfortable' && (
+                      <span
+                        className="text-[10px] font-semibold"
+                        style={{ color: 'var(--accent-blue)' }}
+                      >
+                        {[isTopCpu && 'Top CPU', isTopMemory && 'Top Memory']
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="text-sm font-mono"
+                    style={{ color: cpuColor(process.cpuPercent) }}
+                  >
+                    {process.cpuPercent.toFixed(1)}%
+                  </span>
+                  <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
+                    {formatBytes(process.memoryBytes)}
+                  </span>
+                  <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
+                    {process.pid}
+                  </span>
+
+                  {/* Kill button — only visible on hover */}
+                  <button
+                    onClick={() => setKilling({ pid: process.pid, name: process.name })}
+                    title={`Kill ${process.name}`}
+                    className="flex items-center justify-center w-6 h-6 rounded transition-all"
+                    style={{
+                      opacity: selected === process.pid ? 1 : 0,
+                      backgroundColor: 'rgba(239,68,68,0.15)',
+                      color: 'var(--accent-red)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      lineHeight: 1
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )
+            })}
+
+            {filtered.length === 0 && (
+              <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
+                {processes ? 'No processes match these filters.' : 'Loading...'}
+              </p>
+            )}
+          </div>
         </div>
       </Card>
     </div>

@@ -37,6 +37,22 @@ function thermalColor(level: string): string {
   }
 }
 
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mb-3 mt-6 first:mt-0">
+      <h3
+        className="text-xs font-semibold uppercase tracking-widest"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {title}
+      </h3>
+      <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        {description}
+      </p>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────
@@ -68,7 +84,7 @@ function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced:
 
   return (
     <Card title="Thermal Pressure" className="mb-4">
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         <div
           className="w-3 h-3 rounded-full shrink-0"
           style={{ backgroundColor: thermalColor(thermal.level) }}
@@ -79,11 +95,11 @@ function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced:
         >
           {thermal.level}
         </span>
-        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <span className="min-w-0 text-sm" style={{ color: 'var(--text-muted)' }}>
           — {thermal.description}
         </span>
         {advanced && (
-          <span className="text-xs font-mono ml-auto" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs font-mono sm:ml-auto" style={{ color: 'var(--text-muted)' }}>
             via {thermal.source}
           </span>
         )}
@@ -91,7 +107,7 @@ function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced:
 
       {advanced && thermal.isThrottling && (
         <div
-          className="grid grid-cols-3 gap-4 mt-3 pt-3"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3 pt-3"
           style={{ borderTop: '1px solid var(--border)' }}
         >
           {thermal.cpuSpeedLimit !== null && (
@@ -159,10 +175,10 @@ function StartupCard({
       )}
 
       {startup && startup.items.length > 0 && (
-        <div className="overflow-y-auto" style={{ maxHeight: '360px' }}>
+        <div className="overflow-auto" style={{ maxHeight: '360px' }}>
           {/* Table header */}
           <div
-            className="grid gap-4 px-2 pb-2 mb-1 text-xs font-semibold uppercase tracking-wider"
+            className="grid min-w-[560px] gap-4 px-2 pb-2 mb-1 text-xs font-semibold uppercase tracking-wider"
             style={{
               gridTemplateColumns: '1fr 110px 80px 80px',
               borderBottom: '1px solid var(--border)',
@@ -179,7 +195,7 @@ function StartupCard({
           {startup.items.map((item, i) => (
             <div
               key={i}
-              className="grid gap-4 px-2 py-2 rounded-lg items-center"
+              className="grid min-w-[560px] gap-4 px-2 py-2 rounded-lg items-center transition-colors"
               style={{ gridTemplateColumns: '1fr 110px 80px 80px' }}
               onMouseEnter={(e) => {
                 ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--bg-card-hover)'
@@ -231,7 +247,7 @@ function StartupCard({
                     )
                     if (success) onRefresh()
                   }}
-                  className="text-xs px-2 py-1 rounded transition-all"
+                  className="min-h-8 text-xs px-2.5 py-1.5 rounded-lg transition-all"
                   style={{
                     backgroundColor: item.enabled
                       ? 'rgba(239, 68, 68, 0.1)'
@@ -305,7 +321,7 @@ export function SystemPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             System
@@ -327,8 +343,11 @@ export function SystemPage() {
         />
       </div>
 
-      {/* Machine + Hardware side by side */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <SectionHeading
+        title="Overview"
+        description="Core machine identity and current operating system details."
+      />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {systemInfo ? (
           <Card title="Machine">
             <StatRow label="Model" value={systemInfo.model} accent="blue" />
@@ -386,7 +405,10 @@ export function SystemPage() {
         )}
       </div>
 
-      {/* Thermal pressure — full width */}
+      <SectionHeading
+        title="Thermal"
+        description="Current thermal pressure and performance limits reported by the system."
+      />
       {thermal ? (
         <ThermalCard thermal={thermal} advanced={view === 'advanced'} />
       ) : (
@@ -397,9 +419,18 @@ export function SystemPage() {
         </Card>
       )}
 
-      {/* Startup items — full width */}
       {view === 'advanced' && (
-        <StartupCard startup={startup} loadingStartup={loadingStartup} onRefresh={refreshStartup} />
+        <>
+          <SectionHeading
+            title="Startup"
+            description="Items configured to launch automatically with your system or user session."
+          />
+          <StartupCard
+            startup={startup}
+            loadingStartup={loadingStartup}
+            onRefresh={refreshStartup}
+          />
+        </>
       )}
     </div>
   )

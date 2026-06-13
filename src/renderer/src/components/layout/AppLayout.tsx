@@ -14,7 +14,7 @@ export function AppLayout() {
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top bar */}
         <header
-          className="flex items-center justify-end px-6 py-3 shrink-0"
+          className="flex items-center justify-end px-4 sm:px-6 py-3 shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
           {lastUpdated && (
@@ -25,7 +25,7 @@ export function AppLayout() {
         </header>
 
         {/* Page content — Outlet renders the current page */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-5 xl:p-6">
           <Outlet />
         </main>
       </div>

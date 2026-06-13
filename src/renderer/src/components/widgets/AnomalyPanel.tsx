@@ -1,13 +1,7 @@
 import { useAnomalyReport } from '../../hooks/useMetrics'
 import { Anomaly } from '../../../../main/analysis/anomalyDetector'
 import { Card } from '../ui/Card'
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toFixed(0)} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
+import { formatSpeed } from '../../utils/format'
 
 function formatValue(metric: string, value: number): string {
   switch (metric) {
@@ -15,7 +9,7 @@ function formatValue(metric: string, value: number): string {
     case 'disk_write':
     case 'net_down':
     case 'net_up':
-      return `${formatBytes(value)}/s`
+      return formatSpeed(value)
     default:
       return `${value}%`
   }

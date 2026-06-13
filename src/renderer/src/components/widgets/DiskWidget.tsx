@@ -35,9 +35,9 @@ export function DiskWidget() {
       </div>
 
       <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
               Read — {formatSpeed(disk.io.readBytesPerSec)}
             </p>
             <MiniChart
@@ -48,8 +48,8 @@ export function DiskWidget() {
               height={50}
             />
           </div>
-          <div>
-            <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+          <div className="min-w-0">
+            <p className="truncate text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
               Write — {formatSpeed(disk.io.writeBytesPerSec)}
             </p>
             <MiniChart

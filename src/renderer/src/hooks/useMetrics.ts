@@ -6,8 +6,11 @@ export function useMetricsPolling() {
   const fetchAll = useMetricsStore((state) => state.fetchAll)
   const fetchProcesses = useMetricsStore((state) => state.fetchProcesses)
   const fetchBattery = useMetricsStore((state) => state.fetchBattery)
+  const isPollingPaused = useMetricsStore((state) => state.isPollingPaused)
 
   useEffect(() => {
+    if (isPollingPaused) return
+
     // Hardware + GPU — every 2 seconds
     fetchAll()
     const hardwareInterval = setInterval(fetchAll, 2000)
@@ -25,7 +28,7 @@ export function useMetricsPolling() {
       clearInterval(processInterval)
       clearInterval(batteryInterval)
     }
-  }, [fetchAll, fetchBattery, fetchProcesses])
+  }, [fetchAll, fetchBattery, fetchProcesses, isPollingPaused])
 }
 
 export function useCpuMetrics() {
@@ -64,7 +67,9 @@ export function useMetricsStatus() {
   const isLoading = useMetricsStore((state) => state.isLoading)
   const error = useMetricsStore((state) => state.error)
   const lastUpdated = useMetricsStore((state) => state.lastUpdated)
-  return { isLoading, error, lastUpdated }
+  const isPollingPaused = useMetricsStore((state) => state.isPollingPaused)
+  const setPollingPaused = useMetricsStore((state) => state.setPollingPaused)
+  return { isLoading, error, lastUpdated, isPollingPaused, setPollingPaused }
 }
 
 export function useAnomalyReport() {

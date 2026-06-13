@@ -9,7 +9,7 @@ import {
   CartesianGrid
 } from 'recharts'
 import { SnapshotRow } from '../../../main/storage/queries'
-import { formatBytes, formatTime } from '../utils/format'
+import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 
@@ -163,8 +163,8 @@ function ChartCard({
 function HistoryTableHeader({ label }: { label: string }) {
   return (
     <th
-      className="text-right font-semibold uppercase tracking-wider px-2 py-2 whitespace-nowrap"
-      style={{ color: 'var(--text-muted)' }}
+      className="text-right font-semibold uppercase tracking-wider px-3 py-2.5 whitespace-nowrap"
+      style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
     >
       {label}
     </th>
@@ -174,13 +174,31 @@ function HistoryTableHeader({ label }: { label: string }) {
 function HistoryTableCell({ value, align = 'right' }: { value: string; align?: 'left' | 'right' }) {
   return (
     <td
-      className={`px-2 py-2 font-mono whitespace-nowrap ${
+      className={`px-3 py-2.5 font-mono whitespace-nowrap ${
         align === 'left' ? 'text-left' : 'text-right'
       }`}
       style={{ color: 'var(--text-primary)' }}
     >
       {value}
     </td>
+  )
+}
+
+function HistoryEmptyState({ title, message }: { title: string; message: string }) {
+  return (
+    <div
+      className="flex min-h-56 items-center justify-center rounded-xl border px-6 py-12 text-center"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
+    >
+      <div>
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {title}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          {message}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -254,7 +272,7 @@ export function HistoryPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             History
@@ -265,20 +283,11 @@ export function HistoryPage() {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <SegmentedControl
-            value={view}
-            onChange={setView}
-            ariaLabel="History view"
-            options={[
-              { label: 'Chart', value: 'chart' },
-              { label: 'Table', value: 'table' }
-            ]}
-          />
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             onClick={exportCsv}
             disabled={data.length === 0}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            className="min-h-9 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{
               backgroundColor: 'var(--bg-card)',
               color: 'var(--text-muted)',
@@ -289,12 +298,12 @@ export function HistoryPage() {
           >
             Export CSV
           </button>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {RANGES.map((range) => (
               <button
                 key={range.minutes}
                 onClick={() => setSelectedRange(range)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                className="min-h-9 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
                 style={{
                   backgroundColor:
                     selectedRange.minutes === range.minutes
@@ -312,13 +321,32 @@ export function HistoryPage() {
       </div>
 
       <div
-        className="flex items-center justify-between rounded-xl px-3 py-2 mb-4"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-xl p-3 mb-5"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
-        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-          Visible metrics
-        </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+              View
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Choose how history is displayed
+            </p>
+          </div>
+          <SegmentedControl
+            value={view}
+            onChange={setView}
+            ariaLabel="History view"
+            options={[
+              { label: 'Chart', value: 'chart' },
+              { label: 'Table', value: 'table' }
+            ]}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+            Metrics
+          </span>
           {METRIC_GROUPS.map((metric) => {
             const isVisible = visibility[metric.value]
 
@@ -327,11 +355,12 @@ export function HistoryPage() {
                 key={metric.value}
                 type="button"
                 onClick={() => toggleMetric(metric.value)}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                className="min-h-8 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={{
-                  backgroundColor: isVisible ? metric.background : 'transparent',
+                  backgroundColor: isVisible ? metric.background : 'var(--bg-base)',
                   border: `1px solid ${isVisible ? metric.color : 'var(--border)'}`,
-                  color: isVisible ? metric.color : 'var(--text-muted)'
+                  color: isVisible ? metric.color : 'var(--text-muted)',
+                  boxShadow: isVisible ? `0 0 0 1px ${metric.background}` : 'none'
                 }}
                 aria-pressed={isVisible}
               >
@@ -343,28 +372,26 @@ export function HistoryPage() {
       </div>
 
       {isLoading && data.length === 0 ? (
-        <div className="flex items-center justify-center py-24">
-          <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
-        </div>
+        <HistoryEmptyState title="Loading history" message="Preparing recent metric snapshots..." />
       ) : data.length === 0 ? (
-        <div className="flex items-center justify-center py-24">
-          <p style={{ color: 'var(--text-muted)' }}>
-            Nothing here yet. Leave it running and check back.
-          </p>
-        </div>
+        <HistoryEmptyState
+          title="No history yet"
+          message="Leave Sentinel running for a few minutes, then check back."
+        />
       ) : !hasVisibleMetrics ? (
-        <div className="flex items-center justify-center py-24">
-          <p style={{ color: 'var(--text-muted)' }}>Select a metric to display.</p>
-        </div>
+        <HistoryEmptyState
+          title="No metrics selected"
+          message="Choose at least one metric from the filters above."
+        />
       ) : view === 'table' ? (
-        <Card>
+        <Card className="p-0 overflow-hidden">
           <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-            <table className="w-full border-collapse text-xs">
-              <thead>
+            <table className="w-full border-separate border-spacing-0 text-xs">
+              <thead className="sticky top-0 z-10">
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th
-                    className="text-left font-semibold uppercase tracking-wider px-2 py-2"
-                    style={{ color: 'var(--text-muted)' }}
+                    className="text-left font-semibold uppercase tracking-wider px-3 py-2.5 whitespace-nowrap"
+                    style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
                   >
                     Timestamp
                   </th>
@@ -388,7 +415,17 @@ export function HistoryPage() {
               </thead>
               <tbody>
                 {data.map((snapshot) => (
-                  <tr key={snapshot.timestamp} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <tr
+                    key={snapshot.timestamp}
+                    className="transition-colors"
+                    style={{ backgroundColor: 'transparent' }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
                     <HistoryTableCell
                       value={new Date(snapshot.timestamp).toLocaleString()}
                       align="left"
@@ -397,14 +434,14 @@ export function HistoryPage() {
                     {visibility.memory && <HistoryTableCell value={`${snapshot.memory_usage}%`} />}
                     {visibility.network && (
                       <>
-                        <HistoryTableCell value={`${formatBytes(snapshot.net_down)}/s`} />
-                        <HistoryTableCell value={`${formatBytes(snapshot.net_up)}/s`} />
+                        <HistoryTableCell value={formatSpeed(snapshot.net_down)} />
+                        <HistoryTableCell value={formatSpeed(snapshot.net_up)} />
                       </>
                     )}
                     {visibility.disk && (
                       <>
-                        <HistoryTableCell value={`${formatBytes(snapshot.disk_read)}/s`} />
-                        <HistoryTableCell value={`${formatBytes(snapshot.disk_write)}/s`} />
+                        <HistoryTableCell value={formatSpeed(snapshot.disk_read)} />
+                        <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
                       </>
                     )}
                     {visibility.gpu && hasGpuData && (
@@ -424,7 +461,7 @@ export function HistoryPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {visibility.cpu && (
             <ChartCard
               title="CPU Usage"
@@ -452,7 +489,7 @@ export function HistoryPage() {
                 data={data}
                 dataKey="net_down"
                 color="#22c55e"
-                formatValue={(v) => formatBytes(v) + '/s'}
+                formatValue={formatSpeed}
                 domain={[0, maxNetDown]}
               />
               <ChartCard
@@ -460,7 +497,7 @@ export function HistoryPage() {
                 data={data}
                 dataKey="net_up"
                 color="#f59e0b"
-                formatValue={(v) => formatBytes(v) + '/s'}
+                formatValue={formatSpeed}
                 domain={[0, maxNetUp]}
               />
             </>
@@ -472,7 +509,7 @@ export function HistoryPage() {
                 data={data}
                 dataKey="disk_read"
                 color="#22c55e"
-                formatValue={(v) => formatBytes(v) + '/s'}
+                formatValue={formatSpeed}
                 domain={[0, maxDiskRead]}
               />
               <ChartCard
@@ -480,7 +517,7 @@ export function HistoryPage() {
                 data={data}
                 dataKey="disk_write"
                 color="#ef4444"
-                formatValue={(v) => formatBytes(v) + '/s'}
+                formatValue={formatSpeed}
                 domain={[0, maxDiskWrite]}
               />
             </>

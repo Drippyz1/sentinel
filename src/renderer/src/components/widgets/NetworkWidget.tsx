@@ -15,26 +15,34 @@ export function NetworkWidget() {
 
   return (
     <Card title="Network">
-      <div className="grid grid-cols-2 gap-4 mb-3">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div className="min-w-0 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-base)' }}>
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
             Download
           </p>
-          <p className="text-2xl font-bold font-mono" style={{ color: 'var(--accent-green)' }}>
+          <p
+            className="truncate font-bold font-mono"
+            style={{ color: 'var(--accent-green)', fontSize: 'clamp(1rem, 2.2vw, 1.5rem)' }}
+            title={formatSpeed(network.totalDownloadBytesPerSec)}
+          >
             {formatSpeed(network.totalDownloadBytesPerSec)}
           </p>
         </div>
-        <div>
+        <div className="min-w-0 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-base)' }}>
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
             Upload
           </p>
-          <p className="text-2xl font-bold font-mono" style={{ color: 'var(--accent-blue)' }}>
+          <p
+            className="truncate font-bold font-mono"
+            style={{ color: 'var(--accent-blue)', fontSize: 'clamp(1rem, 2.2vw, 1.5rem)' }}
+            title={formatSpeed(network.totalUploadBytesPerSec)}
+          >
             {formatSpeed(network.totalUploadBytesPerSec)}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <MiniChart
           data={downHistory}
           color="#22c55e"
@@ -56,9 +64,15 @@ export function NetworkWidget() {
           </p>
           {activeInterfaces.map((iface) => (
             <div key={iface.name} className="mb-3">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium">{iface.name}</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              <div className="flex justify-between items-center gap-3 min-w-0 mb-1">
+                <span className="min-w-0 truncate text-sm font-medium" title={iface.name}>
+                  {iface.name}
+                </span>
+                <span
+                  className="min-w-0 truncate text-right text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                  title={iface.ipAddress}
+                >
                   {iface.ipAddress}
                 </span>
               </div>

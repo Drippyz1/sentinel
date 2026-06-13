@@ -10,7 +10,18 @@ export function formatBytes(bytes: number, decimals = 1): string {
 // Converts bytes-per-second to a readable speed string
 // e.g. 1500000 → "1.5 MB/s"
 export function formatSpeed(bytesPerSec: number): string {
-  return `${formatBytes(bytesPerSec)}/s`
+  const value = Math.max(0, bytesPerSec)
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let unitIndex = 0
+  let scaled = value
+
+  while (scaled >= 1000 && unitIndex < units.length - 1) {
+    scaled /= 1000
+    unitIndex += 1
+  }
+
+  const decimals = unitIndex === 0 || scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2
+  return `${Number(scaled.toFixed(decimals))} ${units[unitIndex]}`
 }
 
 // Formats a percentage with consistent decimal places

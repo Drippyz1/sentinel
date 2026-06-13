@@ -15,11 +15,15 @@ const accentColors = {
 
 export function StatRow({ label, value, accent = 'blue' }: StatRowProps) {
   return (
-    <div className="flex justify-between items-center py-1.5">
-      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+    <div className="flex justify-between items-center gap-3 min-w-0 py-1.5">
+      <span className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>
         {label}
       </span>
-      <span className="text-sm font-mono font-medium" style={{ color: accentColors[accent] }}>
+      <span
+        className="min-w-0 truncate text-right text-sm font-mono font-medium"
+        style={{ color: accentColors[accent] }}
+        title={value}
+      >
         {value}
       </span>
     </div>

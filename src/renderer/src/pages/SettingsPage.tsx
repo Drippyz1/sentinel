@@ -15,20 +15,20 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-6">
+    <section className="mb-7">
       <h3
         className="text-xs font-semibold uppercase tracking-widest mb-3"
-        style={{ color: 'var(--text-secondary)' }}
+        style={{ color: 'var(--text-muted)' }}
       >
         {title}
       </h3>
       <div
         className="rounded-xl divide-y"
-        style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
         {children}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -42,18 +42,21 @@ function Row({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 gap-4">
+    <div className="flex flex-wrap items-center justify-between px-4 py-3.5 gap-4">
       <div className="flex flex-col min-w-0">
         <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
           {label}
         </span>
         {description && (
-          <span className="text-xs mt-0.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+          <span
+            className="text-xs mt-1 leading-relaxed"
+            style={{ color: 'var(--text-muted)', maxWidth: '34rem' }}
+          >
             {description}
           </span>
         )}
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="flex-shrink-0 sm:ml-auto">{children}</div>
     </div>
   )
 }
@@ -64,11 +67,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="relative inline-flex items-center w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none"
-      style={{ background: checked ? 'var(--accent)' : 'var(--border)' }}
+      className="relative inline-flex items-center w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none"
+      style={{ background: checked ? 'var(--accent-blue)' : 'var(--border)' }}
     >
       <span
-        className="inline-block w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
+        className="inline-block w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
         style={{ transform: checked ? 'translateX(22px)' : 'translateX(2px)' }}
       />
     </button>
@@ -91,9 +94,9 @@ function Select<T extends string | number>({
         const raw = e.target.value
         onChange((typeof value === 'number' ? Number(raw) : raw) as T)
       }}
-      className="text-sm rounded-lg px-2 py-1 pr-6 appearance-none focus:outline-none"
+      className="min-h-9 text-sm rounded-lg px-3 py-2 pr-8 appearance-none focus:outline-none"
       style={{
-        background: 'var(--card-bg)',
+        background: 'var(--bg-base)',
         color: 'var(--text-primary)',
         border: '1px solid var(--border)',
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
@@ -141,7 +144,7 @@ export function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
-        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Loading settings…
         </span>
       </div>
@@ -153,13 +156,13 @@ export function SettingsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-7">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Settings
         </h2>
         <span
           className="text-xs transition-opacity duration-300"
-          style={{ color: 'var(--accent)', opacity: saved ? 1 : 0 }}
+          style={{ color: 'var(--accent-green)', opacity: saved ? 1 : 0 }}
         >
           ✓ Saved
         </span>

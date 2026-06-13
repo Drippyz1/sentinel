@@ -3,17 +3,19 @@ interface SegmentedControlProps<T extends string> {
   options: { label: string; value: T }[]
   onChange: (value: T) => void
   ariaLabel: string
+  className?: string
 }
 
 export function SegmentedControl<T extends string>({
   value,
   options,
   onChange,
-  ariaLabel
+  ariaLabel,
+  className = ''
 }: SegmentedControlProps<T>) {
   return (
     <div
-      className="inline-flex rounded-lg p-0.5"
+      className={`inline-flex flex-wrap gap-1 rounded-xl p-1 ${className}`}
       style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
       role="group"
       aria-label={ariaLabel}
@@ -26,10 +28,11 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className="px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+            className="min-h-8 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
             style={{
-              backgroundColor: isActive ? 'var(--bg-card-hover)' : 'transparent',
-              color: isActive ? 'var(--text-primary)' : 'var(--text-muted)'
+              backgroundColor: isActive ? 'var(--accent-blue)' : 'transparent',
+              color: isActive ? 'white' : 'var(--text-muted)',
+              boxShadow: isActive ? '0 1px 6px rgba(59, 130, 246, 0.25)' : 'none'
             }}
             aria-pressed={isActive}
           >

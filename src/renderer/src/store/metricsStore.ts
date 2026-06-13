@@ -21,10 +21,12 @@ interface MetricsState {
   error: string | null
   lastUpdated: Date | null
   processesUpdatedAt: Date | null
+  isPollingPaused: boolean
 
   fetchAll: () => Promise<void>
   fetchProcesses: () => Promise<void>
   fetchBattery: () => Promise<void>
+  setPollingPaused: (paused: boolean) => void
 }
 
 export const useMetricsStore = create<MetricsState>()((set) => ({
@@ -40,6 +42,8 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   error: null,
   lastUpdated: null,
   processesUpdatedAt: null,
+  isPollingPaused: false,
+  setPollingPaused: (paused) => set({ isPollingPaused: paused }),
 
   fetchAll: async () => {
     set({ isLoading: true, error: null })
