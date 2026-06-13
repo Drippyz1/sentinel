@@ -1,16 +1,17 @@
-import { app, Tray, BrowserWindow, Menu, nativeImage, ipcMain, screen } from 'electron'
+import { app, Tray, BrowserWindow, Menu, nativeImage, screen } from 'electron'
 import { join } from 'path'
-import { is } from '@electron-toolkit/utils'
 import { loadSettings } from './storage/settings'
-import { assertTrustedIpcSender } from './ipcSecurity'
 import type { UiSettingsPatch } from '../shared/contracts'
+import {
+  createTrayWindow,
+  TRAY_COMPACT_HEIGHT,
+  TRAY_HEIGHT,
+  TRAY_WIDTH
+} from './windows/trayWindow'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null
-
-const TRAY_WIDTH = 300
-const TRAY_HEIGHT = 390
-const TRAY_COMPACT_HEIGHT = 310
+let getMainWindow: () => BrowserWindow | null = () => null
 
 const TRAY_ICON_BASE64 = `iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAABSSURBVDiNY/z48eN/BgYGBgYkwMTAwMDAwIAqzoCmGZ8GJg4GBgYGRnQNjAwMDAwM6BoYcGlgwqWBCV0DI7oGRnQNjFgMYGJgYGBgwGYAABEnBhCIG9GaAAAAAElFTkSuQmCC`
 
@@ -24,41 +25,7 @@ function createTrayIcon(): Electron.NativeImage {
   return nativeImage.createFromDataURL(`data:image/png;base64,${TRAY_ICON_BASE64}`)
 }
 
-function createTrayWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: TRAY_WIDTH,
-    height: TRAY_HEIGHT,
-    show: false,
-    frame: false,
-    resizable: false,
-    movable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    transparent: false,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    void win
-      .loadURL(process.env['ELECTRON_RENDERER_URL'] + '#tray')
-      .catch((error) => console.error('Failed to load tray window:', error))
-  } else {
-    void win
-      .loadFile(join(__dirname, '../renderer/index.html'), { hash: 'tray' })
-      .catch((error) => console.error('Failed to load tray window:', error))
-  }
-
-  win.on('blur', () => win.hide())
-
-  return win
-}
-
-function showMainWindow(getMainWindow: () => BrowserWindow | null): void {
+export function showMainWindow(): void {
   const mainWindow = getMainWindow()
   if (!mainWindow || mainWindow.isDestroyed()) return
 
@@ -93,9 +60,10 @@ function positionTrayWindow(): void {
 }
 
 export function setupTray(
-  getMainWindow: () => BrowserWindow | null,
+  mainWindowProvider: () => BrowserWindow | null,
   saveUiSettings: (patch: UiSettingsPatch) => boolean
 ) {
+  getMainWindow = mainWindowProvider
   const icon = createTrayIcon()
   tray = new Tray(icon)
   tray.setToolTip('Sentinel')
@@ -121,7 +89,7 @@ export function setupTray(
       Menu.buildFromTemplate([
         {
           label: 'Open Sentinel',
-          click: () => showMainWindow(getMainWindow)
+          click: showMainWindow
         },
         {
           label: paused ? 'Resume Live Updates' : 'Pause Live Updates',
@@ -135,19 +103,12 @@ export function setupTray(
       ])
     )
   })
+}
 
-  ipcMain.handle('open-main-window', (event) => {
-    assertTrustedIpcSender(event)
-    showMainWindow(getMainWindow)
-  })
-
-  ipcMain.handle('set-tray-compact', (event, compact: unknown) => {
-    assertTrustedIpcSender(event)
-    if (typeof compact !== 'boolean') return
-    if (!trayWindow || trayWindow.isDestroyed()) return
-    trayWindow.setSize(TRAY_WIDTH, compact ? TRAY_COMPACT_HEIGHT : TRAY_HEIGHT, true)
-    if (trayWindow.isVisible()) positionTrayWindow()
-  })
+export function setTrayCompact(compact: boolean): void {
+  if (!trayWindow || trayWindow.isDestroyed()) return
+  trayWindow.setSize(TRAY_WIDTH, compact ? TRAY_COMPACT_HEIGHT : TRAY_HEIGHT, true)
+  if (trayWindow.isVisible()) positionTrayWindow()
 }
 
 export function destroyTray() {
@@ -155,4 +116,5 @@ export function destroyTray() {
   tray = null
   if (trayWindow && !trayWindow.isDestroyed()) trayWindow.destroy()
   trayWindow = null
+  getMainWindow = () => null
 }
