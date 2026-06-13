@@ -27,6 +27,7 @@ declare global {
     electronAPI: {
       // Mini tray interface
       openMainWindow: () => Promise<void>
+      setTrayCompact: (compact: boolean) => Promise<void>
 
       // Live hardware metrics
       getCpuMetrics: () => Promise<CpuMetrics>
@@ -48,6 +49,7 @@ declare global {
       getSettings: () => Promise<AppSettings>
       saveSettings: (settings: AppSettings) => Promise<boolean>
       saveUiSettings: (patch: UiSettingsPatch) => Promise<boolean>
+      onUiSettingsChanged: (callback: (patch: UiSettingsPatch) => void) => () => void
       showDock: () => Promise<void>
       hideDock: () => Promise<void>
 

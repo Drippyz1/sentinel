@@ -365,9 +365,9 @@ export function SystemPage() {
             <StatRow label="Uptime" value={formatUptime(systemInfo.uptimeSeconds)} accent="green" />
             {view === 'advanced' && (
               <>
-                <StatRow label="Hostname" value={systemInfo.hostname} accent="blue" />
+                <StatRow label="Hostname" value={systemInfo.hostname} accent="blue" copyable />
                 <StatRow label="Arch" value={systemInfo.arch} accent="blue" />
-                <StatRow label="Serial" value={systemInfo.serial} accent="blue" />
+                <StatRow label="Serial" value={systemInfo.serial} accent="blue" copyable />
               </>
             )}
           </Card>

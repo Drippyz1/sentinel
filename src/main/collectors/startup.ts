@@ -1,7 +1,11 @@
-import { execSync } from 'child_process'
-import * as fs from 'fs'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
+
+const execFileAsync = promisify(execFile)
+const COMMAND_OPTIONS = { timeout: 3000, encoding: 'utf8' as const, maxBuffer: 1024 * 1024 }
 
 export interface StartupItem {
   name: string
@@ -18,221 +22,208 @@ export interface StartupMetrics {
   enabledCount: number
 }
 
+export function isValidStartupPathInput(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 4096 &&
+    path.isAbsolute(value) &&
+    path.extname(value).toLowerCase() === '.plist'
+  )
+}
+
 export async function getStartupMetrics(): Promise<StartupMetrics> {
-  const items: StartupItem[] = []
-
   const userAgentsPath = path.join(os.homedir(), 'Library', 'LaunchAgents')
-  const systemAgentsPath = '/Library/LaunchAgents'
-  const daemonsPath = '/Library/LaunchDaemons'
-
-  items.push(...readPlistDirectory(userAgentsPath, 'LaunchAgent'))
-  items.push(...readPlistDirectory(systemAgentsPath, 'LaunchAgent'))
-  items.push(...readPlistDirectory(daemonsPath, 'LaunchDaemon'))
-  items.push(...getLoginItems())
+  const [userAgents, systemAgents, daemons, loginItems] = await Promise.all([
+    readPlistDirectory(userAgentsPath, 'LaunchAgent'),
+    readPlistDirectory('/Library/LaunchAgents', 'LaunchAgent'),
+    readPlistDirectory('/Library/LaunchDaemons', 'LaunchDaemon'),
+    getLoginItems()
+  ])
+  const items = [...userAgents, ...systemAgents, ...daemons, ...loginItems]
 
   items.sort((a, b) => a.name.localeCompare(b.name))
 
   return {
     items,
     totalCount: items.length,
-    enabledCount: items.filter((i) => i.enabled).length
+    enabledCount: items.filter((item) => item.enabled).length
   }
 }
 
-// ─────────────────────────────────────────────
-// Test whether a plist can be safely edited
-// plutil -lint validates the file format
-// Returns false for corrupted or unreadable files
-// ─────────────────────────────────────────────
-function isPlistEditable(itemPath: string): boolean {
-  try {
-    execSync(`plutil -lint "${itemPath}" 2>/dev/null`, { timeout: 2000 })
-    return true
-  } catch {
-    return false
-  }
-}
+export async function disableStartupItem(itemPath: string): Promise<boolean> {
+  const canonicalPath = await resolveEditableStartupItemPath(itemPath)
+  if (!canonicalPath) return false
 
-// ─────────────────────────────────────────────
-// Disable a user LaunchAgent
-// Handles three plist formats:
-//   1. Empty self-closing <dict/>  (Google Keystone style)
-//   2. Existing <key>Disabled</key> — update its value
-//   3. Normal dict with no Disabled key — insert it
-// Also ensures the file is writable before modifying
-// ─────────────────────────────────────────────
-export function disableStartupItem(itemPath: string): boolean {
   try {
-    const userAgentsPath = path.join(os.homedir(), 'Library', 'LaunchAgents')
-    if (!itemPath.startsWith(userAgentsPath)) {
-      console.warn('Cannot disable system-level startup item:', itemPath)
+    try {
+      await runCommand('launchctl', ['unload', canonicalPath])
+    } catch {
+      // Fine if the item was not loaded.
+    }
+
+    try {
+      await runCommand('plutil', ['-convert', 'xml1', canonicalPath])
+    } catch {
+      console.warn('Could not convert plist to XML:', canonicalPath)
       return false
     }
 
-    // Unload from launchctl — stops the process immediately
     try {
-      execSync(`launchctl unload "${itemPath}" 2>/dev/null`, { timeout: 3000 })
+      await fs.chmod(canonicalPath, 0o644)
     } catch {
-      // Fine if it wasn't loaded
+      // The write below will safely report a permissions failure.
     }
 
-    // Convert binary plist to XML so we can edit it as text
-    // plutil is a macOS built-in — safe to run on XML plists too (no-op)
-    try {
-      execSync(`plutil -convert xml1 "${itemPath}"`, { timeout: 3000 })
-    } catch {
-      console.warn('Could not convert plist to XML:', itemPath)
-      return false
-    }
-
-    // Ensure the file is writable by the owner
-    // Some installers (e.g. Google) create files with read-only permissions
-    try {
-      execSync(`chmod 644 "${itemPath}"`, { timeout: 1000 })
-    } catch {
-      // If chmod fails we'll find out on the write below
-    }
-
-    let content = fs.readFileSync(itemPath, 'utf8')
+    let content = await fs.readFile(canonicalPath, 'utf8')
 
     if (content.includes('<dict/>')) {
-      // Format 1: empty self-closing dict — expand it and add Disabled=true
-      // Google Keystone uses this as a placeholder plist
       content = content.replace('<dict/>', '<dict>\n\t<key>Disabled</key>\n\t<true/>\n</dict>')
     } else if (content.includes('<key>Disabled</key>')) {
-      // Format 2: Disabled key already exists — flip it to true
       content = content.replace(
         /<key>Disabled<\/key>\s*<(true|false)\/>/,
         '<key>Disabled</key>\n\t<true/>'
       )
     } else {
-      // Format 3: normal dict with content but no Disabled key
-      // Insert the key before the closing </dict>
       content = content.replace(
         /<\/dict>\s*<\/plist>/,
         '\t<key>Disabled</key>\n\t<true/>\n</dict>\n</plist>'
       )
     }
 
-    fs.writeFileSync(itemPath, content, 'utf8')
+    await fs.writeFile(canonicalPath, content, 'utf8')
     return true
-  } catch (err) {
-    console.error('Failed to disable startup item:', err)
+  } catch (error) {
+    console.error('Failed to disable startup item:', error)
     return false
   }
 }
 
-// ─────────────────────────────────────────────
-// Enable a user LaunchAgent
-// Mirrors the same three-format handling as
-// disableStartupItem, then loads with launchctl
-// ─────────────────────────────────────────────
-export function enableStartupItem(itemPath: string): boolean {
+export async function enableStartupItem(itemPath: string): Promise<boolean> {
+  const canonicalPath = await resolveEditableStartupItemPath(itemPath)
+  if (!canonicalPath) return false
+
   try {
-    const userAgentsPath = path.join(os.homedir(), 'Library', 'LaunchAgents')
-    if (!itemPath.startsWith(userAgentsPath)) {
-      console.warn('Cannot enable system-level startup item:', itemPath)
+    try {
+      await runCommand('plutil', ['-convert', 'xml1', canonicalPath])
+    } catch {
+      console.warn('Could not convert plist to XML:', canonicalPath)
       return false
     }
 
-    // Convert binary plist to XML so we can edit it as text
     try {
-      execSync(`plutil -convert xml1 "${itemPath}"`, { timeout: 3000 })
+      await fs.chmod(canonicalPath, 0o644)
     } catch {
-      console.warn('Could not convert plist to XML:', itemPath)
-      return false
+      // The write below will safely report a permissions failure.
     }
 
-    // Ensure the file is writable by the owner
-    try {
-      execSync(`chmod 644 "${itemPath}"`, { timeout: 1000 })
-    } catch {
-      // If chmod fails we'll find out on the write below
-    }
+    let content = await fs.readFile(canonicalPath, 'utf8')
 
-    let content = fs.readFileSync(itemPath, 'utf8')
-
-    if (content.includes('<dict/>')) {
-      // Format 1: empty self-closing dict — already effectively enabled
-      // No Disabled key means launchctl will load it normally
-      // No file write needed, just load it below
-    } else if (content.includes('<key>Disabled</key>')) {
-      // Format 2: Disabled key exists — flip it to false
+    if (content.includes('<key>Disabled</key>')) {
       content = content.replace(
         /<key>Disabled<\/key>\s*<(true|false)\/>/,
         '<key>Disabled</key>\n\t<false/>'
       )
-      fs.writeFileSync(itemPath, content, 'utf8')
+      await fs.writeFile(canonicalPath, content, 'utf8')
     }
-    // Format 3: no Disabled key — already enabled by default
-    // No file write needed, just load it below
 
-    // Start it immediately without requiring a reboot
     try {
-      execSync(`launchctl load "${itemPath}" 2>/dev/null`, { timeout: 3000 })
+      await runCommand('launchctl', ['load', canonicalPath])
     } catch {
-      // Fine if already loaded
+      // Fine if the item is already loaded.
     }
 
     return true
-  } catch (err) {
-    console.error('Failed to enable startup item:', err)
+  } catch (error) {
+    console.error('Failed to enable startup item:', error)
     return false
   }
 }
 
-// ─────────────────────────────────────────────
-// Private helpers
-// ─────────────────────────────────────────────
-
-function readPlistDirectory(dirPath: string, type: 'LaunchAgent' | 'LaunchDaemon'): StartupItem[] {
-  const items: StartupItem[] = []
+async function resolveEditableStartupItemPath(itemPath: string): Promise<string | null> {
+  if (!isValidStartupPathInput(itemPath)) return null
 
   try {
-    if (!fs.existsSync(dirPath)) return items
+    const allowedDirectory = await fs.realpath(path.join(os.homedir(), 'Library', 'LaunchAgents'))
+    const canonicalPath = await fs.realpath(itemPath)
+    const relativePath = path.relative(allowedDirectory, canonicalPath)
+    const stats = await fs.stat(canonicalPath)
 
-    const files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.plist'))
+    if (
+      !stats.isFile() ||
+      relativePath === '' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      relativePath === '..' ||
+      path.isAbsolute(relativePath)
+    ) {
+      console.warn('Cannot edit startup item outside the user LaunchAgents directory:', itemPath)
+      return null
+    }
+
+    return canonicalPath
+  } catch {
+    return null
+  }
+}
+
+async function runCommand(command: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(command, args, COMMAND_OPTIONS)
+  return stdout
+}
+
+async function isPlistEditable(itemPath: string): Promise<boolean> {
+  try {
+    await runCommand('plutil', ['-lint', itemPath])
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function readPlistDirectory(
+  dirPath: string,
+  type: 'LaunchAgent' | 'LaunchDaemon'
+): Promise<StartupItem[]> {
+  try {
+    const files = (await fs.readdir(dirPath)).filter((file) => file.endsWith('.plist'))
+    const items: StartupItem[] = []
 
     for (const file of files) {
       try {
         const fullPath = path.join(dirPath, file)
         const name = file.replace('.plist', '')
-        const content = fs.readFileSync(fullPath, 'utf8')
-
-        // A plist with no Disabled key is enabled by default
-        // An empty <dict/> is also effectively enabled
+        const content = await fs.readFile(fullPath, 'utf8')
         const enabled =
           content.includes('<dict/>') ||
           !content.includes('<key>Disabled</key>') ||
           content.includes('<key>Disabled</key>\n\t<false/>')
-
-        // Only show a toggle button if the file passes validation
-        const editable = isPlistEditable(fullPath)
 
         items.push({
           name,
           path: fullPath,
           type,
           enabled,
-          editable,
+          editable: await isPlistEditable(fullPath),
           description: getItemDescription(name)
         })
       } catch {
-        // Skip files we can't read (permission denied, binary format, etc.)
+        // Skip files that cannot be read or validated.
       }
     }
-  } catch {
-    // Directory not accessible
-  }
 
-  return items
+    return items
+  } catch {
+    return []
+  }
 }
 
-function getLoginItems(): StartupItem[] {
+async function getLoginItems(): Promise<StartupItem[]> {
   try {
-    const output = execSync(
-      `osascript -e 'tell application "System Events" to get the name of every login item'`,
-      { timeout: 3000, encoding: 'utf8' }
+    const output = (
+      await runCommand('osascript', [
+        '-e',
+        'tell application "System Events" to get the name of every login item'
+      ])
     ).trim()
 
     if (!output) return []
@@ -267,8 +258,8 @@ function getItemDescription(name: string): string {
     'com.DigiDNA.iMazing': 'iMazing helper'
   }
 
-  for (const [key, desc] of Object.entries(known)) {
-    if (name.toLowerCase().includes(key.toLowerCase())) return desc
+  for (const [key, description] of Object.entries(known)) {
+    if (name.toLowerCase().includes(key.toLowerCase())) return description
   }
 
   return 'Background service'

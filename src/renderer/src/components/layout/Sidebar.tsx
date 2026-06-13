@@ -102,12 +102,15 @@ const NAV_ITEMS = [
 export function Sidebar() {
   return (
     <aside
-      className="flex flex-col h-full w-52 shrink-0 py-4"
+      className="flex h-full w-16 shrink-0 flex-col py-4 sm:w-52"
       style={{ borderRight: '1px solid var(--border)' }}
     >
-      <div className="flex items-center gap-2.5 px-5 mb-8">
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />
-        <span className="text-base font-semibold tracking-wide">Sentinel</span>
+      <div className="mb-8 flex items-center justify-center gap-2.5 px-3 sm:justify-start sm:px-5">
+        <div
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: 'var(--accent-green)' }}
+        />
+        <span className="hidden text-base font-semibold tracking-wide sm:block">Sentinel</span>
       </div>
 
       <nav className="flex flex-col gap-1 px-3">
@@ -116,15 +119,17 @@ export function Sidebar() {
             key={item.path}
             to={item.path}
             end={item.path === '/'} // "end" means only match exactly "/" not "/anything"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                       font-medium transition-all"
+            className="flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm
+                       font-medium transition-all sm:justify-start"
+            title={item.label}
+            aria-label={item.label}
             style={({ isActive }) => ({
               backgroundColor: isActive ? 'var(--bg-card)' : 'transparent',
               color: isActive ? 'var(--text-primary)' : 'var(--text-muted)'
             })}
           >
             {item.icon}
-            {item.label}
+            <span className="hidden sm:block">{item.label}</span>
           </NavLink>
         ))}
       </nav>

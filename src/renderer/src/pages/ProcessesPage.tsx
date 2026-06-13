@@ -229,19 +229,37 @@ export function ProcessesPage() {
       </div>
 
       <Card>
-        <div className="mb-4">
+        <div className="relative mb-4">
+          <label
+            htmlFor="process-search"
+            className="mb-1.5 block text-xs font-semibold"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Search processes
+          </label>
           <input
+            id="process-search"
             type="text"
-            placeholder="Search..."
+            placeholder="Name or application"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full min-h-10 text-sm px-3.5 py-2.5 rounded-lg outline-none transition-colors"
+            className="w-full min-h-10 text-sm pl-3.5 pr-16 py-2.5 rounded-lg outline-none transition-colors"
             style={{
               backgroundColor: 'var(--bg-base)',
               border: '1px solid var(--accent-blue)',
               color: 'var(--text-primary)'
             }}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute bottom-1.5 right-2 min-h-7 rounded-md px-2 text-xs"
+              style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         <div
@@ -384,6 +402,9 @@ export function ProcessesPage() {
                   <button
                     onClick={() => setKilling({ pid: process.pid, name: process.name })}
                     title={`Kill ${process.name}`}
+                    aria-label={`Kill ${process.name}`}
+                    onFocus={() => setSelected(process.pid)}
+                    onBlur={() => setSelected(null)}
                     className="flex items-center justify-center w-6 h-6 rounded transition-all"
                     style={{
                       opacity: selected === process.pid ? 1 : 0,

@@ -73,7 +73,7 @@ function Row({
           </span>
         )}
       </div>
-      <div className="flex-shrink-0 sm:ml-auto">{children}</div>
+      <div className="max-w-full flex-shrink-0 sm:ml-auto">{children}</div>
     </div>
   )
 }
@@ -111,7 +111,7 @@ function Select<T extends string | number>({
         const raw = e.target.value
         onChange((typeof value === 'number' ? Number(raw) : raw) as T)
       }}
-      className="min-h-9 text-sm rounded-lg px-3 py-2 pr-8 appearance-none focus:outline-none"
+      className="max-w-full min-h-9 text-sm rounded-lg px-3 py-2 pr-8 appearance-none focus:outline-none"
       style={{
         background: 'var(--bg-base)',
         color: 'var(--text-primary)',

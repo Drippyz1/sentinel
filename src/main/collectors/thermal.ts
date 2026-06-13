@@ -1,4 +1,7 @@
-import { execSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+
+const execFileAsync = promisify(execFile)
 
 export type ThermalLevel = 'nominal' | 'moderate' | 'heavy' | 'trapping' | 'unknown'
 
@@ -10,7 +13,7 @@ export interface ThermalMetrics {
   diskSpeedLimit: number | null
   description: string
   source: string
-  requiresSudo: boolean // true if we couldn't get data due to permissions
+  requiresSudo: boolean
 }
 
 const DESCRIPTIONS: Record<ThermalLevel, string> = {
@@ -22,16 +25,15 @@ const DESCRIPTIONS: Record<ThermalLevel, string> = {
 }
 
 export async function getThermalMetrics(): Promise<ThermalMetrics> {
-  const method1 = tryPowermetricsSafe()
+  const method1 = await tryPowermetricsSafe()
   if (method1) return method1
 
-  const method2 = tryIOKit()
+  const method2 = await tryIOKit()
   if (method2) return method2
 
-  const method3 = tryCpuFrequencyProxy()
+  const method3 = await tryCpuFrequencyProxy()
   if (method3) return method3
 
-  // Nothing worked — be honest about why
   return {
     level: 'unknown',
     isThrottling: false,
@@ -44,13 +46,23 @@ export async function getThermalMetrics(): Promise<ThermalMetrics> {
   }
 }
 
-function tryPowermetricsSafe(): ThermalMetrics | null {
+async function runCommand(command: string, args: string[], timeout: number): Promise<string> {
+  const { stdout } = await execFileAsync(command, args, {
+    timeout,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024
+  })
+  return stdout
+}
+
+async function tryPowermetricsSafe(): Promise<ThermalMetrics | null> {
   try {
-    const output = execSync('powermetrics -n 1 -i 50 --samplers smc 2>/dev/null', {
-      timeout: 2000,
-      encoding: 'utf8'
-    })
-    if (!output || output.trim().length === 0) return null
+    const output = await runCommand(
+      'powermetrics',
+      ['-n', '1', '-i', '50', '--samplers', 'smc'],
+      2000
+    )
+    if (!output.trim()) return null
 
     const match = output.match(/thermal pressure[:\s]+(\w+)/i)
     if (!match) return null
@@ -83,12 +95,13 @@ function tryPowermetricsSafe(): ThermalMetrics | null {
   }
 }
 
-function tryIOKit(): ThermalMetrics | null {
+async function tryIOKit(): Promise<ThermalMetrics | null> {
   try {
-    const output = execSync('ioreg -r -c IOPlatformExpertDevice -d 3 2>/dev/null', {
-      timeout: 2000,
-      encoding: 'utf8'
-    })
+    const output = await runCommand(
+      'ioreg',
+      ['-r', '-c', 'IOPlatformExpertDevice', '-d', '3'],
+      2000
+    )
     if (!output) return null
 
     const match = output.match(/"thermal-state"\s*=\s*(\d+)/)
@@ -121,20 +134,15 @@ function tryIOKit(): ThermalMetrics | null {
   }
 }
 
-function tryCpuFrequencyProxy(): ThermalMetrics | null {
+async function tryCpuFrequencyProxy(): Promise<ThermalMetrics | null> {
   try {
-    const output = execSync('sysctl -n hw.cpufrequency hw.cpufrequency_max 2>/dev/null', {
-      timeout: 1000,
-      encoding: 'utf8'
-    }).trim()
-
-    const lines = output.split('\n').map((l) => parseInt(l.trim()))
+    const output = (
+      await runCommand('sysctl', ['-n', 'hw.cpufrequency', 'hw.cpufrequency_max'], 1000)
+    ).trim()
+    const lines = output.split('\n').map((line) => parseInt(line.trim()))
     if (lines.length < 2 || isNaN(lines[0]) || isNaN(lines[1])) return null
 
-    const current = lines[0]
-    const max = lines[1]
-    const ratio = current / max
-
+    const ratio = lines[0] / lines[1]
     const level: ThermalLevel =
       ratio >= 0.95 ? 'nominal' : ratio >= 0.75 ? 'moderate' : ratio >= 0.5 ? 'heavy' : 'trapping'
 

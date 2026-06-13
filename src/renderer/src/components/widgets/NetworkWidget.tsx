@@ -64,18 +64,7 @@ export function NetworkWidget() {
           </p>
           {activeInterfaces.map((iface) => (
             <div key={iface.name} className="mb-3">
-              <div className="flex justify-between items-center gap-3 min-w-0 mb-1">
-                <span className="min-w-0 truncate text-sm font-medium" title={iface.name}>
-                  {iface.name}
-                </span>
-                <span
-                  className="min-w-0 truncate text-right text-xs"
-                  style={{ color: 'var(--text-muted)' }}
-                  title={iface.ipAddress}
-                >
-                  {iface.ipAddress}
-                </span>
-              </div>
+              <StatRow label={iface.name} value={iface.ipAddress} accent="blue" copyable />
               <StatRow label="↓" value={formatSpeed(iface.downloadBytesPerSec)} accent="green" />
               <StatRow label="↑" value={formatSpeed(iface.uploadBytesPerSec)} accent="blue" />
             </div>

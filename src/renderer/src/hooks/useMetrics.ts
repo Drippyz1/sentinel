@@ -12,27 +12,34 @@ export function useMetricsPolling({ respectUiPause = true } = {}) {
   const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
 
   useEffect(() => {
-    if (respectUiPause && !uiSettingsInitialized) return
-
-    if (respectUiPause && isPollingPaused) {
-      if (!lastUpdated) {
-        void fetchAll()
-        void fetchProcesses()
-        void fetchBattery()
-      }
-      return
+    if (respectUiPause && uiSettingsInitialized && isPollingPaused && !lastUpdated) {
+      void fetchAll()
+      void fetchProcesses()
+      void fetchBattery()
     }
+  }, [
+    fetchAll,
+    fetchBattery,
+    fetchProcesses,
+    isPollingPaused,
+    lastUpdated,
+    respectUiPause,
+    uiSettingsInitialized
+  ])
+
+  useEffect(() => {
+    if (respectUiPause && (!uiSettingsInitialized || isPollingPaused)) return
 
     // Hardware + GPU — every 2 seconds
-    fetchAll()
+    void fetchAll()
     const hardwareInterval = setInterval(fetchAll, 2000)
 
     // Processes — every 3 seconds
-    fetchProcesses()
+    void fetchProcesses()
     const processInterval = setInterval(fetchProcesses, 3000)
 
     // Battery — every 15 seconds (it barely changes)
-    fetchBattery()
+    void fetchBattery()
     const batteryInterval = setInterval(fetchBattery, 15000)
 
     return () => {
@@ -45,7 +52,6 @@ export function useMetricsPolling({ respectUiPause = true } = {}) {
     fetchBattery,
     fetchProcesses,
     isPollingPaused,
-    lastUpdated,
     respectUiPause,
     uiSettingsInitialized
   ])

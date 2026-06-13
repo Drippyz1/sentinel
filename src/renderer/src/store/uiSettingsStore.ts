@@ -38,6 +38,16 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
 }
 
 let initialization: Promise<void> | null = null
+let stopListening: (() => void) | null = null
+
+function mergePatch(state: UiSettingsState, patch: UiSettingsPatch): Partial<UiSettingsState> {
+  return {
+    ...patch,
+    historyMetrics: patch.historyMetrics
+      ? { ...state.historyMetrics, ...patch.historyMetrics }
+      : state.historyMetrics
+  }
+}
 
 function persist(patch: UiSettingsPatch): void {
   void window.electronAPI
@@ -55,6 +65,11 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   initialize: async () => {
     if (get().initialized) return
     if (!initialization) {
+      if (!stopListening) {
+        stopListening = window.electronAPI.onUiSettingsChanged((patch) => {
+          set((state) => mergePatch(state, patch))
+        })
+      }
       initialization = window.electronAPI
         .getSettings()
         .then((settings) => {

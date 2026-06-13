@@ -280,7 +280,7 @@ export function HistoryPage() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <button
             onClick={exportCsv}
             disabled={data.length === 0}
@@ -295,12 +295,12 @@ export function HistoryPage() {
           >
             Export CSV
           </button>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5 sm:flex-none">
             {RANGES.map((range) => (
               <button
                 key={range.minutes}
                 onClick={() => setHistoryRangeMinutes(range.minutes)}
-                className="min-h-9 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                className="min-h-9 flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all sm:flex-none"
                 style={{
                   backgroundColor:
                     selectedRange.minutes === range.minutes
@@ -321,7 +321,7 @@ export function HistoryPage() {
         className="flex flex-wrap items-center justify-between gap-4 rounded-xl p-3 mb-5"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <div>
             <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
               View
@@ -340,7 +340,7 @@ export function HistoryPage() {
             ]}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
             Metrics
           </span>

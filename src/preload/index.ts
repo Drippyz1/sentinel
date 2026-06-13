@@ -6,6 +6,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electronAPI', {
       // Mini tray interface
       openMainWindow: () => ipcRenderer.invoke('open-main-window'),
+      setTrayCompact: (compact: boolean) => ipcRenderer.invoke('set-tray-compact', compact),
 
       // Live metrics
       getCpuMetrics: () => ipcRenderer.invoke('get-cpu-metrics'),
@@ -30,6 +31,12 @@ if (process.contextIsolated) {
       getSettings: () => ipcRenderer.invoke('get-settings'),
       saveSettings: (settings: AppSettings) => ipcRenderer.invoke('save-settings', settings),
       saveUiSettings: (patch: UiSettingsPatch) => ipcRenderer.invoke('save-ui-settings', patch),
+      onUiSettingsChanged: (callback: (patch: UiSettingsPatch) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, patch: UiSettingsPatch) =>
+          callback(patch)
+        ipcRenderer.on('ui-settings-changed', listener)
+        return () => ipcRenderer.removeListener('ui-settings-changed', listener)
+      },
       showDock: () => ipcRenderer.invoke('show-dock'),
       hideDock: () => ipcRenderer.invoke('hide-dock'),
 

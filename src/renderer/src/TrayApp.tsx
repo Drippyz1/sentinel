@@ -1,135 +1,253 @@
-import { useMetricsPolling } from './hooks/useMetrics'
+import { useEffect, useState } from 'react'
 import {
+  useBatteryMetrics,
   useCpuMetrics,
+  useDiskMetrics,
+  useGpuMetrics,
   useMemoryMetrics,
-  useNetworkMetrics,
-  useBatteryMetrics
+  useMetricsPolling,
+  useMetricsStatus,
+  useNetworkMetrics
 } from './hooks/useMetrics'
-import { formatSpeed } from './utils/format'
 import { UsageBar } from './components/ui/UsageBar'
+import { useUiSettingsStore } from './store/uiSettingsStore'
+import { formatBytes, formatPercent, formatSpeed, formatTime } from './utils/format'
+
+interface MetricRowProps {
+  label: string
+  value: string
+  percent: number
+  accent?: 'blue' | 'green' | 'amber' | 'red' | 'purple'
+  detail?: string
+  compact: boolean
+}
+
+function MetricRow({ label, value, percent, accent, detail, compact }: MetricRowProps) {
+  return (
+    <div className={compact ? 'py-1.5' : 'py-2'}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="w-14 shrink-0 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+          {label}
+        </span>
+        <div className="min-w-0 flex-1">
+          {!compact && <UsageBar percent={percent} accent={accent} height={3} />}
+        </div>
+        <span
+          className="w-14 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          {value}
+        </span>
+      </div>
+      {!compact && detail && (
+        <p className="mt-1 truncate pl-16 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          {detail}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function TrayContent() {
-  useMetricsPolling({ respectUiPause: false })
+  const initializeUiSettings = useUiSettingsStore((state) => state.initialize)
+  const initialized = useUiSettingsStore((state) => state.initialized)
+  const isPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+  const setPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
+  const [compact, setCompact] = useState(false)
+
+  useEffect(() => {
+    void initializeUiSettings()
+  }, [initializeUiSettings])
+
+  useMetricsPolling()
 
   const cpu = useCpuMetrics()
   const memory = useMemoryMetrics()
+  const disk = useDiskMetrics()
   const network = useNetworkMetrics()
+  const gpu = useGpuMetrics()
   const battery = useBatteryMetrics()
+  const { isLoading, lastUpdated } = useMetricsStatus()
+  const primaryDrive = disk?.drives.find((drive) => drive.mount === '/') ?? disk?.drives[0]
+  const gpuController = gpu?.controllers[0]
 
-  if (!cpu || !memory) {
+  function toggleCompact() {
+    const next = !compact
+    setCompact(next)
+    void window.electronAPI.setTrayCompact(next)
+  }
+
+  if (!initialized || (isLoading && !lastUpdated)) {
     return (
       <div
-        className="flex items-center justify-center h-full"
-        style={{ color: 'var(--text-muted)', fontSize: '12px' }}
+        className="flex h-full items-center justify-center"
+        style={{ color: 'var(--text-muted)' }}
       >
-        Loading...
+        <div className="text-center">
+          <div
+            className="mx-auto mb-2 h-2 w-2 animate-pulse rounded-full"
+            style={{ backgroundColor: 'var(--accent-blue)' }}
+          />
+          <p className="text-xs">Reading system metrics...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div
-      style={{
-        padding: '12px',
-        backgroundColor: 'var(--bg-base)',
-        color: 'var(--text-primary)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-        fontSize: '12px',
-        height: '100%',
-        overflow: 'hidden'
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '10px',
-          paddingBottom: '8px',
-          borderBottom: '1px solid var(--border)'
-        }}
+    <div className="flex h-full flex-col overflow-hidden p-3">
+      <header
+        className="flex items-start justify-between gap-3 border-b pb-2.5"
+        style={{ borderColor: 'var(--border)' }}
       >
-        <span style={{ fontWeight: 600, fontSize: '13px' }}>Sentinel</span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{
+                backgroundColor: isPaused ? 'var(--accent-amber)' : 'var(--accent-green)'
+              }}
+            />
+            <h1 className="text-sm font-semibold">Sentinel</h1>
+          </div>
+          <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {lastUpdated ? `Updated ${formatTime(lastUpdated)}` : 'Waiting for metrics'}
+            {isPaused ? ' · Paused' : ''}
+          </p>
+        </div>
         <button
-          onClick={() => window.electronAPI.openMainWindow()}
+          type="button"
+          onClick={() => void window.electronAPI.openMainWindow()}
+          className="min-h-8 shrink-0 rounded-lg px-2.5 text-xs font-semibold"
           style={{
-            fontSize: '11px',
             color: 'var(--accent-blue)',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.25)'
           }}
         >
-          Open →
+          Open
         </button>
-      </div>
+      </header>
 
-      {/* CPU */}
-      <div style={{ marginBottom: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ color: 'var(--text-muted)' }}>CPU</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-blue)' }}>
-            {cpu.usagePercent}%
-          </span>
-        </div>
-        <UsageBar percent={cpu.usagePercent} height={3} />
-      </div>
+      <section className="min-h-0 flex-1 divide-y" style={{ borderColor: 'var(--border)' }}>
+        <MetricRow
+          label="CPU"
+          value={cpu ? formatPercent(cpu.usagePercent, 0) : 'N/A'}
+          percent={cpu?.usagePercent ?? 0}
+          detail={cpu ? `${cpu.speedGHz} GHz · ${cpu.cores} cores` : undefined}
+          compact={compact}
+        />
+        <MetricRow
+          label="Memory"
+          value={memory ? formatPercent(memory.usagePercent, 0) : 'N/A'}
+          percent={memory?.usagePercent ?? 0}
+          accent="purple"
+          detail={
+            memory
+              ? `${formatBytes(memory.usedBytes)} of ${formatBytes(memory.totalBytes)}`
+              : undefined
+          }
+          compact={compact}
+        />
+        <MetricRow
+          label="GPU"
+          value={gpuController ? formatPercent(gpuController.utilizationPercent, 0) : 'N/A'}
+          percent={gpuController?.utilizationPercent ?? 0}
+          accent="purple"
+          detail={gpuController?.name}
+          compact={compact}
+        />
+        <MetricRow
+          label="Disk"
+          value={primaryDrive ? formatPercent(primaryDrive.usagePercent, 0) : 'N/A'}
+          percent={primaryDrive?.usagePercent ?? 0}
+          detail={
+            disk
+              ? `Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`
+              : undefined
+          }
+          compact={compact}
+        />
 
-      {/* Memory */}
-      <div style={{ marginBottom: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ color: 'var(--text-muted)' }}>Memory</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-purple)' }}>
-            {memory.usagePercent}%
-          </span>
-        </div>
-        <UsageBar percent={memory.usagePercent} accent="purple" height={3} />
-      </div>
-
-      {/* Network */}
-      {network && (
-        <div style={{ marginBottom: '8px' }}>
-          <div style={{ color: 'var(--text-muted)', marginBottom: '3px' }}>Network</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--accent-green)', fontFamily: 'monospace' }}>
-              ↓ {formatSpeed(network.totalDownloadBytesPerSec)}
-            </span>
-            <span style={{ color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
-              ↑ {formatSpeed(network.totalUploadBytesPerSec)}
-            </span>
+        <div className={compact ? 'py-2' : 'py-2.5'}>
+          <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Network
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div
+              className="min-w-0 rounded-lg px-2 py-1.5"
+              style={{ background: 'var(--bg-card)' }}
+            >
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Download
+              </p>
+              <p
+                className="truncate font-mono text-xs font-semibold tabular-nums"
+                style={{ color: 'var(--accent-green)' }}
+                title={formatSpeed(network?.totalDownloadBytesPerSec ?? 0)}
+              >
+                {formatSpeed(network?.totalDownloadBytesPerSec ?? 0)}
+              </p>
+            </div>
+            <div
+              className="min-w-0 rounded-lg px-2 py-1.5"
+              style={{ background: 'var(--bg-card)' }}
+            >
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Upload
+              </p>
+              <p
+                className="truncate font-mono text-xs font-semibold tabular-nums"
+                style={{ color: 'var(--accent-blue)' }}
+                title={formatSpeed(network?.totalUploadBytesPerSec ?? 0)}
+              >
+                {formatSpeed(network?.totalUploadBytesPerSec ?? 0)}
+              </p>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Battery */}
-      {battery?.hasBattery && (
-        <div
+        {!compact && battery?.hasBattery && (
+          <div className="flex items-center justify-between gap-3 py-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Battery
+            </span>
+            <span className="font-mono text-xs font-semibold tabular-nums">
+              {battery.chargePercent}% · {battery.isCharging ? 'Charging' : 'On battery'}
+            </span>
+          </div>
+        )}
+      </section>
+
+      <footer
+        className="grid grid-cols-2 gap-2 border-t pt-2.5"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <button
+          type="button"
+          onClick={() => setPaused(!isPaused)}
+          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
           style={{
-            paddingTop: '8px',
-            borderTop: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            backgroundColor: isPaused ? 'rgba(34, 197, 94, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+            border: `1px solid ${isPaused ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+            color: isPaused ? 'var(--accent-green)' : 'var(--accent-amber)'
           }}
         >
-          <span style={{ color: 'var(--text-muted)' }}>Battery</span>
-          <span
-            style={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              color: battery.isCharging
-                ? 'var(--accent-green)'
-                : battery.chargePercent < 20
-                  ? 'var(--accent-red)'
-                  : 'var(--text-primary)'
-            }}
-          >
-            {battery.chargePercent}%{battery.isCharging ? ' ⚡' : ''}
-          </span>
-        </div>
-      )}
+          {isPaused ? 'Resume Updates' : 'Pause Updates'}
+        </button>
+        <button
+          type="button"
+          onClick={toggleCompact}
+          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-muted)'
+          }}
+        >
+          {compact ? 'Expanded' : 'Compact'}
+        </button>
+      </footer>
     </div>
   )
 }
