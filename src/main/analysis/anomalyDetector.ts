@@ -12,19 +12,6 @@ export function setThreshold(value: number) {
 // Minimum readings needed before we start flagging anomalies
 const MIN_SAMPLES = 60
 
-export type AnomalySeverity = 'info' | 'warning' | 'critical'
-
-export interface Anomaly {
-  metric: string
-  currentValue: number
-  meanValue: number
-  stdDev: number
-  zScore: number
-  severity: AnomalySeverity
-  message: string
-  timestamp: number
-}
-
 class CircularBuffer {
   private buffer: number[]
   private size: number
@@ -141,13 +128,6 @@ const detectors: Record<string, MetricDetector> = {
   gpu: new MetricDetector('gpu')
 }
 
-export interface AnomalyReport {
-  anomalies: Anomaly[]
-  hasAnomalies: boolean
-  samplesCount: number
-  isWarmedUp: boolean
-}
-
 export function checkForAnomalies(metrics: {
   cpu: number
   memory: number
@@ -185,3 +165,4 @@ export function checkForAnomalies(metrics: {
     isWarmedUp
   }
 }
+import type { Anomaly, AnomalyReport, AnomalySeverity } from '../../shared/contracts'

@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, UiSettingsPatch } from '../main/storage/settings'
-import type { MetricsSnapshot } from '../main/services/MetricsService'
+import type { AppSettings, MetricsSnapshot, UiSettingsPatch } from '../shared/contracts'
 
 if (process.contextIsolated) {
   try {

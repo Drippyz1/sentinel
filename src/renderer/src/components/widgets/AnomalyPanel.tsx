@@ -1,5 +1,5 @@
 import { useAnomalyReport } from '../../hooks/useMetrics'
-import { Anomaly } from '../../../../main/analysis/anomalyDetector'
+import type { Anomaly } from '../../../../shared/contracts'
 import { Card } from '../ui/Card'
 import { formatSpeed } from '../../utils/format'
 

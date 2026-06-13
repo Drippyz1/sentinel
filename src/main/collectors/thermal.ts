@@ -1,20 +1,8 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import type { ThermalLevel, ThermalMetrics } from '../../shared/contracts'
 
 const execFileAsync = promisify(execFile)
-
-export type ThermalLevel = 'nominal' | 'moderate' | 'heavy' | 'trapping' | 'unknown'
-
-export interface ThermalMetrics {
-  level: ThermalLevel
-  isThrottling: boolean
-  cpuSpeedLimit: number | null
-  schedulerLimit: number | null
-  diskSpeedLimit: number | null
-  description: string
-  source: string
-  requiresSudo: boolean
-}
 
 const DESCRIPTIONS: Record<ThermalLevel, string> = {
   nominal: 'System is running normally',

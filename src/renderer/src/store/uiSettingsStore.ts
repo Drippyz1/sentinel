@@ -6,7 +6,7 @@ import type {
   SystemView,
   UiSettings,
   UiSettingsPatch
-} from '../../../main/storage/settings'
+} from '../../../shared/contracts'
 
 interface UiSettingsState extends UiSettings {
   initialized: boolean

@@ -1,11 +1,13 @@
 import Database from 'better-sqlite3'
 import { getDatabase } from './database'
-import { CpuMetrics } from '../collectors/cpu'
-import { MemoryMetrics } from '../collectors/memory'
-import { DiskMetrics } from '../collectors/disk'
-import { NetworkMetrics } from '../collectors/network'
-import { GpuMetrics } from '../collectors/gpu'
-import { BatteryMetrics } from '../collectors/battery'
+import type {
+  BatteryMetrics,
+  CpuMetrics,
+  DiskMetrics,
+  GpuMetrics,
+  MemoryMetrics,
+  NetworkMetrics
+} from '../../shared/contracts'
 
 const RETENTION_DAYS = 7
 

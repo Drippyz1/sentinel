@@ -1,19 +1,5 @@
 import si from 'systeminformation'
-
-export interface ProcessInfo {
-  pid: number
-  name: string
-  cpuPercent: number
-  memoryBytes: number
-  memoryPercent: number
-  status: string // 'running', 'sleeping', etc.
-  started: string // when the process started
-}
-
-export interface ProcessMetrics {
-  list: ProcessInfo[]
-  total: number // total number of running processes
-}
+import type { ProcessInfo, ProcessMetrics } from '../../shared/contracts'
 
 export async function getProcessMetrics(): Promise<ProcessMetrics> {
   const data = await si.processes()

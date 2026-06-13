@@ -1,8 +1,9 @@
 import { app, Tray, BrowserWindow, Menu, nativeImage, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { loadSettings, UiSettingsPatch } from './storage/settings'
+import { loadSettings } from './storage/settings'
 import { assertTrustedIpcSender } from './ipcSecurity'
+import type { UiSettingsPatch } from '../shared/contracts'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null

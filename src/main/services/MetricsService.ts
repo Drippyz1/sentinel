@@ -1,24 +1,13 @@
 import { BrowserWindow } from 'electron'
-import { getCpuMetrics, CpuMetrics } from '../collectors/cpu'
-import { getMemoryMetrics, MemoryMetrics } from '../collectors/memory'
-import { getDiskMetrics, DiskMetrics } from '../collectors/disk'
-import { getNetworkMetrics, NetworkMetrics } from '../collectors/network'
-import { getGpuMetrics, GpuMetrics } from '../collectors/gpu'
-import { getBatteryMetrics, BatteryMetrics } from '../collectors/battery'
-import { getProcessMetrics, ProcessMetrics } from '../collectors/processes'
-import { checkForAnomalies, AnomalyReport } from '../analysis/anomalyDetector'
-
-export interface MetricsSnapshot {
-  timestamp: number
-  cpu: CpuMetrics
-  memory: MemoryMetrics
-  disk: DiskMetrics
-  network: NetworkMetrics
-  gpu: GpuMetrics
-  battery: BatteryMetrics
-  processes: ProcessMetrics
-  anomalyReport: AnomalyReport
-}
+import { getCpuMetrics } from '../collectors/cpu'
+import { getMemoryMetrics } from '../collectors/memory'
+import { getDiskMetrics } from '../collectors/disk'
+import { getNetworkMetrics } from '../collectors/network'
+import { getGpuMetrics } from '../collectors/gpu'
+import { getBatteryMetrics } from '../collectors/battery'
+import { getProcessMetrics } from '../collectors/processes'
+import { checkForAnomalies } from '../analysis/anomalyDetector'
+import type { MetricsSnapshot } from '../../shared/contracts'
 
 interface MetricsServiceOptions {
   getIntervalMs: () => number

@@ -8,12 +8,11 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from 'recharts'
-import { SnapshotRow } from '../../../main/storage/queries'
+import type { HistoryMetric, SnapshotRow } from '../../../shared/contracts'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
-import type { HistoryMetric } from '../../../main/storage/settings'
 
 const RANGES = [
   { label: '30 min', minutes: 30 },

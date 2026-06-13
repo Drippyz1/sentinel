@@ -1,45 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, renameSync, writeFileSync } from 'fs'
-
-export type HistoryView = 'chart' | 'table'
-export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
-export type ProcessDensity = 'compact' | 'comfortable'
-export type ProcessQuickFilter = 'all' | 'cpu' | 'memory'
-export type SystemView = 'simple' | 'advanced'
-
-export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
-
-export interface UiSettings {
-  dashboardPollingPaused: boolean
-  historyView: HistoryView
-  historyMetrics: HistoryMetricVisibility
-  historyRangeMinutes: number
-  processDensity: ProcessDensity
-  processQuickFilter: ProcessQuickFilter
-  systemView: SystemView
-}
-
-export type UiSettingsPatch = Partial<Omit<UiSettings, 'historyMetrics'>> & {
-  historyMetrics?: Partial<HistoryMetricVisibility>
-}
-
-export interface AppSettings {
-  settingsVersion: number
-  // System
-  launchAtLogin: boolean
-  hideFromDock: boolean
-  // Monitoring
-  pollIntervalMs: number
-  tempUnit: 'C' | 'F'
-  // Data
-  dataRetentionDays: number
-  // Anomaly detection
-  anomalySensitivity: 'sensitive' | 'balanced' | 'conservative'
-  anomalyNotifications: boolean
-  // Interface preferences
-  ui: UiSettings
-}
+import type { AppSettings, UiSettings, UiSettingsPatch } from '../../shared/contracts'
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
   sensitive: 2.0,

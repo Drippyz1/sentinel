@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AppSettings } from '../../../main/storage/settings'
+import type { AppSettings } from '../../../shared/contracts'
 
 const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: 1,

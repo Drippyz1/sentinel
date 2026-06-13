@@ -1,13 +1,15 @@
 import { create } from 'zustand'
-import { CpuMetrics } from '../../../main/collectors/cpu'
-import { MemoryMetrics } from '../../../main/collectors/memory'
-import { DiskMetrics } from '../../../main/collectors/disk'
-import { NetworkMetrics } from '../../../main/collectors/network'
-import { ProcessMetrics } from '../../../main/collectors/processes'
-import { GpuMetrics } from '../../../main/collectors/gpu'
-import { BatteryMetrics } from '../../../main/collectors/battery'
-import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
-import { MetricsSnapshot } from '../../../main/services/MetricsService'
+import type {
+  AnomalyReport,
+  BatteryMetrics,
+  CpuMetrics,
+  DiskMetrics,
+  GpuMetrics,
+  MemoryMetrics,
+  MetricsSnapshot,
+  NetworkMetrics,
+  ProcessMetrics
+} from '../../../shared/contracts'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {

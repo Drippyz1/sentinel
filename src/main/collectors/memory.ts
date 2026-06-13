@@ -1,17 +1,5 @@
 import si from 'systeminformation'
-
-export interface MemoryMetrics {
-  totalBytes: number
-  usedBytes: number
-  freeBytes: number
-  activeBytes: number
-  inactiveBytes: number
-  cachedBytes: number
-  swapTotalBytes: number
-  swapUsedBytes: number
-  usagePercent: number
-  swapUsagePercent: number
-}
+import type { MemoryMetrics } from '../../shared/contracts'
 
 export async function getMemoryMetrics(): Promise<MemoryMetrics> {
   const mem = await si.mem()

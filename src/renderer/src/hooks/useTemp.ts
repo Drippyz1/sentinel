@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AppSettings } from '../../../main/storage/settings'
+import type { AppSettings } from '../../../shared/contracts'
 
 // Converts Celsius to Fahrenheit
 function toF(c: number): number {

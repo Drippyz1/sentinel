@@ -1,18 +1,5 @@
 import { getDatabase } from './database'
-
-export interface SnapshotRow {
-  timestamp: number
-  cpu_usage: number
-  memory_usage: number
-  memory_used: number
-  disk_usage: number
-  disk_read: number
-  disk_write: number
-  net_down: number
-  net_up: number
-  gpu_usage: number | null
-  battery: number | null
-}
+import type { HistorySummary, SnapshotRow } from '../../shared/contracts'
 
 export interface HistoryQuery {
   metric: string // which metric to return
@@ -36,7 +23,7 @@ export function getSnapshots(minutes: number): SnapshotRow[] {
 }
 
 // Returns summary stats for a time range — useful for dashboards
-export function getSummary(minutes: number) {
+export function getSummary(minutes: number): HistorySummary {
   const db = getDatabase()
   const cutoff = Date.now() - minutes * 60 * 1000
 
@@ -55,15 +42,7 @@ export function getSummary(minutes: number) {
     WHERE timestamp > ?
   `
     )
-    .get(cutoff) as {
-    avg_cpu: number
-    max_cpu: number
-    avg_memory: number
-    max_memory: number
-    avg_net_down: number
-    max_net_down: number
-    sample_count: number
-  }
+    .get(cutoff) as HistorySummary
 }
 
 // Returns one row per minute, averaged — for longer time ranges

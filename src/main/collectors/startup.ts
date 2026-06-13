@@ -3,24 +3,10 @@ import { promisify } from 'util'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
+import type { StartupItem, StartupMetrics } from '../../shared/contracts'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_OPTIONS = { timeout: 3000, encoding: 'utf8' as const, maxBuffer: 1024 * 1024 }
-
-export interface StartupItem {
-  name: string
-  path: string
-  type: 'LaunchAgent' | 'LaunchDaemon' | 'LoginItem'
-  enabled: boolean
-  editable: boolean
-  description: string
-}
-
-export interface StartupMetrics {
-  items: StartupItem[]
-  totalCount: number
-  enabledCount: number
-}
 
 export function isValidStartupPathInput(value: unknown): value is string {
   return (

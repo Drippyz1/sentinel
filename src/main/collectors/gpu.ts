@@ -1,22 +1,5 @@
 import si from 'systeminformation'
-
-export interface GpuController {
-  name: string
-  vendor: string
-  vramBytes: number // total VRAM
-  vramUsedBytes: number // VRAM in use
-  vramFreeBytes: number // VRAM available
-  vramUsagePercent: number
-  utilizationPercent: number // GPU core usage 0-100
-  temperatureCelsius: number | null
-  powerDrawWatts: number | null // current power draw
-  powerLimitWatts: number | null // max power limit
-}
-
-export interface GpuMetrics {
-  controllers: GpuController[]
-  hasGpu: boolean
-}
+import type { GpuController, GpuMetrics } from '../../shared/contracts'
 
 export async function getGpuMetrics(): Promise<GpuMetrics> {
   try {

@@ -1,24 +1,5 @@
 import si from 'systeminformation'
-
-export interface DiskMetrics {
-  drives: DiskDrive[]
-  io: DiskIO
-}
-
-export interface DiskDrive {
-  name: string
-  mount: string
-  type: string
-  totalBytes: number
-  usedBytes: number
-  freeBytes: number
-  usagePercent: number
-}
-
-export interface DiskIO {
-  readBytesPerSec: number
-  writeBytesPerSec: number
-}
+import type { DiskDrive, DiskMetrics } from '../../shared/contracts'
 
 let previousIO = { read: 0, write: 0, timestamp: Date.now() }
 

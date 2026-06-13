@@ -1,19 +1,5 @@
 import si from 'systeminformation'
-
-export interface BatteryMetrics {
-  hasBattery: boolean
-  chargePercent: number
-  isCharging: boolean
-  isPluggedIn: boolean
-  timeRemainingMins: number | null
-  voltage: number | null
-  capacityWh: number | null
-  designCapacityWh: number | null
-  healthPercent: number | null
-  cycleCount: number | null
-  manufacturer: string | null
-  model: string | null
-}
+import type { BatteryMetrics } from '../../shared/contracts'
 
 export async function getBatteryMetrics(): Promise<BatteryMetrics> {
   try {

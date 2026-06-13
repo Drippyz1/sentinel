@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { SystemInfo } from '../../../main/collectors/systemInfo'
-import { ThermalMetrics } from '../../../main/collectors/thermal'
-import { StartupMetrics } from '../../../main/collectors/startup'
+import type { StartupMetrics, SystemInfo, ThermalMetrics } from '../../../shared/contracts'
 import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'

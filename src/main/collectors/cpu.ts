@@ -1,16 +1,5 @@
 import si from 'systeminformation'
-
-// This describes the shape of data we'll return
-// TypeScript uses these "interfaces" to know what fields an object has
-export interface CpuMetrics {
-  manufacturer: string // e.g. "Apple"
-  brand: string // e.g. "Apple M3 Pro"
-  speedGHz: number // current speed in GHz
-  cores: number // total number of cores
-  usagePercent: number // overall CPU usage 0-100
-  perCoreUsage: number[] // usage for each individual core
-  temperature: number | null // celsius, null if unavailable
-}
+import type { CpuMetrics } from '../../shared/contracts'
 
 // This is the function we'll call whenever we want fresh CPU data
 export async function getCpuMetrics(): Promise<CpuMetrics> {

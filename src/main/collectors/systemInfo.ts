@@ -1,30 +1,5 @@
 import si from 'systeminformation'
-
-export interface SystemInfo {
-  // OS
-  platform: string // 'darwin', 'win32'
-  distro: string // 'macOS'
-  release: string // '14.4.1'
-  arch: string // 'arm64'
-  hostname: string // machine name
-
-  // CPU
-  cpuBrand: string
-  cpuCores: number
-  cpuThreads: number
-  cpuBaseSpeed: number
-
-  // Memory
-  totalMemory: number // bytes
-
-  // Machine
-  model: string // e.g. 'MacBook Pro'
-  manufacturer: string // e.g. 'Apple Inc.'
-  serial: string // serial number (partially redacted)
-
-  // Uptime
-  uptimeSeconds: number
-}
+import type { SystemInfo } from '../../shared/contracts'
 
 // Cache the result — this data never changes during a session
 let cachedInfo: SystemInfo | null = null

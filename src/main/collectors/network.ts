@@ -1,20 +1,5 @@
 import si from 'systeminformation'
-
-export interface NetworkMetrics {
-  interfaces: NetworkInterface[]
-  totalDownloadBytesPerSec: number
-  totalUploadBytesPerSec: number
-}
-
-export interface NetworkInterface {
-  name: string // e.g. "en0", "Wi-Fi"
-  downloadBytesPerSec: number
-  uploadBytesPerSec: number
-  totalDownloaded: number // total since app started
-  totalUploaded: number
-  ipAddress: string
-  isActive: boolean
-}
+import type { NetworkInterface, NetworkMetrics } from '../../shared/contracts'
 
 export async function getNetworkMetrics(): Promise<NetworkMetrics> {
   const [stats, interfaces] = await Promise.all([

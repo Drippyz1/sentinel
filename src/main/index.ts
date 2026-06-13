@@ -19,7 +19,6 @@ import {
   loadSettings,
   saveSettings,
   updateUiSettings,
-  UiSettingsPatch,
   SENSITIVITY_THRESHOLD,
   isValidAppSettings,
   isValidUiSettingsPatch
@@ -31,6 +30,7 @@ import {
   isValidPid
 } from './ipcSecurity'
 import { MetricsService } from './services/MetricsService'
+import type { UiSettingsPatch } from '../shared/contracts'
 
 const APP_ID = 'io.github.drippyz1.sentinel'
 let mainWindow: BrowserWindow | null = null
