@@ -5,8 +5,8 @@ import {
   useDiskMetrics,
   useGpuMetrics,
   useMemoryMetrics,
-  useMetricsPolling,
   useMetricsStatus,
+  useMetricsSubscription,
   useNetworkMetrics
 } from './hooks/useMetrics'
 import { UsageBar } from './components/ui/UsageBar'
@@ -59,7 +59,7 @@ function TrayContent() {
     void initializeUiSettings()
   }, [initializeUiSettings])
 
-  useMetricsPolling()
+  useMetricsSubscription()
 
   const cpu = useCpuMetrics()
   const memory = useMemoryMetrics()

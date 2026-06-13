@@ -1,60 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useMetricsStore } from '../store/metricsStore'
-import { useUiSettingsStore } from '../store/uiSettingsStore'
-import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 
-export function useMetricsPolling({ respectUiPause = true } = {}) {
-  const fetchAll = useMetricsStore((state) => state.fetchAll)
-  const fetchProcesses = useMetricsStore((state) => state.fetchProcesses)
-  const fetchBattery = useMetricsStore((state) => state.fetchBattery)
-  const lastUpdated = useMetricsStore((state) => state.lastUpdated)
-  const uiSettingsInitialized = useUiSettingsStore((state) => state.initialized)
-  const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+export function useMetricsSubscription() {
+  const applySnapshot = useMetricsStore((state) => state.applySnapshot)
+  const setMetricsError = useMetricsStore((state) => state.setMetricsError)
 
   useEffect(() => {
-    if (respectUiPause && uiSettingsInitialized && isPollingPaused && !lastUpdated) {
-      void fetchAll()
-      void fetchProcesses()
-      void fetchBattery()
-    }
-  }, [
-    fetchAll,
-    fetchBattery,
-    fetchProcesses,
-    isPollingPaused,
-    lastUpdated,
-    respectUiPause,
-    uiSettingsInitialized
-  ])
+    const stopListening = window.electronAPI.onMetricsUpdated(applySnapshot)
 
-  useEffect(() => {
-    if (respectUiPause && (!uiSettingsInitialized || isPollingPaused)) return
+    void window.electronAPI
+      .getLatestMetrics()
+      .then(applySnapshot)
+      .catch((error) => {
+        setMetricsError(error instanceof Error ? error.message : 'Failed to fetch metrics')
+      })
 
-    // Hardware + GPU — every 2 seconds
-    void fetchAll()
-    const hardwareInterval = setInterval(fetchAll, 2000)
-
-    // Processes — every 3 seconds
-    void fetchProcesses()
-    const processInterval = setInterval(fetchProcesses, 3000)
-
-    // Battery — every 15 seconds (it barely changes)
-    void fetchBattery()
-    const batteryInterval = setInterval(fetchBattery, 15000)
-
-    return () => {
-      clearInterval(hardwareInterval)
-      clearInterval(processInterval)
-      clearInterval(batteryInterval)
-    }
-  }, [
-    fetchAll,
-    fetchBattery,
-    fetchProcesses,
-    isPollingPaused,
-    respectUiPause,
-    uiSettingsInitialized
-  ])
+    return stopListening
+  }, [applySnapshot, setMetricsError])
 }
 
 export function useCpuMetrics() {
@@ -97,21 +59,5 @@ export function useMetricsStatus() {
 }
 
 export function useAnomalyReport() {
-  const [report, setReport] = useState<AnomalyReport | null>(null)
-
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const data = await window.electronAPI.getAnomalyReport()
-        setReport(data)
-      } catch (error) {
-        console.error('Failed to fetch anomaly report:', error)
-      }
-    }
-    void fetch()
-    const interval = setInterval(() => void fetch(), 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return report
+  return useMetricsStore((state) => state.anomalyReport)
 }

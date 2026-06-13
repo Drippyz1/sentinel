@@ -1,14 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, nativeImage, Notification } from 'electron'
-import { getCpuMetrics } from './collectors/cpu'
-import { getMemoryMetrics } from './collectors/memory'
-import { getDiskMetrics } from './collectors/disk'
-import { getNetworkMetrics } from './collectors/network'
-import { getGpuMetrics } from './collectors/gpu'
-import { getBatteryMetrics } from './collectors/battery'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { getProcessMetrics } from './collectors/processes'
 import { getDatabase, closeDatabase } from './storage/database'
 import { recordSnapshot, cleanOldSnapshots } from './storage/recorder'
 import { getSnapshots, getSummary, getDownsampled } from './storage/queries'
@@ -20,7 +13,7 @@ import {
   disableStartupItem,
   isValidStartupPathInput
 } from './collectors/startup'
-import { checkForAnomalies, AnomalyReport, setThreshold } from './analysis/anomalyDetector'
+import { setThreshold } from './analysis/anomalyDetector'
 import { setupTray, destroyTray } from './tray'
 import {
   loadSettings,
@@ -37,6 +30,7 @@ import {
   isValidHistoryRange,
   isValidPid
 } from './ipcSecurity'
+import { MetricsService } from './services/MetricsService'
 
 const APP_ID = 'io.github.drippyz1.sentinel'
 let mainWindow: BrowserWindow | null = null
@@ -115,52 +109,25 @@ app.whenReady().then(() => {
   // ── Database ──────────────────────────────
   getDatabase()
 
-  // ── Anomaly report storage ─────────────────
-  let latestAnomalyReport: AnomalyReport | null = null
-
   // Track last notification time so we don't spam —
   // at most one notification per minute per anomaly
   let lastNotificationAt = 0
 
-  // ── Main polling loop ─────────────────────
-  // Uses pollIntervalMs from settings, re-reads it
-  // on each tick so changes take effect immediately
-  let pollingTimer: ReturnType<typeof setTimeout> | null = null
-  let activePoll: Promise<void> | null = null
-  let pollingGeneration = 0
-
-  async function pollMetrics(): Promise<void> {
-    try {
-      const [cpu, memory, disk, network, gpu, battery] = await Promise.all([
-        getCpuMetrics(),
-        getMemoryMetrics(),
-        getDiskMetrics(),
-        getNetworkMetrics(),
-        getGpuMetrics(),
-        getBatteryMetrics()
-      ])
-
-      recordSnapshot({ cpu, memory, disk, network, gpu, battery })
-
-      latestAnomalyReport = checkForAnomalies({
-        cpu: cpu.usagePercent,
-        memory: memory.usagePercent,
-        diskRead: disk.io.readBytesPerSec,
-        diskWrite: disk.io.writeBytesPerSec,
-        netDown: network.totalDownloadBytesPerSec,
-        netUp: network.totalUploadBytesPerSec,
-        gpu: gpu?.controllers[0]?.utilizationPercent ?? null
-      })
-
+  // ── Centralized metrics collection ─────────
+  const metricsService = new MetricsService({
+    getIntervalMs: () => loadSettings().pollIntervalMs,
+    shouldBroadcast: () => !loadSettings().ui.dashboardPollingPaused,
+    onCollected: (snapshot) => {
+      recordSnapshot(snapshot)
       const settings = loadSettings()
       if (
         settings.anomalyNotifications &&
-        latestAnomalyReport.hasAnomalies &&
-        latestAnomalyReport.isWarmedUp &&
+        snapshot.anomalyReport.hasAnomalies &&
+        snapshot.anomalyReport.isWarmedUp &&
         Date.now() - lastNotificationAt > 60_000 &&
         Notification.isSupported()
       ) {
-        const top = latestAnomalyReport.anomalies[0]
+        const top = snapshot.anomalyReport.anomalies[0]
         new Notification({
           title: 'Sentinel — Anomaly Detected',
           body: top.message,
@@ -168,46 +135,9 @@ app.whenReady().then(() => {
         }).show()
         lastNotificationAt = Date.now()
       }
-    } catch (err) {
-      console.error('Main polling loop error:', err)
     }
-  }
-
-  function scheduleNextPoll(generation: number): void {
-    const delay = loadSettings().pollIntervalMs
-    pollingTimer = setTimeout(() => {
-      pollingTimer = null
-      if (generation !== pollingGeneration || isQuitting) return
-
-      activePoll = pollMetrics().finally(() => {
-        activePoll = null
-        if (generation === pollingGeneration && !isQuitting) {
-          scheduleNextPoll(generation)
-        }
-      })
-    }, delay)
-  }
-
-  async function restartPolling(): Promise<void> {
-    const generation = ++pollingGeneration
-    if (pollingTimer) {
-      clearTimeout(pollingTimer)
-      pollingTimer = null
-    }
-    if (activePoll) await activePoll
-    if (generation === pollingGeneration && !isQuitting) scheduleNextPoll(generation)
-  }
-
-  async function stopPolling(): Promise<void> {
-    pollingGeneration += 1
-    if (pollingTimer) {
-      clearTimeout(pollingTimer)
-      pollingTimer = null
-    }
-    if (activePoll) await activePoll
-  }
-
-  void restartPolling()
+  })
+  metricsService.start()
 
   // ── Housekeeping intervals ─────────────────
   cleanOldSnapshots(currentSettings.dataRetentionDays)
@@ -228,7 +158,7 @@ app.whenReady().then(() => {
   stopBackgroundTasks = async () => {
     clearInterval(cleanupTimer)
     clearInterval(systemInfoCacheTimer)
-    await stopPolling()
+    await metricsService.stop()
   }
 
   // ── Windows & tray ────────────────────────
@@ -240,6 +170,9 @@ app.whenReady().then(() => {
 
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send('ui-settings-changed', patch)
+    }
+    if (patch.dashboardPollingPaused === false) {
+      metricsService.broadcastLatest(true)
     }
     return true
   }
@@ -254,33 +187,37 @@ app.whenReady().then(() => {
     return enable ? enableStartupItem(itemPath) : disableStartupItem(itemPath)
   })
 
+  ipcMain.handle('get-latest-metrics', async (event) => {
+    assertTrustedIpcSender(event)
+    return metricsService.getLatestSnapshot()
+  })
   ipcMain.handle('get-cpu-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getCpuMetrics()
+    return (await metricsService.getLatestSnapshot()).cpu
   })
   ipcMain.handle('get-memory-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getMemoryMetrics()
+    return (await metricsService.getLatestSnapshot()).memory
   })
   ipcMain.handle('get-disk-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getDiskMetrics()
+    return (await metricsService.getLatestSnapshot()).disk
   })
   ipcMain.handle('get-network-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getNetworkMetrics()
+    return (await metricsService.getLatestSnapshot()).network
   })
   ipcMain.handle('get-gpu-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getGpuMetrics()
+    return (await metricsService.getLatestSnapshot()).gpu
   })
   ipcMain.handle('get-battery-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getBatteryMetrics()
+    return (await metricsService.getLatestSnapshot()).battery
   })
   ipcMain.handle('get-process-metrics', async (event) => {
     assertTrustedIpcSender(event)
-    return getProcessMetrics()
+    return (await metricsService.getLatestSnapshot()).processes
   })
 
   ipcMain.handle('get-system-info', async (event) => {
@@ -298,7 +235,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-anomaly-report', (event) => {
     assertTrustedIpcSender(event)
-    return latestAnomalyReport
+    return metricsService.getLatestSnapshot().then((snapshot) => snapshot.anomalyReport)
   })
 
   ipcMain.handle('get-settings', (event) => {
@@ -323,7 +260,7 @@ app.whenReady().then(() => {
     }
 
     // Restart the polling loop if the interval changed
-    await restartPolling()
+    await metricsService.restart()
     return true
   })
   ipcMain.handle('save-ui-settings', (event, patch: unknown) => {

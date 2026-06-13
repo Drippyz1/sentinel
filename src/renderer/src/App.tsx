@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import { useMetricsPolling, useMetricsStatus } from './hooks/useMetrics'
+import { useMetricsStatus, useMetricsSubscription } from './hooks/useMetrics'
 import { AppLayout } from './components/layout/AppLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProcessesPage } from './pages/ProcessesPage'
@@ -18,7 +18,7 @@ function AppContent() {
     void initializeUiSettings()
   }, [initializeUiSettings])
 
-  useMetricsPolling()
+  useMetricsSubscription()
   const { isLoading, lastUpdated } = useMetricsStatus()
 
   if (!uiSettingsInitialized || (!pollingPaused && isLoading && !lastUpdated)) {

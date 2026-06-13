@@ -18,18 +18,21 @@ interface HistoryState {
   networkDown: DataPoint[]
   networkUp: DataPoint[]
 
-  pushCpu: (value: number) => void
-  pushMemory: (value: number) => void
-  pushDiskRead: (value: number) => void
-  pushDiskWrite: (value: number) => void
-  pushNetworkDown: (value: number) => void
-  pushNetworkUp: (value: number) => void
+  pushSnapshot: (snapshot: {
+    timestamp: number
+    cpu: number
+    memory: number
+    diskRead: number
+    diskWrite: number
+    networkDown: number
+    networkUp: number
+  }) => void
 }
 
 // Helper that appends a new point and trims old ones
 // Written once here so we don't repeat this logic 6 times
-function appendPoint(arr: DataPoint[], value: number): DataPoint[] {
-  const newPoint: DataPoint = { timestamp: Date.now(), value }
+function appendPoint(arr: DataPoint[], value: number, timestamp: number): DataPoint[] {
+  const newPoint: DataPoint = { timestamp, value }
   const updated = [...arr, newPoint]
   // If we have more than MAX_POINTS, drop the oldest ones from the front
   return updated.length > MAX_POINTS ? updated.slice(updated.length - MAX_POINTS) : updated
@@ -43,11 +46,13 @@ export const useHistoryStore = create<HistoryState>()((set) => ({
   networkDown: [],
   networkUp: [],
 
-  pushCpu: (value) => set((state) => ({ cpu: appendPoint(state.cpu, value) })),
-  pushMemory: (value) => set((state) => ({ memory: appendPoint(state.memory, value) })),
-  pushDiskRead: (value) => set((state) => ({ diskRead: appendPoint(state.diskRead, value) })),
-  pushDiskWrite: (value) => set((state) => ({ diskWrite: appendPoint(state.diskWrite, value) })),
-  pushNetworkDown: (value) =>
-    set((state) => ({ networkDown: appendPoint(state.networkDown, value) })),
-  pushNetworkUp: (value) => set((state) => ({ networkUp: appendPoint(state.networkUp, value) }))
+  pushSnapshot: (snapshot) =>
+    set((state) => ({
+      cpu: appendPoint(state.cpu, snapshot.cpu, snapshot.timestamp),
+      memory: appendPoint(state.memory, snapshot.memory, snapshot.timestamp),
+      diskRead: appendPoint(state.diskRead, snapshot.diskRead, snapshot.timestamp),
+      diskWrite: appendPoint(state.diskWrite, snapshot.diskWrite, snapshot.timestamp),
+      networkDown: appendPoint(state.networkDown, snapshot.networkDown, snapshot.timestamp),
+      networkUp: appendPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp)
+    }))
 }))

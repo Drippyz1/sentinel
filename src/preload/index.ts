@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, UiSettingsPatch } from '../main/storage/settings'
+import type { MetricsSnapshot } from '../main/services/MetricsService'
 
 if (process.contextIsolated) {
   try {
@@ -9,6 +10,13 @@ if (process.contextIsolated) {
       setTrayCompact: (compact: boolean) => ipcRenderer.invoke('set-tray-compact', compact),
 
       // Live metrics
+      getLatestMetrics: () => ipcRenderer.invoke('get-latest-metrics'),
+      onMetricsUpdated: (callback: (snapshot: MetricsSnapshot) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, snapshot: MetricsSnapshot) =>
+          callback(snapshot)
+        ipcRenderer.on('metrics-updated', listener)
+        return () => ipcRenderer.removeListener('metrics-updated', listener)
+      },
       getCpuMetrics: () => ipcRenderer.invoke('get-cpu-metrics'),
       getMemoryMetrics: () => ipcRenderer.invoke('get-memory-metrics'),
       getDiskMetrics: () => ipcRenderer.invoke('get-disk-metrics'),

@@ -11,6 +11,7 @@ import { StartupMetrics } from '../../../main/collectors/startup'
 import { SnapshotRow } from '../../../main/storage/queries'
 import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
 import { AppSettings, UiSettingsPatch } from '../../../main/storage/settings'
+import { MetricsSnapshot } from '../../../main/services/MetricsService'
 
 export interface HistorySummary {
   avg_cpu: number
@@ -30,6 +31,8 @@ declare global {
       setTrayCompact: (compact: boolean) => Promise<void>
 
       // Live hardware metrics
+      getLatestMetrics: () => Promise<MetricsSnapshot>
+      onMetricsUpdated: (callback: (snapshot: MetricsSnapshot) => void) => () => void
       getCpuMetrics: () => Promise<CpuMetrics>
       getMemoryMetrics: () => Promise<MemoryMetrics>
       getDiskMetrics: () => Promise<DiskMetrics>

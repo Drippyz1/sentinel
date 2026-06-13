@@ -6,6 +6,8 @@ import { NetworkMetrics } from '../../../main/collectors/network'
 import { ProcessMetrics } from '../../../main/collectors/processes'
 import { GpuMetrics } from '../../../main/collectors/gpu'
 import { BatteryMetrics } from '../../../main/collectors/battery'
+import { AnomalyReport } from '../../../main/analysis/anomalyDetector'
+import { MetricsSnapshot } from '../../../main/services/MetricsService'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {
@@ -16,18 +18,18 @@ interface MetricsState {
   processes: ProcessMetrics | null
   gpu: GpuMetrics | null
   battery: BatteryMetrics | null
+  anomalyReport: AnomalyReport | null
 
   isLoading: boolean
   error: string | null
   lastUpdated: Date | null
   processesUpdatedAt: Date | null
 
-  fetchAll: () => Promise<void>
-  fetchProcesses: () => Promise<void>
-  fetchBattery: () => Promise<void>
+  applySnapshot: (snapshot: MetricsSnapshot) => void
+  setMetricsError: (error: string) => void
 }
 
-export const useMetricsStore = create<MetricsState>()((set) => ({
+export const useMetricsStore = create<MetricsState>()((set, get) => ({
   cpu: null,
   memory: null,
   disk: null,
@@ -35,56 +37,42 @@ export const useMetricsStore = create<MetricsState>()((set) => ({
   processes: null,
   gpu: null,
   battery: null,
+  anomalyReport: null,
 
-  isLoading: false,
+  isLoading: true,
   error: null,
   lastUpdated: null,
   processesUpdatedAt: null,
 
-  fetchAll: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const [cpu, memory, disk, network, gpu] = await Promise.all([
-        window.electronAPI.getCpuMetrics(),
-        window.electronAPI.getMemoryMetrics(),
-        window.electronAPI.getDiskMetrics(),
-        window.electronAPI.getNetworkMetrics(),
-        window.electronAPI.getGpuMetrics()
-      ])
+  applySnapshot: (snapshot) => {
+    const currentTimestamp = get().lastUpdated?.getTime() ?? 0
+    if (snapshot.timestamp <= currentTimestamp) return
 
-      set({ cpu, memory, disk, network, gpu, isLoading: false, lastUpdated: new Date() })
+    set({
+      cpu: snapshot.cpu,
+      memory: snapshot.memory,
+      disk: snapshot.disk,
+      network: snapshot.network,
+      processes: snapshot.processes,
+      gpu: snapshot.gpu,
+      battery: snapshot.battery,
+      anomalyReport: snapshot.anomalyReport,
+      isLoading: false,
+      error: null,
+      lastUpdated: new Date(snapshot.timestamp),
+      processesUpdatedAt: new Date(snapshot.timestamp)
+    })
 
-      const history = useHistoryStore.getState()
-      history.pushCpu(cpu.usagePercent)
-      history.pushMemory(memory.usagePercent)
-      history.pushDiskRead(disk.io.readBytesPerSec)
-      history.pushDiskWrite(disk.io.writeBytesPerSec)
-      history.pushNetworkDown(network.totalDownloadBytesPerSec)
-      history.pushNetworkUp(network.totalUploadBytesPerSec)
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to fetch metrics',
-        isLoading: false
-      })
-    }
+    useHistoryStore.getState().pushSnapshot({
+      timestamp: snapshot.timestamp,
+      cpu: snapshot.cpu.usagePercent,
+      memory: snapshot.memory.usagePercent,
+      diskRead: snapshot.disk.io.readBytesPerSec,
+      diskWrite: snapshot.disk.io.writeBytesPerSec,
+      networkDown: snapshot.network.totalDownloadBytesPerSec,
+      networkUp: snapshot.network.totalUploadBytesPerSec
+    })
   },
 
-  fetchProcesses: async () => {
-    try {
-      const processes = await window.electronAPI.getProcessMetrics()
-      set({ processes, processesUpdatedAt: new Date() })
-    } catch (err) {
-      console.error('Failed to fetch processes:', err)
-    }
-  },
-
-  // Battery is polled slowly — it changes much less frequently than hardware metrics
-  fetchBattery: async () => {
-    try {
-      const battery = await window.electronAPI.getBatteryMetrics()
-      set({ battery })
-    } catch (err) {
-      console.error('Failed to fetch battery:', err)
-    }
-  }
+  setMetricsError: (error) => set({ error, isLoading: false })
 }))

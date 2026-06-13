@@ -10,6 +10,7 @@ import { BatteryMetrics } from '../collectors/battery'
 const RETENTION_DAYS = 7
 
 interface SnapshotData {
+  timestamp?: number
   cpu: CpuMetrics
   memory: MemoryMetrics
   disk: DiskMetrics
@@ -52,7 +53,7 @@ export function recordSnapshot(data: SnapshotData) {
     const primaryDrive = data.disk.drives.find((d) => d.mount === '/') ?? data.disk.drives[0]
 
     getInsertStmt().run({
-      timestamp: Date.now(),
+      timestamp: data.timestamp ?? Date.now(),
       cpu_usage: data.cpu.usagePercent ?? 0,
       memory_usage: data.memory.usagePercent ?? 0,
       memory_used: data.memory.usedBytes ?? 0,
