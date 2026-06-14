@@ -55,6 +55,125 @@ function SectionHeading({ title, description }: { title: string; description: st
   )
 }
 
+function ReportExportDialog({
+  error,
+  exportingFormat,
+  onCancel,
+  onExport
+}: {
+  error: string | null
+  exportingFormat: SystemReportFormat | null
+  onCancel: () => void
+  onExport: (format: SystemReportFormat) => void
+}) {
+  const isExporting = exportingFormat !== null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
+      onClick={() => {
+        if (!isExporting) onCancel()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="report-export-title"
+        className="w-full max-w-md rounded-xl p-5 shadow-xl"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border)'
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2
+          id="report-export-title"
+          className="text-base font-semibold"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          Export system report?
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          The diagnostic report may include information that identifies your computer or local
+          network:
+        </p>
+
+        <ul
+          className="mt-4 space-y-2 rounded-lg px-4 py-3 text-sm list-disc list-inside"
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)'
+          }}
+        >
+          <li>Hostname</li>
+          <li>Local IP addresses</li>
+          <li>Volume labels</li>
+          <li>Startup application names</li>
+          <li>Hardware and OS details</li>
+        </ul>
+
+        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Review the downloaded report before sharing it publicly.
+        </p>
+
+        {error && (
+          <div
+            className="mt-4 rounded-lg px-3 py-2 text-xs"
+            style={{
+              color: 'var(--accent-red)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)'
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onExport('txt')}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border)'
+            }}
+          >
+            {exportingFormat === 'txt' ? 'Exporting...' : 'Export TXT'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onExport('json')}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: 'var(--accent-blue)',
+              border: '1px solid var(--accent-blue)'
+            }}
+          >
+            {exportingFormat === 'json' ? 'Exporting...' : 'Export JSON'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────
@@ -288,8 +407,8 @@ export function SystemPage() {
   const view = useUiSettingsStore((state) => state.systemView)
   const setView = useUiSettingsStore((state) => state.setSystemView)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
-  const [reportFormat, setReportFormat] = useState<SystemReportFormat>('json')
-  const [isExporting, setIsExporting] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<SystemReportFormat | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
 
   const refreshStartup = useCallback(() => {
@@ -331,11 +450,11 @@ export function SystemPage() {
     }
   }, [refreshStartup])
 
-  async function exportReport() {
-    setIsExporting(true)
+  async function exportReport(format: SystemReportFormat) {
+    setExportingFormat(format)
     setExportError(null)
     try {
-      const report = await window.electronAPI.exportSystemReport(reportFormat)
+      const report = await window.electronAPI.exportSystemReport(format)
       const url = URL.createObjectURL(
         new Blob([report.content], { type: `${report.mimeType};charset=utf-8` })
       )
@@ -346,16 +465,29 @@ export function SystemPage() {
       link.click()
       link.remove()
       setTimeout(() => URL.revokeObjectURL(url), 0)
+      setShowExportDialog(false)
     } catch (error) {
       console.error('Failed to export system report:', error)
       setExportError('The system report could not be generated. Please try again.')
     } finally {
-      setIsExporting(false)
+      setExportingFormat(null)
     }
   }
 
   return (
     <div>
+      {showExportDialog && (
+        <ReportExportDialog
+          error={exportError}
+          exportingFormat={exportingFormat}
+          onCancel={() => {
+            setShowExportDialog(false)
+            setExportError(null)
+          }}
+          onExport={(format) => void exportReport(format)}
+        />
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -367,31 +499,31 @@ export function SystemPage() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <SegmentedControl
-            value={reportFormat}
-            onChange={setReportFormat}
-            ariaLabel="System report format"
-            options={[
-              { label: 'JSON', value: 'json' },
-              { label: 'TXT', value: 'txt' }
-            ]}
-          />
-          <button
-            type="button"
-            onClick={() => void exportReport()}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
-            style={{
-              backgroundColor: 'var(--accent-blue)',
-              color: 'white',
-              border: '1px solid var(--accent-blue)',
-              cursor: isExporting ? 'wait' : 'pointer',
-              opacity: isExporting ? 0.7 : 1
-            }}
-          >
-            {isExporting ? 'Exporting...' : 'Export Report'}
-          </button>
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <div className="min-w-0 text-right">
+            <button
+              type="button"
+              onClick={() => {
+                setExportError(null)
+                setShowExportDialog(true)
+              }}
+              disabled={exportingFormat !== null}
+              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--accent-blue)',
+                color: 'white',
+                border: '1px solid var(--accent-blue)'
+              }}
+            >
+              Export Report
+            </button>
+            <p
+              className="mt-1 max-w-56 text-[10px] leading-relaxed"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Reports may contain identifying system and network details. Review before sharing.
+            </p>
+          </div>
           <SegmentedControl
             value={view}
             onChange={setView}
@@ -403,19 +535,6 @@ export function SystemPage() {
           />
         </div>
       </div>
-
-      {exportError && (
-        <div
-          className="mb-4 rounded-lg px-4 py-2.5 text-xs"
-          style={{
-            color: 'var(--accent-red)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)'
-          }}
-        >
-          {exportError}
-        </div>
-      )}
 
       <SectionHeading
         title="Overview"
