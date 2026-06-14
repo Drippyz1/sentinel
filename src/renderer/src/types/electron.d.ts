@@ -12,6 +12,8 @@ import type {
   ProcessMetrics,
   SnapshotRow,
   StartupMetrics,
+  SystemReportExport,
+  SystemReportFormat,
   SystemInfo,
   ThermalMetrics,
   UiSettingsPatch
@@ -39,6 +41,7 @@ declare global {
       getSystemInfo: () => Promise<SystemInfo>
       getThermalMetrics: () => Promise<ThermalMetrics>
       getStartupMetrics: () => Promise<StartupMetrics>
+      exportSystemReport: (format: SystemReportFormat) => Promise<SystemReportExport>
       getAnomalyReport: () => Promise<AnomalyReport | null>
       toggleStartupItem: (itemPath: string, enable: boolean) => Promise<boolean>
 

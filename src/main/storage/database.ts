@@ -4,10 +4,14 @@ import { app } from 'electron'
 
 let db: Database.Database | null = null
 
+export function getDatabasePath(): string {
+  return path.join(app.getPath('userData'), 'sentinel.db')
+}
+
 export function getDatabase(): Database.Database {
   if (db) return db
 
-  const dbPath = path.join(app.getPath('userData'), 'sentinel.db')
+  const dbPath = getDatabasePath()
   console.log('Database location:', dbPath)
 
   db = new Database(dbPath)

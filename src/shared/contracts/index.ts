@@ -1,4 +1,5 @@
 export * from './history'
 export * from './metrics'
+export * from './report'
 export * from './settings'
 export * from './system'

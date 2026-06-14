@@ -6,6 +6,26 @@ export interface HistoryQuery {
   minutes: number // how many minutes back to look
 }
 
+export interface HistoryMetadata {
+  snapshotCount: number
+  oldestTimestamp: number | null
+  newestTimestamp: number | null
+}
+
+export function getHistoryMetadata(): HistoryMetadata {
+  return getDatabase()
+    .prepare(
+      `
+    SELECT
+      COUNT(*) as snapshotCount,
+      MIN(timestamp) as oldestTimestamp,
+      MAX(timestamp) as newestTimestamp
+    FROM metric_snapshots
+  `
+    )
+    .get() as HistoryMetadata
+}
+
 // Returns raw rows for a time range
 export function getSnapshots(minutes: number): SnapshotRow[] {
   const db = getDatabase()

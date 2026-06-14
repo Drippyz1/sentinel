@@ -19,6 +19,6 @@ export function registerIpcHandlers(options: RegisterIpcOptions): void {
   registerHistoryIpc()
   registerSettingsIpc(options)
   registerProcessIpc(options.metricsService)
-  registerSystemIpc()
+  registerSystemIpc(options.metricsService)
   registerShellIpc(options)
 }

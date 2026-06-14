@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, MetricsSnapshot, UiSettingsPatch } from '../shared/contracts'
+import type {
+  AppSettings,
+  MetricsSnapshot,
+  SystemReportFormat,
+  UiSettingsPatch
+} from '../shared/contracts'
 
 if (process.contextIsolated) {
   try {
@@ -28,6 +33,8 @@ if (process.contextIsolated) {
       getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
       getThermalMetrics: () => ipcRenderer.invoke('get-thermal-metrics'),
       getStartupMetrics: () => ipcRenderer.invoke('get-startup-metrics'),
+      exportSystemReport: (format: SystemReportFormat) =>
+        ipcRenderer.invoke('export-system-report', format),
       getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
       toggleStartupItem: (itemPath: string, enable: boolean) =>
         ipcRenderer.invoke('toggle-startup-item', itemPath, enable),

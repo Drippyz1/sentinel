@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { StartupMetrics, SystemInfo, ThermalMetrics } from '../../../shared/contracts'
+import type {
+  StartupMetrics,
+  SystemInfo,
+  SystemReportFormat,
+  ThermalMetrics
+} from '../../../shared/contracts'
 import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
@@ -283,6 +288,9 @@ export function SystemPage() {
   const view = useUiSettingsStore((state) => state.systemView)
   const setView = useUiSettingsStore((state) => state.setSystemView)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [reportFormat, setReportFormat] = useState<SystemReportFormat>('json')
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const refreshStartup = useCallback(() => {
     setLoadingStartup(true)
@@ -323,9 +331,32 @@ export function SystemPage() {
     }
   }, [refreshStartup])
 
+  async function exportReport() {
+    setIsExporting(true)
+    setExportError(null)
+    try {
+      const report = await window.electronAPI.exportSystemReport(reportFormat)
+      const url = URL.createObjectURL(
+        new Blob([report.content], { type: `${report.mimeType};charset=utf-8` })
+      )
+      const link = document.createElement('a')
+      link.href = url
+      link.download = report.filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      console.error('Failed to export system report:', error)
+      setExportError('The system report could not be generated. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             System
@@ -336,16 +367,55 @@ export function SystemPage() {
             </p>
           )}
         </div>
-        <SegmentedControl
-          value={view}
-          onChange={setView}
-          ariaLabel="System detail level"
-          options={[
-            { label: 'Simple', value: 'simple' },
-            { label: 'Advanced', value: 'advanced' }
-          ]}
-        />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <SegmentedControl
+            value={reportFormat}
+            onChange={setReportFormat}
+            ariaLabel="System report format"
+            options={[
+              { label: 'JSON', value: 'json' },
+              { label: 'TXT', value: 'txt' }
+            ]}
+          />
+          <button
+            type="button"
+            onClick={() => void exportReport()}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+            style={{
+              backgroundColor: 'var(--accent-blue)',
+              color: 'white',
+              border: '1px solid var(--accent-blue)',
+              cursor: isExporting ? 'wait' : 'pointer',
+              opacity: isExporting ? 0.7 : 1
+            }}
+          >
+            {isExporting ? 'Exporting...' : 'Export Report'}
+          </button>
+          <SegmentedControl
+            value={view}
+            onChange={setView}
+            ariaLabel="System detail level"
+            options={[
+              { label: 'Simple', value: 'simple' },
+              { label: 'Advanced', value: 'advanced' }
+            ]}
+          />
+        </div>
       </div>
+
+      {exportError && (
+        <div
+          className="mb-4 rounded-lg px-4 py-2.5 text-xs"
+          style={{
+            color: 'var(--accent-red)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}
+        >
+          {exportError}
+        </div>
+      )}
 
       <SectionHeading
         title="Overview"
