@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
   MetricsSnapshot,
+  SettingsSaveResult,
   SystemReportFormat,
   UiSettingsPatch
 } from '../shared/contracts'
@@ -43,7 +44,8 @@ if (process.contextIsolated) {
 
       // Settings
       getSettings: () => ipcRenderer.invoke('get-settings'),
-      saveSettings: (settings: AppSettings) => ipcRenderer.invoke('save-settings', settings),
+      saveSettings: (settings: AppSettings): Promise<SettingsSaveResult> =>
+        ipcRenderer.invoke('save-settings', settings),
       saveUiSettings: (patch: UiSettingsPatch) => ipcRenderer.invoke('save-ui-settings', patch),
       onUiSettingsChanged: (callback: (patch: UiSettingsPatch) => void) => {
         const listener = (_event: Electron.IpcRendererEvent, patch: UiSettingsPatch) =>

@@ -3,6 +3,7 @@ import { setThreshold } from '../analysis/anomalyDetector'
 import { assertTrustedIpcSender } from '../ipcSecurity'
 import { MetricsService } from '../services/MetricsService'
 import {
+  getLaunchAtLoginState,
   isValidAppSettings,
   isValidUiSettingsPatch,
   loadSettings,
@@ -31,9 +32,13 @@ export function registerSettingsIpc({
   ipcMain.handle('save-settings', async (event, newSettings: unknown) => {
     assertTrustedIpcSender(event)
     if (!isValidAppSettings(newSettings)) {
+      const currentSettings = loadSettings()
       return {
         success: false,
-        settings: loadSettings(),
+        settings: {
+          ...currentSettings,
+          launchAtLogin: getLaunchAtLoginState()
+        },
         launchAtLoginError: false,
         isPackaged: app.isPackaged
       }

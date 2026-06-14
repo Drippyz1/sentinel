@@ -98,23 +98,21 @@ export function saveSettings(settings: AppSettings): SettingsSaveResult {
 
 export function updateUiSettings(patch: UiSettingsPatch): boolean {
   const settings = loadSettings()
-  return writeSettings(
-    {
-      ...settings,
-      ui: {
-        ...settings.ui,
-        ...patch,
-        dashboardWidgets: {
-          ...settings.ui.dashboardWidgets,
-          ...patch.dashboardWidgets
-        },
-        historyMetrics: {
-          ...settings.ui.historyMetrics,
-          ...patch.historyMetrics
-        }
+  return writeSettings({
+    ...settings,
+    ui: {
+      ...settings.ui,
+      ...patch,
+      dashboardWidgets: {
+        ...settings.ui.dashboardWidgets,
+        ...patch.dashboardWidgets
+      },
+      historyMetrics: {
+        ...settings.ui.historyMetrics,
+        ...patch.historyMetrics
       }
-    },
-  )
+    }
+  })
 }
 
 export function isValidAppSettings(value: unknown): value is AppSettings {

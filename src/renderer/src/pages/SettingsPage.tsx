@@ -194,6 +194,8 @@ export function SettingsPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [launchAtLoginError, setLaunchAtLoginError] = useState<string | null>(null)
+  const [savingLaunchAtLogin, setSavingLaunchAtLogin] = useState(false)
 
   useEffect(() => {
     window.electronAPI
@@ -211,16 +213,42 @@ export function SettingsPage() {
     const next = { ...settings, [key]: value }
     setSettings(next)
     setSaveStatus('idle')
+    if (key === 'launchAtLogin') setSavingLaunchAtLogin(true)
 
     try {
-      const saved = await window.electronAPI.saveSettings(next)
-      if (!saved) throw new Error('Settings write failed')
+      const result = await window.electronAPI.saveSettings(next)
+      if (!result.success) {
+        setSettings({
+          ...previous,
+          launchAtLogin: result.settings.launchAtLogin
+        })
+        setSaveStatus('error')
+        return
+      }
+
+      setSettings(result.settings)
+      if (key === 'launchAtLogin') {
+        if (result.launchAtLoginError) {
+          const requestedAction = next.launchAtLogin ? 'enable' : 'disable'
+          const developmentNote = result.isPackaged
+            ? ''
+            : ' Development builds may only support Launch at Login reliably when packaged and signed.'
+          setLaunchAtLoginError(
+            `macOS did not allow Sentinel to ${requestedAction} Launch at Login. The toggle now reflects the current system setting.${developmentNote}`
+          )
+          return
+        }
+        setLaunchAtLoginError(null)
+      }
+
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 1500)
     } catch (error) {
       console.error('Failed to save settings:', error)
       setSettings(previous)
       setSaveStatus('error')
+    } finally {
+      if (key === 'launchAtLogin') setSavingLaunchAtLogin(false)
     }
   }
 
@@ -283,13 +311,32 @@ export function SettingsPage() {
       {/* ── System — macOS only ──────────────────── */}
       {isMac && (
         <Section title="System">
-          <Row label="Launch at login" description="Start Sentinel automatically when you log in">
-            <ToggleSwitch
-              checked={settings.launchAtLogin}
+          <div>
+            <Row
               label="Launch at login"
-              onChange={(value) => update('launchAtLogin', value)}
-            />
-          </Row>
+              description="Launch at login may require a packaged macOS build and system permission approval."
+            >
+              <ToggleSwitch
+                checked={settings.launchAtLogin}
+                disabled={savingLaunchAtLogin}
+                label="Launch at login"
+                onChange={(value) => update('launchAtLogin', value)}
+              />
+            </Row>
+            {launchAtLoginError && (
+              <div
+                role="alert"
+                className="mx-4 mb-3 rounded-lg px-3 py-2.5 text-xs leading-relaxed"
+                style={{
+                  color: 'var(--accent-amber)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                }}
+              >
+                {launchAtLoginError}
+              </div>
+            )}
+          </div>
           <Row
             label="Hide from Dock"
             description="Remove the app icon from the macOS Dock — still accessible via menu bar"

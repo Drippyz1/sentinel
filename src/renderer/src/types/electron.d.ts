@@ -10,6 +10,7 @@ import type {
   MetricsSnapshot,
   NetworkMetrics,
   ProcessMetrics,
+  SettingsSaveResult,
   SnapshotRow,
   StartupMetrics,
   SystemReportExport,
@@ -47,7 +48,7 @@ declare global {
 
       // Settings
       getSettings: () => Promise<AppSettings>
-      saveSettings: (settings: AppSettings) => Promise<boolean>
+      saveSettings: (settings: AppSettings) => Promise<SettingsSaveResult>
       saveUiSettings: (patch: UiSettingsPatch) => Promise<boolean>
       onUiSettingsChanged: (callback: (patch: UiSettingsPatch) => void) => () => void
       showDock: () => Promise<void>
