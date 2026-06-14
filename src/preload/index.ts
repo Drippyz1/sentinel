@@ -3,6 +3,7 @@ import type {
   AlertHistoryEntry,
   AppSettings,
   MetricsSnapshot,
+  ProcessDetails,
   SettingsSaveResult,
   SystemReportFormat,
   UiSettingsPatch
@@ -29,6 +30,9 @@ if (process.contextIsolated) {
       getDiskMetrics: () => ipcRenderer.invoke('get-disk-metrics'),
       getNetworkMetrics: () => ipcRenderer.invoke('get-network-metrics'),
       getProcessMetrics: () => ipcRenderer.invoke('get-process-metrics'),
+      getProcessDetails: (pid: number): Promise<ProcessDetails | null> =>
+        ipcRenderer.invoke('get-process-details', pid),
+      revealProcess: (pid: number): Promise<boolean> => ipcRenderer.invoke('reveal-process', pid),
       getGpuMetrics: () => ipcRenderer.invoke('get-gpu-metrics'),
       getBatteryMetrics: () => ipcRenderer.invoke('get-battery-metrics'),
 

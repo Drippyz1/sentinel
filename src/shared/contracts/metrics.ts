@@ -100,6 +100,17 @@ export interface ProcessInfo {
   started: string
 }
 
+export interface ProcessDetails extends ProcessInfo {
+  parentPid: number | null
+  threads: number | null
+  user: string | null
+  path: string | null
+  commandLine: string | null
+  uptimeSeconds: number | null
+  architecture: string
+  platform: string
+}
+
 export interface ProcessMetrics {
   list: ProcessInfo[]
   total: number

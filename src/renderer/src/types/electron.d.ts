@@ -10,6 +10,7 @@ import type {
   MemoryMetrics,
   MetricsSnapshot,
   NetworkMetrics,
+  ProcessDetails,
   ProcessMetrics,
   SettingsSaveResult,
   SnapshotRow,
@@ -37,6 +38,8 @@ declare global {
       getDiskMetrics: () => Promise<DiskMetrics>
       getNetworkMetrics: () => Promise<NetworkMetrics>
       getProcessMetrics: () => Promise<ProcessMetrics>
+      getProcessDetails: (pid: number) => Promise<ProcessDetails | null>
+      revealProcess: (pid: number) => Promise<boolean>
       getGpuMetrics: () => Promise<GpuMetrics>
       getBatteryMetrics: () => Promise<BatteryMetrics>
 

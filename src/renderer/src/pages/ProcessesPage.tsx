@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
+import type { ProcessDetails, ProcessInfo } from '../../../shared/contracts'
 import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
 import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
+import { ProcessDetailsDrawer } from '../components/processes/ProcessDetailsDrawer'
 
 type SortKey = 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
 type SortDir = 'asc' | 'desc'
@@ -120,7 +122,11 @@ export function ProcessesPage() {
   const setDensity = useUiSettingsStore((state) => state.setProcessDensity)
   const quickFilter = useUiSettingsStore((state) => state.processQuickFilter)
   const setQuickFilter = useUiSettingsStore((state) => state.setProcessQuickFilter)
-  const [selected, setSelected] = useState<number | null>(null) // hovered PID
+  const [hoveredPid, setHoveredPid] = useState<number | null>(null)
+  const [selectedProcess, setSelectedProcess] = useState<ProcessInfo | null>(null)
+  const [processDetails, setProcessDetails] = useState<ProcessDetails | null>(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
   const [killing, setKilling] = useState<{ pid: number; name: string } | null>(null)
   const [killError, setKillError] = useState<string | null>(null)
 
@@ -176,11 +182,32 @@ export function ProcessesPage() {
       const result = await window.electronAPI.killProcess(killing.pid)
       if (!result.success) {
         setKillError(result.error ?? 'Failed to kill process')
+      } else if (selectedProcess?.pid === killing.pid) {
+        setSelectedProcess(null)
       }
     } catch {
       setKillError('Failed to kill process')
     } finally {
       setKilling(null)
+    }
+  }
+
+  async function openProcessDetails(process: ProcessInfo) {
+    setSelectedProcess(process)
+    setProcessDetails(null)
+    setDetailsError(null)
+    setDetailsLoading(true)
+    try {
+      const details = await window.electronAPI.getProcessDetails(process.pid)
+      if (details) {
+        setProcessDetails(details)
+      } else {
+        setDetailsError('Detailed information is unavailable for this process.')
+      }
+    } catch {
+      setDetailsError('Detailed information could not be loaded.')
+    } finally {
+      setDetailsLoading(false)
     }
   }
 
@@ -192,6 +219,17 @@ export function ProcessesPage() {
           pid={killing.pid}
           onConfirm={handleKillConfirm}
           onCancel={() => setKilling(null)}
+        />
+      )}
+
+      {selectedProcess && (
+        <ProcessDetailsDrawer
+          process={selectedProcess}
+          details={processDetails}
+          loading={detailsLoading}
+          error={detailsError}
+          onClose={() => setSelectedProcess(null)}
+          onKill={() => setKilling({ pid: selectedProcess.pid, name: selectedProcess.name })}
         />
       )}
 
@@ -338,11 +376,14 @@ export function ProcessesPage() {
             {filtered.map((process) => {
               const isTopCpu = process.pid === topConsumers.cpuPid
               const isTopMemory = process.pid === topConsumers.memoryPid
-              const isHovered = selected === process.pid
+              const isHovered = hoveredPid === process.pid
 
               return (
                 <div
                   key={process.pid}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${process.name}, PID ${process.pid}`}
                   className={`grid gap-4 px-3 rounded-lg items-center group transition-colors ${
                     density === 'compact' ? 'py-1' : 'py-2.5'
                   }`}
@@ -358,8 +399,14 @@ export function ProcessesPage() {
                         ? 'inset 2px 0 0 var(--accent-blue)'
                         : 'inset 0 0 0 transparent'
                   }}
-                  onMouseEnter={() => setSelected(process.pid)}
-                  onMouseLeave={() => setSelected(null)}
+                  onClick={() => void openProcessDetails(process)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void openProcessDetails(process)
+                  }}
+                  onMouseEnter={() => setHoveredPid(process.pid)}
+                  onMouseLeave={() => setHoveredPid(null)}
+                  onFocus={() => setHoveredPid(process.pid)}
+                  onBlur={() => setHoveredPid(null)}
                 >
                   <div className="min-w-0">
                     <span
@@ -395,14 +442,18 @@ export function ProcessesPage() {
 
                   {/* Kill button — only visible on hover */}
                   <button
-                    onClick={() => setKilling({ pid: process.pid, name: process.name })}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setKilling({ pid: process.pid, name: process.name })
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
                     title={`Kill ${process.name}`}
                     aria-label={`Kill ${process.name}`}
-                    onFocus={() => setSelected(process.pid)}
-                    onBlur={() => setSelected(null)}
+                    onFocus={() => setHoveredPid(process.pid)}
+                    onBlur={() => setHoveredPid(null)}
                     className="flex items-center justify-center w-6 h-6 rounded transition-all"
                     style={{
-                      opacity: selected === process.pid ? 1 : 0,
+                      opacity: hoveredPid === process.pid ? 1 : 0,
                       backgroundColor: 'rgba(239,68,68,0.15)',
                       color: 'var(--accent-red)',
                       border: 'none',
