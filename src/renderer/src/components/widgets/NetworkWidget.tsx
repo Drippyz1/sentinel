@@ -4,19 +4,28 @@ import { formatSpeed } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { MiniChart } from '../ui/MiniChart'
+import {
+  DASHBOARD_CHART_HEIGHT,
+  isCompactDashboard,
+  type DashboardWidgetProps
+} from './dashboardDensity'
 
-export function NetworkWidget() {
+export function NetworkWidget({ density }: DashboardWidgetProps) {
   const network = useNetworkMetrics()
   const downHistory = useHistoryStore((state) => state.networkDown)
   const upHistory = useHistoryStore((state) => state.networkUp)
   if (!network) return null
 
   const activeInterfaces = network.interfaces.filter((i) => i.isActive)
+  const compact = isCompactDashboard(density)
 
   return (
-    <Card title="Network">
+    <Card title="Network" density={density}>
       <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="min-w-0 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-base)' }}>
+        <div
+          className={`min-w-0 rounded-lg ${compact ? 'p-2.5' : 'p-3'}`}
+          style={{ backgroundColor: 'var(--bg-base)' }}
+        >
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
             Download
           </p>
@@ -28,7 +37,10 @@ export function NetworkWidget() {
             {formatSpeed(network.totalDownloadBytesPerSec)}
           </p>
         </div>
-        <div className="min-w-0 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-base)' }}>
+        <div
+          className={`min-w-0 rounded-lg ${compact ? 'p-2.5' : 'p-3'}`}
+          style={{ backgroundColor: 'var(--bg-base)' }}
+        >
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
             Upload
           </p>
@@ -42,28 +54,33 @@ export function NetworkWidget() {
         </div>
       </div>
 
-      <div className="mt-4 mb-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <div
+        className={compact ? 'mt-3 mb-3 pt-3' : 'mt-4 mb-4 pt-4'}
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
         <div className="grid grid-cols-2 gap-3">
           <MiniChart
             data={downHistory}
             color="#22c55e"
-            label="Download · Last 2 min"
+            label={compact ? 'Down · 2 min' : 'Download · Last 2 min'}
             ariaLabel="Recent network download trend"
             formatValue={formatSpeed}
             domain={[0, Math.max(...downHistory.map((p) => p.value), 1)]}
+            height={DASHBOARD_CHART_HEIGHT[density]}
           />
           <MiniChart
             data={upHistory}
             color="#3b82f6"
-            label="Upload · Last 2 min"
+            label={compact ? 'Up · 2 min' : 'Upload · Last 2 min'}
             ariaLabel="Recent network upload trend"
             formatValue={formatSpeed}
             domain={[0, Math.max(...upHistory.map((p) => p.value), 1)]}
+            height={DASHBOARD_CHART_HEIGHT[density]}
           />
         </div>
       </div>
 
-      {activeInterfaces.length > 0 && (
+      {!compact && activeInterfaces.length > 0 && (
         <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
             Interfaces

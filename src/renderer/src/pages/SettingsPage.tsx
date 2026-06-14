@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   ui: {
     dashboardPollingPaused: false,
+    dashboardDensity: 'comfortable',
     dashboardWidgets: {
       cpu: true,
       memory: true,

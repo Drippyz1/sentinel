@@ -5,6 +5,11 @@ import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
 import { getTrendDirection } from '../../utils/trend'
+import {
+  DASHBOARD_CHART_HEIGHT,
+  isCompactDashboard,
+  type DashboardWidgetProps
+} from './dashboardDensity'
 
 function formatTime(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}m`
@@ -19,13 +24,13 @@ function healthColor(pct: number): 'green' | 'amber' | 'red' {
   return 'red'
 }
 
-export function BatteryWidget() {
+export function BatteryWidget({ density }: DashboardWidgetProps) {
   const battery = useBatteryMetrics()
   const history = useHistoryStore((state) => state.battery)
 
   if (!battery) {
     return (
-      <Card title="Battery">
+      <Card title="Battery" density={density}>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Loading...
         </p>
@@ -35,7 +40,7 @@ export function BatteryWidget() {
 
   if (!battery.hasBattery) {
     return (
-      <Card title="Battery">
+      <Card title="Battery" density={density}>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           No battery.
         </p>
@@ -62,11 +67,15 @@ export function BatteryWidget() {
     : batteryTrend === 'falling'
       ? 'Discharging'
       : 'Stable'
+  const compact = isCompactDashboard(density)
 
   return (
-    <Card title="Battery" subtitle={statusLabel}>
+    <Card title="Battery" subtitle={statusLabel} density={density}>
       <div className="flex items-end gap-2 mb-3">
-        <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
+        <span
+          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
+          style={{ color: 'var(--text-primary)' }}
+        >
           {battery.chargePercent}
         </span>
         <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -79,9 +88,12 @@ export function BatteryWidget() {
         )}
       </div>
 
-      <UsageBar percent={battery.chargePercent} accent={chargeAccent} />
+      {!compact && <UsageBar percent={battery.chargePercent} accent={chargeAccent} />}
 
-      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <div
+        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
         <MiniChart
           data={history}
           color={battery.isCharging ? '#22c55e' : '#3b82f6'}
@@ -89,26 +101,29 @@ export function BatteryWidget() {
           ariaLabel="Recent battery percentage trend"
           formatValue={(value) => `${value}%`}
           domain={[0, 100]}
+          height={DASHBOARD_CHART_HEIGHT[density]}
         />
       </div>
 
-      <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-        {battery.timeRemainingMins !== null && (
-          <StatRow
-            label={battery.isCharging ? 'Time to full' : 'Time remaining'}
-            value={formatTime(battery.timeRemainingMins)}
-            accent="blue"
-          />
-        )}
-        {battery.cycleCount !== null && (
-          <StatRow label="Cycle count" value={`${battery.cycleCount}`} accent="blue" />
-        )}
-        {battery.voltage !== null && (
-          <StatRow label="Voltage" value={`${battery.voltage.toFixed(2)}V`} accent="blue" />
-        )}
-      </div>
+      {!compact && (
+        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
+          {battery.timeRemainingMins !== null && (
+            <StatRow
+              label={battery.isCharging ? 'Time to full' : 'Time remaining'}
+              value={formatTime(battery.timeRemainingMins)}
+              accent="blue"
+            />
+          )}
+          {battery.cycleCount !== null && (
+            <StatRow label="Cycle count" value={`${battery.cycleCount}`} accent="blue" />
+          )}
+          {battery.voltage !== null && (
+            <StatRow label="Voltage" value={`${battery.voltage.toFixed(2)}V`} accent="blue" />
+          )}
+        </div>
+      )}
 
-      {battery.healthPercent !== null && (
+      {!compact && battery.healthPercent !== null && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
             Battery Health

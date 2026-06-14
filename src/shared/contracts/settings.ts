@@ -1,6 +1,7 @@
 export type HistoryView = 'chart' | 'table'
 export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
 export type ProcessDensity = 'compact' | 'comfortable'
+export type DashboardDensity = 'compact' | 'comfortable' | 'detailed'
 export type ProcessQuickFilter = 'all' | 'cpu' | 'memory'
 export type SystemView = 'simple' | 'advanced'
 export const DASHBOARD_WIDGET_KEYS = [
@@ -32,6 +33,7 @@ export interface MonitoringAlerts {
 
 export interface UiSettings {
   dashboardPollingPaused: boolean
+  dashboardDensity: DashboardDensity
   dashboardWidgets: DashboardWidgetVisibility
   dashboardWidgetOrder: DashboardWidget[]
   historyView: HistoryView

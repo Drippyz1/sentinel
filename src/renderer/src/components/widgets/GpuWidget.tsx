@@ -6,15 +6,20 @@ import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
+import {
+  DASHBOARD_CHART_HEIGHT,
+  isCompactDashboard,
+  type DashboardWidgetProps
+} from './dashboardDensity'
 
-export function GpuWidget() {
+export function GpuWidget({ density }: DashboardWidgetProps) {
   const gpu = useGpuMetrics()
   const history = useHistoryStore((state) => state.gpu)
   const { formatTemp } = useTemp()
 
   if (!gpu || !gpu.hasGpu) {
     return (
-      <Card title="GPU">
+      <Card title="GPU" density={density}>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           No GPU detected.
         </p>
@@ -23,11 +28,15 @@ export function GpuWidget() {
   }
 
   const controller = gpu.controllers[0]
+  const compact = isCompactDashboard(density)
 
   return (
-    <Card title="GPU" subtitle={controller.name}>
+    <Card title="GPU" subtitle={controller.name} density={density}>
       <div className="flex items-end gap-2 mb-3">
-        <span className="text-4xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
+        <span
+          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
+          style={{ color: 'var(--text-primary)' }}
+        >
           {controller.utilizationPercent}
         </span>
         <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -35,9 +44,12 @@ export function GpuWidget() {
         </span>
       </div>
 
-      <UsageBar percent={controller.utilizationPercent} />
+      {!compact && <UsageBar percent={controller.utilizationPercent} />}
 
-      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <div
+        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
         {history.length >= 2 ? (
           <MiniChart
             data={history}
@@ -45,10 +57,11 @@ export function GpuWidget() {
             ariaLabel="Recent GPU usage trend"
             formatValue={(value) => `${value}%`}
             domain={[0, 100]}
+            height={DASHBOARD_CHART_HEIGHT[density]}
           />
         ) : (
           <div
-            className="rounded-lg border px-3 py-6 text-center text-sm"
+            className={`rounded-lg border px-3 text-center text-sm ${compact ? 'py-4' : 'py-6'}`}
             style={{
               backgroundColor: 'var(--bg-base)',
               borderColor: 'var(--border)',
@@ -60,25 +73,27 @@ export function GpuWidget() {
         )}
       </div>
 
-      <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-        <StatRow
-          label="Temperature"
-          value={formatTemp(controller.temperatureCelsius)}
-          accent="amber"
-        />
-        <StatRow
-          label="Power Draw"
-          value={controller.powerDrawWatts ? `${controller.powerDrawWatts}W` : 'N/A'}
-          accent="blue"
-        />
-        <StatRow
-          label="Power Limit"
-          value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'}
-          accent="blue"
-        />
-      </div>
+      {!compact && (
+        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
+          <StatRow
+            label="Temperature"
+            value={formatTemp(controller.temperatureCelsius)}
+            accent="amber"
+          />
+          <StatRow
+            label="Power Draw"
+            value={controller.powerDrawWatts ? `${controller.powerDrawWatts}W` : 'N/A'}
+            accent="blue"
+          />
+          <StatRow
+            label="Power Limit"
+            value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'}
+            accent="blue"
+          />
+        </div>
+      )}
 
-      {controller.vramBytes > 0 && (
+      {!compact && controller.vramBytes > 0 && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
             VRAM — {controller.vramUsagePercent}%

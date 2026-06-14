@@ -2,6 +2,7 @@ import { useAnomalyReport } from '../../hooks/useMetrics'
 import type { Anomaly } from '../../../../shared/contracts'
 import { Card } from '../ui/Card'
 import { formatSpeed } from '../../utils/format'
+import { isCompactDashboard, type DashboardWidgetProps } from './dashboardDensity'
 
 function formatValue(metric: string, value: number): string {
   switch (metric) {
@@ -37,10 +38,10 @@ function severityBg(severity: string): string {
   }
 }
 
-function AnomalyItem({ anomaly }: { anomaly: Anomaly }) {
+function AnomalyItem({ anomaly, compact }: { anomaly: Anomaly; compact: boolean }) {
   return (
     <div
-      className="flex items-start gap-3 p-3 rounded-lg mb-2"
+      className={`flex items-start gap-3 rounded-lg mb-2 ${compact ? 'p-2.5' : 'p-3'}`}
       style={{ backgroundColor: severityBg(anomaly.severity) }}
     >
       {/* Severity dot */}
@@ -53,10 +54,12 @@ function AnomalyItem({ anomaly }: { anomaly: Anomaly }) {
         <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
           {anomaly.message}
         </p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          Current: {formatValue(anomaly.metric, anomaly.currentValue)} · Baseline:{' '}
-          {formatValue(anomaly.metric, anomaly.meanValue)} · Z-score: {anomaly.zScore}
-        </p>
+        {!compact && (
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Current: {formatValue(anomaly.metric, anomaly.currentValue)} · Baseline:{' '}
+            {formatValue(anomaly.metric, anomaly.meanValue)} · Z-score: {anomaly.zScore}
+          </p>
+        )}
       </div>
 
       {/* Severity badge */}
@@ -70,16 +73,17 @@ function AnomalyItem({ anomaly }: { anomaly: Anomaly }) {
   )
 }
 
-export function AnomalyPanel() {
+export function AnomalyPanel({ density }: DashboardWidgetProps) {
   const report = useAnomalyReport()
 
   if (!report) return null
+  const compact = isCompactDashboard(density)
 
   // Still warming up — show progress
   if (!report.isWarmedUp) {
     const progress = Math.round((report.samplesCount / 60) * 100)
     return (
-      <Card title="Anomaly Detection">
+      <Card title="Anomaly Detection" density={density}>
         <div className="flex items-center gap-3">
           <div
             className="flex-1 h-1.5 rounded-full overflow-hidden"
@@ -97,9 +101,11 @@ export function AnomalyPanel() {
             Learning baseline... {progress}%
           </span>
         </div>
-        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-          Anomaly detection activates after 2 minutes of data collection
-        </p>
+        {!compact && (
+          <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+            Anomaly detection activates after 2 minutes of data collection
+          </p>
+        )}
       </Card>
     )
   }
@@ -107,7 +113,7 @@ export function AnomalyPanel() {
   // Warmed up, no anomalies
   if (!report.hasAnomalies) {
     return (
-      <Card title="Anomaly Detection">
+      <Card title="Anomaly Detection" density={density}>
         <div className="flex items-center gap-2">
           <div
             className="w-2 h-2 rounded-full"
@@ -126,9 +132,10 @@ export function AnomalyPanel() {
     <Card
       title="Anomaly Detection"
       subtitle={`${report.anomalies.length} anomaly${report.anomalies.length > 1 ? 's' : ''} detected`}
+      density={density}
     >
       {report.anomalies.map((anomaly, i) => (
-        <AnomalyItem key={i} anomaly={anomaly} />
+        <AnomalyItem key={i} anomaly={anomaly} compact={compact} />
       ))}
     </Card>
   )

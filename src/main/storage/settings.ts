@@ -19,6 +19,7 @@ export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], nu
 
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
+  dashboardDensity: 'comfortable',
   dashboardWidgets: {
     cpu: true,
     memory: true,
@@ -145,6 +146,7 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     isValidMonitoringAlertRule(monitoringAlerts.battery, 1, 50) &&
     isOneOf(monitoringAlerts.cooldownMinutes, ALERT_COOLDOWNS) &&
     typeof ui.dashboardPollingPaused === 'boolean' &&
+    isOneOf(ui.dashboardDensity, ['compact', 'comfortable', 'detailed']) &&
     typeof dashboardWidgets.cpu === 'boolean' &&
     typeof dashboardWidgets.memory === 'boolean' &&
     typeof dashboardWidgets.gpu === 'boolean' &&
@@ -173,6 +175,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
 
   const validKeys = new Set([
     'dashboardPollingPaused',
+    'dashboardDensity',
     'dashboardWidgets',
     'dashboardWidgetOrder',
     'historyView',
@@ -188,6 +191,12 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   if (
     value.dashboardPollingPaused !== undefined &&
     typeof value.dashboardPollingPaused !== 'boolean'
+  ) {
+    return false
+  }
+  if (
+    value.dashboardDensity !== undefined &&
+    !isOneOf(value.dashboardDensity, ['compact', 'comfortable', 'detailed'])
   ) {
     return false
   }
@@ -411,6 +420,9 @@ function normalizeSettings(value: unknown): AppSettings {
         rawUi.dashboardPollingPaused,
         DEFAULT_UI_SETTINGS.dashboardPollingPaused
       ),
+      dashboardDensity: isOneOf(rawUi.dashboardDensity, ['compact', 'comfortable', 'detailed'])
+        ? rawUi.dashboardDensity
+        : DEFAULT_UI_SETTINGS.dashboardDensity,
       dashboardWidgets: {
         cpu: booleanOr(rawDashboardWidgets.cpu, DEFAULT_UI_SETTINGS.dashboardWidgets.cpu),
         memory: booleanOr(rawDashboardWidgets.memory, DEFAULT_UI_SETTINGS.dashboardWidgets.memory),

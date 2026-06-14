@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ComponentType } from 'react'
-import type { DashboardWidget, DashboardWidgetVisibility } from '../../../shared/contracts'
+import type {
+  DashboardDensity,
+  DashboardWidget,
+  DashboardWidgetVisibility
+} from '../../../shared/contracts'
 import { DASHBOARD_WIDGET_KEYS } from '../../../shared/contracts'
 import { CpuWidget } from '../components/widgets/CpuWidget'
 import { MemoryWidget } from '../components/widgets/MemoryWidget'
@@ -10,7 +14,9 @@ import { GpuWidget } from '../components/widgets/GpuWidget'
 import { BatteryWidget } from '../components/widgets/BatteryWidget'
 import { AnomalyPanel } from '../components/widgets/AnomalyPanel'
 import { ControlGroup } from '../components/ui/ControlGroup'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
+import type { DashboardWidgetProps } from '../components/widgets/dashboardDensity'
 import { useMetricsStatus } from '../hooks/useMetrics'
 import {
   DEFAULT_DASHBOARD_WIDGET_ORDER,
@@ -29,7 +35,7 @@ const DASHBOARD_WIDGET_METADATA: Record<DashboardWidget, { label: string; descri
   anomalies: { label: 'Anomalies', description: 'Unusual metric activity' }
 }
 
-const DASHBOARD_WIDGET_COMPONENTS: Record<DashboardWidget, ComponentType> = {
+const DASHBOARD_WIDGET_COMPONENTS: Record<DashboardWidget, ComponentType<DashboardWidgetProps>> = {
   cpu: CpuWidget,
   memory: MemoryWidget,
   gpu: GpuWidget,
@@ -275,6 +281,8 @@ export function DashboardPage() {
   const [showCustomization, setShowCustomization] = useState(false)
   const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
   const setPollingPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
+  const dashboardDensity = useUiSettingsStore((state) => state.dashboardDensity)
+  const setDashboardDensity = useUiSettingsStore((state) => state.setDashboardDensity)
   const widgets = useUiSettingsStore((state) => state.dashboardWidgets)
   const widgetOrder = useUiSettingsStore((state) => state.dashboardWidgetOrder)
   const setDashboardWidgets = useUiSettingsStore((state) => state.setDashboardWidgets)
@@ -309,42 +317,62 @@ export function DashboardPage() {
             {isPollingPaused ? ' · Updates paused' : ''}
           </p>
         </div>
-        <ControlGroup label="Dashboard actions" className="w-full sm:w-auto">
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setPollingPaused(!isPollingPaused)}
-              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
-              style={{
-                backgroundColor: isPollingPaused
-                  ? 'var(--accent-green)'
-                  : 'rgba(245, 158, 11, 0.12)',
-                color: isPollingPaused ? 'white' : 'var(--accent-amber)',
-                border: `1px solid ${
-                  isPollingPaused ? 'var(--accent-green)' : 'rgba(245, 158, 11, 0.35)'
-                }`
-              }}
-            >
-              {isPollingPaused ? 'Resume live updates' : 'Pause live updates'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCustomization(true)}
-              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              Customize Dashboard
-            </button>
-          </div>
-        </ControlGroup>
+        <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto sm:justify-end">
+          <ControlGroup label="Density" className="max-w-full">
+            <SegmentedControl<DashboardDensity>
+              value={dashboardDensity}
+              options={[
+                { label: 'Compact', value: 'compact' },
+                { label: 'Comfortable', value: 'comfortable' },
+                { label: 'Detailed', value: 'detailed' }
+              ]}
+              onChange={setDashboardDensity}
+              ariaLabel="Dashboard density"
+            />
+          </ControlGroup>
+          <ControlGroup label="Dashboard actions">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPollingPaused(!isPollingPaused)}
+                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: isPollingPaused
+                    ? 'var(--accent-green)'
+                    : 'rgba(245, 158, 11, 0.12)',
+                  color: isPollingPaused ? 'white' : 'var(--accent-amber)',
+                  border: `1px solid ${
+                    isPollingPaused ? 'var(--accent-green)' : 'rgba(245, 158, 11, 0.35)'
+                  }`
+                }}
+              >
+                {isPollingPaused ? 'Resume live updates' : 'Pause live updates'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCustomization(true)}
+                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                Customize Dashboard
+              </button>
+            </div>
+          </ControlGroup>
+        </div>
       </div>
 
       {hasVisibleWidgets ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 mb-4 items-stretch">
+        <div
+          className={`grid grid-cols-1 gap-4 mb-4 items-stretch ${
+            dashboardDensity === 'compact'
+              ? 'md:grid-cols-2 xl:grid-cols-3'
+              : 'lg:grid-cols-2 2xl:grid-cols-3'
+          }`}
+        >
           {widgetOrder.map((widget) => {
             if (!widgets[widget]) return null
             const Widget = DASHBOARD_WIDGET_COMPONENTS[widget]
@@ -352,9 +380,15 @@ export function DashboardPage() {
             return (
               <div
                 key={widget}
-                className={widget === 'anomalies' ? 'lg:col-span-2 2xl:col-span-3' : 'contents'}
+                className={
+                  widget === 'anomalies'
+                    ? dashboardDensity === 'compact'
+                      ? 'md:col-span-2 xl:col-span-3'
+                      : 'lg:col-span-2 2xl:col-span-3'
+                    : 'contents'
+                }
               >
-                <Widget />
+                <Widget density={dashboardDensity} />
               </div>
             )
           })}

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   DashboardWidget,
   DashboardWidgetVisibility,
+  DashboardDensity,
   HistoryMetric,
   ProcessDensity,
   ProcessQuickFilter,
@@ -15,6 +16,7 @@ interface UiSettingsState extends UiSettings {
   initialized: boolean
   initialize: () => Promise<void>
   setDashboardPollingPaused: (paused: boolean) => void
+  setDashboardDensity: (density: DashboardDensity) => void
   setDashboardWidgets: (widgets: DashboardWidgetVisibility) => void
   setDashboardWidgetOrder: (order: DashboardWidget[]) => void
   setDashboardPreferences: (widgets: DashboardWidgetVisibility, order: DashboardWidget[]) => void
@@ -40,6 +42,7 @@ export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidget[] = [...DASHBOARD_W
 
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
+  dashboardDensity: 'comfortable',
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
   dashboardWidgetOrder: DEFAULT_DASHBOARD_WIDGET_ORDER,
   historyView: 'chart',
@@ -110,6 +113,11 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   setDashboardPollingPaused: (paused) => {
     set({ dashboardPollingPaused: paused })
     persist({ dashboardPollingPaused: paused })
+  },
+
+  setDashboardDensity: (dashboardDensity) => {
+    set({ dashboardDensity })
+    persist({ dashboardDensity })
   },
 
   setDashboardWidgets: (widgets) => {
