@@ -9,6 +9,7 @@ import {
   CartesianGrid
 } from 'recharts'
 import type { HistoryMetric, SnapshotRow } from '../../../shared/contracts'
+import { normalizeTemperature } from '../../../shared/utils/temperature'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
@@ -216,7 +217,13 @@ export function HistoryPage() {
     setLoadError(null)
     try {
       const rows = await window.electronAPI.getHistoryDownsampled(selectedRange.minutes)
-      setData(rows)
+      setData(
+        rows.map((snapshot) => ({
+          ...snapshot,
+          cpu_temperature: normalizeTemperature(snapshot.cpu_temperature),
+          gpu_temperature: normalizeTemperature(snapshot.gpu_temperature)
+        }))
+      )
       setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to load history:', err)

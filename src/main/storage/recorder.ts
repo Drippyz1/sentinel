@@ -8,6 +8,7 @@ import type {
   MemoryMetrics,
   NetworkMetrics
 } from '../../shared/contracts'
+import { normalizeTemperature } from '../../shared/utils/temperature'
 
 const RETENTION_DAYS = 7
 
@@ -68,16 +69,12 @@ export function recordSnapshot(data: SnapshotData) {
       net_up: data.network.totalUploadBytesPerSec ?? 0,
       gpu_usage: data.gpu?.controllers[0]?.utilizationPercent ?? null,
       battery: data.battery?.hasBattery ? data.battery.chargePercent : null,
-      cpu_temperature: finiteOrNull(data.cpu.temperature),
-      gpu_temperature: finiteOrNull(data.gpu?.controllers[0]?.temperatureCelsius)
+      cpu_temperature: normalizeTemperature(data.cpu.temperature),
+      gpu_temperature: normalizeTemperature(data.gpu?.controllers[0]?.temperatureCelsius)
     })
   } catch (err) {
     console.error('Failed to record snapshot:', err)
   }
-}
-
-function finiteOrNull(value: number | null | undefined): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export function cleanOldSnapshots(retentionDays = RETENTION_DAYS) {

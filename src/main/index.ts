@@ -5,6 +5,7 @@ import { invalidateSystemInfoCache } from './collectors/systemInfo'
 import { registerIpcHandlers } from './ipc'
 import { AppLifecycle } from './lifecycle/appLifecycle'
 import { MetricsService } from './services/MetricsService'
+import { MonitoringAlertService } from './services/MonitoringAlertService'
 import { closeDatabase, getDatabase } from './storage/database'
 import { cleanOldSnapshots, recordSnapshot } from './storage/recorder'
 import { loadSettings, SENSITIVITY_THRESHOLD, updateUiSettings } from './storage/settings'
@@ -54,12 +55,14 @@ app.whenReady().then(() => {
   getDatabase()
 
   let lastNotificationAt = 0
+  const monitoringAlertService = new MonitoringAlertService()
   const metricsService = new MetricsService({
     getIntervalMs: () => loadSettings().pollIntervalMs,
     shouldBroadcast: () => !loadSettings().ui.dashboardPollingPaused,
     onCollected: (snapshot) => {
       recordSnapshot(snapshot)
       const settings = loadSettings()
+      monitoringAlertService.processSnapshot(snapshot, settings.monitoringAlerts)
       if (
         settings.anomalyNotifications &&
         snapshot.anomalyReport.hasAnomalies &&

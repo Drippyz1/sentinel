@@ -9,6 +9,7 @@ import { getDatabasePath } from '../storage/database'
 import { getHistoryMetadata } from '../storage/queries'
 import { loadSettings } from '../storage/settings'
 import type { SystemReport, SystemReportExport, SystemReportFormat } from '../../shared/contracts'
+import { normalizeTemperature } from '../../shared/utils/temperature'
 
 export async function createSystemReportExport(
   metricsService: MetricsService,
@@ -46,7 +47,7 @@ export async function createSystemReportExport(
       cores: systemInfo.cpuCores,
       threads: systemInfo.cpuThreads,
       usagePercent: snapshot.cpu.usagePercent,
-      temperatureCelsius: snapshot.cpu.temperature
+      temperatureCelsius: normalizeTemperature(snapshot.cpu.temperature)
     },
     memory: {
       totalBytes: snapshot.memory.totalBytes,
@@ -58,7 +59,7 @@ export async function createSystemReportExport(
       model: controller.name,
       vendor: controller.vendor,
       utilizationPercent: finiteOrNull(controller.utilizationPercent),
-      temperatureCelsius: finiteOrNull(controller.temperatureCelsius)
+      temperatureCelsius: normalizeTemperature(controller.temperatureCelsius)
     })),
     storage: snapshot.disk.drives.map((drive) => ({
       name: drive.name,

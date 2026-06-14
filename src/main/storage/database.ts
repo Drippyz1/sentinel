@@ -124,6 +124,18 @@ function migrateSchema(db: Database.Database) {
       db.exec('ALTER TABLE metric_snapshots ADD COLUMN gpu_temperature REAL')
       console.log('Schema migration complete: added GPU temperature history')
     }
+
+    db.exec(`
+      UPDATE metric_snapshots
+      SET cpu_temperature = NULL
+      WHERE cpu_temperature IS NOT NULL
+        AND (cpu_temperature <= 0 OR cpu_temperature >= 1.7976931348623157e308);
+
+      UPDATE metric_snapshots
+      SET gpu_temperature = NULL
+      WHERE gpu_temperature IS NOT NULL
+        AND (gpu_temperature <= 0 OR gpu_temperature >= 1.7976931348623157e308);
+    `)
   } catch (err) {
     console.error('Schema migration failed:', err)
   }

@@ -55,6 +55,12 @@ Prebuilt packages are available from the [latest GitHub release](https://github.
 * Persistent dashboard, history, process, and system view preferences
 * Configurable polling interval, temperature unit, retention, and anomaly sensitivity
 
+### Platform Limitations
+
+* On some Apple Silicon Macs, macOS does not expose CPU or GPU temperature sensors without
+  elevated permissions. Sentinel reports these readings as unavailable and does not request
+  elevated permissions or install privileged helpers.
+
 ## Screenshots
 
 <p align="center">

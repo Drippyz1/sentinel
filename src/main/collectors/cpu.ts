@@ -1,5 +1,6 @@
 import si from 'systeminformation'
 import type { CpuMetrics } from '../../shared/contracts'
+import { normalizeTemperature } from '../../shared/utils/temperature'
 
 // This is the function we'll call whenever we want fresh CPU data
 export async function getCpuMetrics(): Promise<CpuMetrics> {
@@ -18,6 +19,6 @@ export async function getCpuMetrics(): Promise<CpuMetrics> {
     cores: staticInfo.cores,
     usagePercent: Math.round(currentLoad.currentLoad),
     perCoreUsage: currentLoad.cpus.map((core) => Math.round(core.load)),
-    temperature: temp.main ?? null
+    temperature: normalizeTemperature(temp.main)
   }
 }

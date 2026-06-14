@@ -15,6 +15,19 @@ export type DashboardWidget =
 export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
 export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
 
+export interface MonitoringAlertRule {
+  enabled: boolean
+  thresholdPercent: number
+}
+
+export interface MonitoringAlerts {
+  cpu: MonitoringAlertRule
+  memory: MonitoringAlertRule
+  disk: MonitoringAlertRule
+  battery: MonitoringAlertRule
+  cooldownMinutes: number
+}
+
 export interface UiSettings {
   dashboardPollingPaused: boolean
   dashboardWidgets: DashboardWidgetVisibility
@@ -40,5 +53,13 @@ export interface AppSettings {
   dataRetentionDays: number
   anomalySensitivity: 'sensitive' | 'balanced' | 'conservative'
   anomalyNotifications: boolean
+  monitoringAlerts: MonitoringAlerts
   ui: UiSettings
+}
+
+export interface SettingsSaveResult {
+  success: boolean
+  settings: AppSettings
+  launchAtLoginError: boolean
+  isPackaged: boolean
 }

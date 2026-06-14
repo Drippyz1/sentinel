@@ -1,5 +1,6 @@
 import { getDatabase } from './database'
 import type { HistorySummary, SnapshotRow } from '../../shared/contracts'
+import { normalizeTemperature } from '../../shared/utils/temperature'
 
 export interface HistoryQuery {
   metric: string // which metric to return
@@ -31,7 +32,7 @@ export function getSnapshots(minutes: number): SnapshotRow[] {
   const db = getDatabase()
   const cutoff = Date.now() - minutes * 60 * 1000
 
-  return db
+  const rows = db
     .prepare(
       `
     SELECT * FROM metric_snapshots
@@ -40,6 +41,8 @@ export function getSnapshots(minutes: number): SnapshotRow[] {
   `
     )
     .all(cutoff) as SnapshotRow[]
+
+  return rows.map(normalizeSnapshotTemperatures)
 }
 
 // Returns summary stats for a time range — useful for dashboards
@@ -73,7 +76,7 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
   const cutoff = Date.now() - minutes * 60 * 1000
   const bucketMs = 60 * 1000 // 1 minute buckets
 
-  return db
+  const rows = db
     .prepare(
       `
     SELECT
@@ -88,8 +91,16 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
       ROUND(AVG(net_up), 0)       as net_up,
       ROUND(AVG(gpu_usage), 1)    as gpu_usage,
       ROUND(AVG(battery), 1)      as battery,
-      ROUND(AVG(cpu_temperature), 1) as cpu_temperature,
-      ROUND(AVG(gpu_temperature), 1) as gpu_temperature
+      ROUND(AVG(
+        CASE WHEN cpu_temperature > 0 AND cpu_temperature < 1.7976931348623157e308
+          THEN cpu_temperature
+        END
+      ), 1) as cpu_temperature,
+      ROUND(AVG(
+        CASE WHEN gpu_temperature > 0 AND gpu_temperature < 1.7976931348623157e308
+          THEN gpu_temperature
+        END
+      ), 1) as gpu_temperature
     FROM metric_snapshots
     WHERE timestamp > ?
     GROUP BY timestamp / ${bucketMs}
@@ -97,4 +108,14 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
   `
     )
     .all(cutoff) as SnapshotRow[]
+
+  return rows.map(normalizeSnapshotTemperatures)
+}
+
+function normalizeSnapshotTemperatures(snapshot: SnapshotRow): SnapshotRow {
+  return {
+    ...snapshot,
+    cpu_temperature: normalizeTemperature(snapshot.cpu_temperature),
+    gpu_temperature: normalizeTemperature(snapshot.gpu_temperature)
+  }
 }

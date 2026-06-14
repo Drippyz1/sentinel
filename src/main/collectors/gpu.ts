@@ -1,5 +1,6 @@
 import si from 'systeminformation'
 import type { GpuController, GpuMetrics } from '../../shared/contracts'
+import { normalizeTemperature } from '../../shared/utils/temperature'
 
 export async function getGpuMetrics(): Promise<GpuMetrics> {
   try {
@@ -26,7 +27,7 @@ export async function getGpuMetrics(): Promise<GpuMetrics> {
           vramFreeBytes,
           vramUsagePercent,
           utilizationPercent: c.utilizationGpu ?? 0,
-          temperatureCelsius: c.temperatureGpu ?? null,
+          temperatureCelsius: normalizeTemperature(c.temperatureGpu),
           powerDrawWatts: c.powerDraw ?? null,
           powerLimitWatts: c.powerLimit ?? null
         }

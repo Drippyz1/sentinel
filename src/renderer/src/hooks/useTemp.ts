@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { AppSettings } from '../../../shared/contracts'
+import { normalizeTemperature } from '../../../shared/utils/temperature'
 
 // Converts Celsius to Fahrenheit
 function toF(c: number): number {
@@ -8,9 +9,10 @@ function toF(c: number): number {
 
 // Formats a nullable Celsius value using the user's preferred unit
 function fmt(celsius: number | null, unit: AppSettings['tempUnit']): string {
-  if (celsius === null) return 'N/A'
-  if (unit === 'F') return `${toF(celsius)}°F`
-  return `${celsius}°C`
+  const temperature = normalizeTemperature(celsius)
+  if (temperature === null) return 'Unavailable'
+  if (unit === 'F') return `${toF(temperature)}°F`
+  return `${temperature}°C`
 }
 
 // Hook — reads tempUnit from settings once on mount and whenever

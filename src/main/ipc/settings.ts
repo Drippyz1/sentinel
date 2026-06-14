@@ -22,28 +22,38 @@ export function registerSettingsIpc({
 }: SettingsIpcOptions): void {
   ipcMain.handle('get-settings', (event) => {
     assertTrustedIpcSender(event)
-    return loadSettings()
+    return {
+      ...loadSettings(),
+      launchAtLogin: getLaunchAtLoginState()
+    }
   })
 
   ipcMain.handle('save-settings', async (event, newSettings: unknown) => {
     assertTrustedIpcSender(event)
-    if (!isValidAppSettings(newSettings)) return false
+    if (!isValidAppSettings(newSettings)) {
+      return {
+        success: false,
+        settings: loadSettings(),
+        launchAtLoginError: false,
+        isPackaged: app.isPackaged
+      }
+    }
 
     const settings = {
       ...newSettings,
       ui: loadSettings().ui
     }
-    const saved = saveSettings(settings)
-    if (!saved) return false
+    const result = saveSettings(settings)
+    if (!result.success) return result
 
-    setThreshold(SENSITIVITY_THRESHOLD[settings.anomalySensitivity])
+    setThreshold(SENSITIVITY_THRESHOLD[result.settings.anomalySensitivity])
 
     if (process.platform === 'darwin') {
-      settings.hideFromDock ? app.dock?.hide() : app.dock?.show()
+      result.settings.hideFromDock ? app.dock?.hide() : app.dock?.show()
     }
 
     await metricsService.restart()
-    return true
+    return result
   })
 
   ipcMain.handle('save-ui-settings', (event, patch: unknown) => {

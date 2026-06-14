@@ -10,6 +10,7 @@ import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
+import { useCpuMetrics, useGpuMetrics } from '../hooks/useMetrics'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 // ─────────────────────────────────────────────
@@ -179,7 +180,31 @@ function ReportExportDialog({
 // Sub-components
 // ─────────────────────────────────────────────
 
-function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced: boolean }) {
+function TemperatureUnavailableNote() {
+  return (
+    <div
+      className="mt-3 rounded-lg px-3 py-2.5 text-xs leading-relaxed"
+      style={{
+        color: 'var(--text-muted)',
+        backgroundColor: 'var(--bg-base)',
+        border: '1px solid var(--border)'
+      }}
+    >
+      Temperature sensors are not available on this device without elevated permissions. Sentinel
+      does not request elevated permissions for safety.
+    </div>
+  )
+}
+
+function ThermalCard({
+  thermal,
+  advanced,
+  temperaturesUnavailable
+}: {
+  thermal: ThermalMetrics
+  advanced: boolean
+  temperaturesUnavailable: boolean
+}) {
   if (thermal.requiresSudo) {
     return (
       <Card title="Thermal Pressure" className="mb-4">
@@ -193,10 +218,8 @@ function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced:
               Thermal data unavailable
             </p>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Apple Silicon Macs restrict thermal sensor access on recent versions of macOS. This
-              data is only available when running with elevated permissions, which Sentinel avoids
-              for security. If your Mac is throttling, you&apos;ll typically notice it through
-              reduced CPU performance and fan noise.
+              Temperature sensors are not available on this device without elevated permissions.
+              Sentinel does not request elevated permissions for safety.
             </p>
           </div>
         </div>
@@ -264,6 +287,8 @@ function ThermalCard({ thermal, advanced }: { thermal: ThermalMetrics; advanced:
           )}
         </div>
       )}
+
+      {temperaturesUnavailable && <TemperatureUnavailableNote />}
     </Card>
   )
 }
@@ -401,6 +426,8 @@ function StartupCard({
 // ─────────────────────────────────────────────
 
 export function SystemPage() {
+  const cpu = useCpuMetrics()
+  const gpu = useGpuMetrics()
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [thermal, setThermal] = useState<ThermalMetrics | null>(null)
   const [startup, setStartup] = useState<StartupMetrics | null>(null)
@@ -411,6 +438,12 @@ export function SystemPage() {
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportingFormat, setExportingFormat] = useState<SystemReportFormat | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
+  const temperaturesUnavailable =
+    cpu !== null &&
+    cpu.temperature === null &&
+    (gpu === null ||
+      !gpu.hasGpu ||
+      gpu.controllers.every((controller) => controller.temperatureCelsius === null))
 
   const refreshStartup = useCallback(() => {
     setLoadingStartup(true)
@@ -606,7 +639,11 @@ export function SystemPage() {
         description="Current thermal pressure and performance limits reported by the system."
       />
       {thermal ? (
-        <ThermalCard thermal={thermal} advanced={view === 'advanced'} />
+        <ThermalCard
+          thermal={thermal}
+          advanced={view === 'advanced'}
+          temperaturesUnavailable={temperaturesUnavailable}
+        />
       ) : (
         <Card title="Thermal Pressure" className="mb-4">
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>

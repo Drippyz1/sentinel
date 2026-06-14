@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AppSettings } from '../../../shared/contracts'
+import type { AppSettings, MonitoringAlertRule, MonitoringAlerts } from '../../../shared/contracts'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -11,6 +11,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   dataRetentionDays: 7,
   anomalySensitivity: 'balanced',
   anomalyNotifications: true,
+  monitoringAlerts: {
+    cpu: { enabled: false, thresholdPercent: 90 },
+    memory: { enabled: false, thresholdPercent: 90 },
+    disk: { enabled: false, thresholdPercent: 90 },
+    battery: { enabled: false, thresholdPercent: 20 },
+    cooldownMinutes: 15
+  },
   ui: {
     dashboardPollingPaused: false,
     dashboardWidgets: {
@@ -40,15 +47,30 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 // ── Reusable primitives ────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
   return (
     <section className="mb-7">
-      <h3
-        className="text-xs font-semibold uppercase tracking-widest mb-3"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        {title}
-      </h3>
+      <div className="mb-3">
+        <h3
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          {title}
+        </h3>
+        {description && (
+          <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            {description}
+          </p>
+        )}
+      </div>
       <div
         className="rounded-xl divide-y"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
@@ -91,20 +113,26 @@ function Row({
 function Select<T extends string | number>({
   value,
   options,
-  onChange
+  onChange,
+  ariaLabel,
+  disabled = false
 }: {
   value: T
   options: { label: string; value: T }[]
   onChange: (v: T) => void
+  ariaLabel: string
+  disabled?: boolean
 }) {
   return (
     <select
+      aria-label={ariaLabel}
+      disabled={disabled}
       value={value}
       onChange={(e) => {
         const raw = e.target.value
         onChange((typeof value === 'number' ? Number(raw) : raw) as T)
       }}
-      className="max-w-full min-h-9 text-sm rounded-lg px-3 py-2 pr-8 appearance-none focus:outline-none"
+      className="max-w-full min-h-9 text-sm rounded-lg px-3 py-2 pr-8 appearance-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       style={{
         background: 'var(--bg-base)',
         color: 'var(--text-primary)',
@@ -120,6 +148,42 @@ function Select<T extends string | number>({
         </option>
       ))}
     </select>
+  )
+}
+
+function AlertSettingRow({
+  label,
+  description,
+  rule,
+  thresholdOptions,
+  onChange
+}: {
+  label: string
+  description: string
+  rule: MonitoringAlertRule
+  thresholdOptions: number[]
+  onChange: (rule: MonitoringAlertRule) => void
+}) {
+  return (
+    <Row label={label} description={description}>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Select
+          ariaLabel={`${label} threshold`}
+          disabled={!rule.enabled}
+          value={rule.thresholdPercent}
+          onChange={(thresholdPercent) => onChange({ ...rule, thresholdPercent })}
+          options={thresholdOptions.map((threshold) => ({
+            label: `${threshold}%`,
+            value: threshold
+          }))}
+        />
+        <ToggleSwitch
+          checked={rule.enabled}
+          label={`Enable ${label.toLowerCase()} alert`}
+          onChange={(enabled) => onChange({ ...rule, enabled })}
+        />
+      </div>
+    </Row>
   )
 }
 
@@ -158,6 +222,16 @@ export function SettingsPage() {
       setSettings(previous)
       setSaveStatus('error')
     }
+  }
+
+  function updateAlert(
+    alert: keyof Omit<MonitoringAlerts, 'cooldownMinutes'>,
+    rule: MonitoringAlertRule
+  ) {
+    void update('monitoringAlerts', {
+      ...settings.monitoringAlerts,
+      [alert]: rule
+    })
   }
 
   if (loading) {
@@ -233,6 +307,7 @@ export function SettingsPage() {
       <Section title="Monitoring">
         <Row label="Poll interval" description="How often hardware metrics are refreshed">
           <Select
+            ariaLabel="Poll interval"
             value={settings.pollIntervalMs}
             onChange={(v) => update('pollIntervalMs', v)}
             options={[
@@ -245,6 +320,7 @@ export function SettingsPage() {
         </Row>
         <Row label="Temperature unit" description="Unit used across all thermal readings">
           <Select
+            ariaLabel="Temperature unit"
             value={settings.tempUnit}
             onChange={(v) => update('tempUnit', v)}
             options={[
@@ -255,10 +331,67 @@ export function SettingsPage() {
         </Row>
       </Section>
 
+      <Section
+        title="Alerts"
+        description="Native notifications are sent after a threshold remains exceeded for 10 seconds."
+      >
+        <AlertSettingRow
+          label="CPU usage"
+          description="Notify when total processor usage stays at or above this threshold"
+          rule={settings.monitoringAlerts.cpu}
+          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+          onChange={(rule) => updateAlert('cpu', rule)}
+        />
+        <AlertSettingRow
+          label="Memory usage"
+          description="Notify when system memory usage stays at or above this threshold"
+          rule={settings.monitoringAlerts.memory}
+          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+          onChange={(rule) => updateAlert('memory', rule)}
+        />
+        <AlertSettingRow
+          label="Disk usage"
+          description="Notify when any mounted volume stays at or above this capacity threshold"
+          rule={settings.monitoringAlerts.disk}
+          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+          onChange={(rule) => updateAlert('disk', rule)}
+        />
+        <AlertSettingRow
+          label="Low battery"
+          description="Notify when battery charge stays at or below this level while not charging"
+          rule={settings.monitoringAlerts.battery}
+          thresholdOptions={[5, 10, 15, 20, 25, 30, 40, 50]}
+          onChange={(rule) => updateAlert('battery', rule)}
+        />
+        <Row
+          label="Notification cooldown"
+          description="Minimum time between monitoring alert notifications"
+        >
+          <Select
+            ariaLabel="Notification cooldown"
+            value={settings.monitoringAlerts.cooldownMinutes}
+            onChange={(cooldownMinutes) =>
+              void update('monitoringAlerts', {
+                ...settings.monitoringAlerts,
+                cooldownMinutes
+              })
+            }
+            options={[
+              { label: '5 minutes', value: 5 },
+              { label: '10 minutes', value: 10 },
+              { label: '15 minutes', value: 15 },
+              { label: '30 minutes', value: 30 },
+              { label: '60 minutes', value: 60 }
+            ]}
+          />
+        </Row>
+      </Section>
+
       {/* ── Data & Storage ───────────────────────── */}
       <Section title="Data & Storage">
         <Row label="History retention" description="How long metric snapshots are kept on disk">
           <Select
+            ariaLabel="History retention"
             value={settings.dataRetentionDays}
             onChange={(v) => update('dataRetentionDays', v)}
             options={[
@@ -276,6 +409,7 @@ export function SettingsPage() {
       <Section title="Anomaly Detection">
         <Row label="Sensitivity" description="How aggressively unusual activity is flagged">
           <Select
+            ariaLabel="Anomaly sensitivity"
             value={settings.anomalySensitivity}
             onChange={(v) => update('anomalySensitivity', v)}
             options={[

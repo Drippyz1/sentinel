@@ -1,7 +1,13 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, renameSync, writeFileSync } from 'fs'
-import type { AppSettings, UiSettings, UiSettingsPatch } from '../../shared/contracts'
+import type {
+  AppSettings,
+  MonitoringAlerts,
+  SettingsSaveResult,
+  UiSettings,
+  UiSettingsPatch
+} from '../../shared/contracts'
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
   sensitive: 2.0,
@@ -35,6 +41,14 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   systemView: 'advanced'
 }
 
+const DEFAULT_MONITORING_ALERTS: MonitoringAlerts = {
+  cpu: { enabled: false, thresholdPercent: 90 },
+  memory: { enabled: false, thresholdPercent: 90 },
+  disk: { enabled: false, thresholdPercent: 90 },
+  battery: { enabled: false, thresholdPercent: 20 },
+  cooldownMinutes: 15
+}
+
 const DEFAULTS: AppSettings = {
   settingsVersion: 1,
   launchAtLogin: false,
@@ -44,12 +58,14 @@ const DEFAULTS: AppSettings = {
   dataRetentionDays: 7,
   anomalySensitivity: 'balanced',
   anomalyNotifications: true,
+  monitoringAlerts: DEFAULT_MONITORING_ALERTS,
   ui: DEFAULT_UI_SETTINGS
 }
 
 const POLL_INTERVALS = [1000, 2000, 5000, 10000] as const
 const RETENTION_DAYS = [1, 3, 7, 14, 30] as const
 const HISTORY_RANGES = [30, 60, 180, 360, 1440] as const
+const ALERT_COOLDOWNS = [5, 10, 15, 30, 60] as const
 
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -64,8 +80,20 @@ export function loadSettings(): AppSettings {
   }
 }
 
-export function saveSettings(settings: AppSettings): boolean {
-  return writeSettings(settings, true)
+export function saveSettings(settings: AppSettings): SettingsSaveResult {
+  const normalized = normalizeSettings(settings)
+  const loginItemResult = applyLaunchAtLogin(normalized.launchAtLogin)
+  const reconciled = {
+    ...normalized,
+    launchAtLogin: loginItemResult.actualState
+  }
+
+  return {
+    success: writeSettings(reconciled),
+    settings: reconciled,
+    launchAtLoginError: loginItemResult.denied,
+    isPackaged: app.isPackaged
+  }
 }
 
 export function updateUiSettings(patch: UiSettingsPatch): boolean {
@@ -86,12 +114,13 @@ export function updateUiSettings(patch: UiSettingsPatch): boolean {
         }
       }
     },
-    false
   )
 }
 
 export function isValidAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(value)) return false
+  const monitoringAlerts = value.monitoringAlerts
+  if (!isRecord(monitoringAlerts)) return false
   const ui = value.ui
   if (!isRecord(ui)) return false
   const dashboardWidgets = ui.dashboardWidgets
@@ -108,6 +137,11 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     isOneOf(value.dataRetentionDays, RETENTION_DAYS) &&
     isOneOf(value.anomalySensitivity, ['sensitive', 'balanced', 'conservative']) &&
     typeof value.anomalyNotifications === 'boolean' &&
+    isValidMonitoringAlertRule(monitoringAlerts.cpu, 50, 100) &&
+    isValidMonitoringAlertRule(monitoringAlerts.memory, 50, 100) &&
+    isValidMonitoringAlertRule(monitoringAlerts.disk, 50, 100) &&
+    isValidMonitoringAlertRule(monitoringAlerts.battery, 1, 50) &&
+    isOneOf(monitoringAlerts.cooldownMinutes, ALERT_COOLDOWNS) &&
     typeof ui.dashboardPollingPaused === 'boolean' &&
     typeof dashboardWidgets.cpu === 'boolean' &&
     typeof dashboardWidgets.memory === 'boolean' &&
@@ -196,18 +230,11 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   return true
 }
 
-function writeSettings(settings: AppSettings, applyLoginItem: boolean): boolean {
+function writeSettings(settings: AppSettings): boolean {
   try {
     const normalized = normalizeSettings(settings)
     const destination = settingsPath()
     const temporary = `${destination}.tmp`
-
-    if (applyLoginItem) {
-      app.setLoginItemSettings({
-        openAtLogin: normalized.launchAtLogin,
-        openAsHidden: true // start minimised to tray, not foregrounded
-      })
-    }
 
     writeFileSync(temporary, JSON.stringify(normalized, null, 2), 'utf8')
     renameSync(temporary, destination)
@@ -215,6 +242,31 @@ function writeSettings(settings: AppSettings, applyLoginItem: boolean): boolean 
   } catch (err) {
     console.error('Failed to save settings:', err)
     return false
+  }
+}
+
+function applyLaunchAtLogin(requestedState: boolean): {
+  actualState: boolean
+  denied: boolean
+} {
+  const currentState = getLaunchAtLoginState()
+  if (currentState === requestedState) {
+    return { actualState: currentState, denied: false }
+  }
+
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: requestedState,
+      openAsHidden: true
+    })
+  } catch {
+    return { actualState: getLaunchAtLoginState(), denied: true }
+  }
+
+  const actualState = getLaunchAtLoginState()
+  return {
+    actualState,
+    denied: actualState !== requestedState
   }
 }
 
@@ -234,8 +286,39 @@ function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function isValidMonitoringAlertRule(value: unknown, minimum: number, maximum: number): boolean {
+  if (!isRecord(value)) return false
+  return (
+    Object.keys(value).every((key) => key === 'enabled' || key === 'thresholdPercent') &&
+    typeof value.enabled === 'boolean' &&
+    typeof value.thresholdPercent === 'number' &&
+    Number.isInteger(value.thresholdPercent) &&
+    value.thresholdPercent >= minimum &&
+    value.thresholdPercent <= maximum
+  )
+}
+
+function normalizeMonitoringAlertRule(
+  value: unknown,
+  fallback: MonitoringAlerts['cpu'],
+  minimum: number,
+  maximum: number
+): MonitoringAlerts['cpu'] {
+  const raw = isRecord(value) ? value : {}
+  const threshold = numberOr(raw.thresholdPercent, fallback.thresholdPercent)
+
+  return {
+    enabled: booleanOr(raw.enabled, fallback.enabled),
+    thresholdPercent:
+      Number.isInteger(threshold) && threshold >= minimum && threshold <= maximum
+        ? threshold
+        : fallback.thresholdPercent
+  }
+}
+
 function normalizeSettings(value: unknown): AppSettings {
   const raw = isRecord(value) ? value : {}
+  const rawMonitoringAlerts = isRecord(raw.monitoringAlerts) ? raw.monitoringAlerts : {}
   const rawUi = isRecord(raw.ui) ? raw.ui : {}
   const rawDashboardWidgets = isRecord(rawUi.dashboardWidgets) ? rawUi.dashboardWidgets : {}
   const rawMetrics = isRecord(rawUi.historyMetrics) ? rawUi.historyMetrics : {}
@@ -259,6 +342,35 @@ function normalizeSettings(value: unknown): AppSettings {
       ? raw.anomalySensitivity
       : DEFAULTS.anomalySensitivity,
     anomalyNotifications: booleanOr(raw.anomalyNotifications, DEFAULTS.anomalyNotifications),
+    monitoringAlerts: {
+      cpu: normalizeMonitoringAlertRule(
+        rawMonitoringAlerts.cpu,
+        DEFAULT_MONITORING_ALERTS.cpu,
+        50,
+        100
+      ),
+      memory: normalizeMonitoringAlertRule(
+        rawMonitoringAlerts.memory,
+        DEFAULT_MONITORING_ALERTS.memory,
+        50,
+        100
+      ),
+      disk: normalizeMonitoringAlertRule(
+        rawMonitoringAlerts.disk,
+        DEFAULT_MONITORING_ALERTS.disk,
+        50,
+        100
+      ),
+      battery: normalizeMonitoringAlertRule(
+        rawMonitoringAlerts.battery,
+        DEFAULT_MONITORING_ALERTS.battery,
+        1,
+        50
+      ),
+      cooldownMinutes: isOneOf(rawMonitoringAlerts.cooldownMinutes, ALERT_COOLDOWNS)
+        ? rawMonitoringAlerts.cooldownMinutes
+        : DEFAULT_MONITORING_ALERTS.cooldownMinutes
+    },
     ui: {
       dashboardPollingPaused: booleanOr(
         rawUi.dashboardPollingPaused,
