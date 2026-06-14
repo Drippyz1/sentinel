@@ -72,7 +72,9 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
       diskRead: snapshot.disk.io.readBytesPerSec,
       diskWrite: snapshot.disk.io.writeBytesPerSec,
       networkDown: snapshot.network.totalDownloadBytesPerSec,
-      networkUp: snapshot.network.totalUploadBytesPerSec
+      networkUp: snapshot.network.totalUploadBytesPerSec,
+      gpu: snapshot.gpu.controllers[0]?.utilizationPercent ?? null,
+      battery: snapshot.battery.hasBattery ? snapshot.battery.chargePercent : null
     })
   },
 

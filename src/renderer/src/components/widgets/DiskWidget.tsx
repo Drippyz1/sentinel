@@ -43,6 +43,7 @@ export function DiskWidget() {
             <MiniChart
               data={readHistory}
               color="#22c55e"
+              ariaLabel="Recent disk read activity trend"
               formatValue={formatSpeed}
               domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
               height={50}
@@ -55,6 +56,7 @@ export function DiskWidget() {
             <MiniChart
               data={writeHistory}
               color="#f59e0b"
+              ariaLabel="Recent disk write activity trend"
               formatValue={formatSpeed}
               domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
               height={50}

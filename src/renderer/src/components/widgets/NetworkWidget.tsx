@@ -46,12 +46,14 @@ export function NetworkWidget() {
         <MiniChart
           data={downHistory}
           color="#22c55e"
+          ariaLabel="Recent network download trend"
           formatValue={formatSpeed}
           domain={[0, Math.max(...downHistory.map((p) => p.value), 1)]}
         />
         <MiniChart
           data={upHistory}
           color="#3b82f6"
+          ariaLabel="Recent network upload trend"
           formatValue={formatSpeed}
           domain={[0, Math.max(...upHistory.map((p) => p.value), 1)]}
         />

@@ -1,7 +1,9 @@
 import { useBatteryMetrics } from '../../hooks/useMetrics'
+import { useHistoryStore } from '../../store/historyStore'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
+import { MiniChart } from '../ui/MiniChart'
 
 function formatTime(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}m`
@@ -18,6 +20,7 @@ function healthColor(pct: number): 'green' | 'amber' | 'red' {
 
 export function BatteryWidget() {
   const battery = useBatteryMetrics()
+  const history = useHistoryStore((state) => state.battery)
 
   if (!battery) {
     return (
@@ -70,6 +73,16 @@ export function BatteryWidget() {
       </div>
 
       <UsageBar percent={battery.chargePercent} accent={chargeAccent} />
+
+      <div className="mt-3">
+        <MiniChart
+          data={history}
+          color={battery.isCharging ? '#22c55e' : '#3b82f6'}
+          ariaLabel="Recent battery percentage trend"
+          formatValue={(value) => `${value}%`}
+          domain={[0, 100]}
+        />
+      </div>
 
       <div className="mt-4 space-y-1">
         {battery.timeRemainingMins !== null && (

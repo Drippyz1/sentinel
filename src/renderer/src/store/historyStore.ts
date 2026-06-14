@@ -17,6 +17,8 @@ interface HistoryState {
   diskWrite: DataPoint[]
   networkDown: DataPoint[]
   networkUp: DataPoint[]
+  gpu: DataPoint[]
+  battery: DataPoint[]
 
   pushSnapshot: (snapshot: {
     timestamp: number
@@ -26,6 +28,8 @@ interface HistoryState {
     diskWrite: number
     networkDown: number
     networkUp: number
+    gpu: number | null
+    battery: number | null
   }) => void
 }
 
@@ -38,6 +42,14 @@ function appendPoint(arr: DataPoint[], value: number, timestamp: number): DataPo
   return updated.length > MAX_POINTS ? updated.slice(updated.length - MAX_POINTS) : updated
 }
 
+function appendOptionalPoint(
+  arr: DataPoint[],
+  value: number | null,
+  timestamp: number
+): DataPoint[] {
+  return value === null || !Number.isFinite(value) ? arr : appendPoint(arr, value, timestamp)
+}
+
 export const useHistoryStore = create<HistoryState>()((set) => ({
   cpu: [],
   memory: [],
@@ -45,6 +57,8 @@ export const useHistoryStore = create<HistoryState>()((set) => ({
   diskWrite: [],
   networkDown: [],
   networkUp: [],
+  gpu: [],
+  battery: [],
 
   pushSnapshot: (snapshot) =>
     set((state) => ({
@@ -53,6 +67,8 @@ export const useHistoryStore = create<HistoryState>()((set) => ({
       diskRead: appendPoint(state.diskRead, snapshot.diskRead, snapshot.timestamp),
       diskWrite: appendPoint(state.diskWrite, snapshot.diskWrite, snapshot.timestamp),
       networkDown: appendPoint(state.networkDown, snapshot.networkDown, snapshot.timestamp),
-      networkUp: appendPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp)
+      networkUp: appendPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp),
+      gpu: appendOptionalPoint(state.gpu, snapshot.gpu, snapshot.timestamp),
+      battery: appendOptionalPoint(state.battery, snapshot.battery, snapshot.timestamp)
     }))
 }))

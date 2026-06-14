@@ -27,7 +27,13 @@ export function CpuWidget() {
       <UsageBar percent={cpu.usagePercent} />
 
       <div className="mt-3">
-        <MiniChart data={history} color="#3b82f6" formatValue={(v) => `${v}%`} domain={[0, 100]} />
+        <MiniChart
+          data={history}
+          color="#3b82f6"
+          ariaLabel="Recent CPU usage trend"
+          formatValue={(v) => `${v}%`}
+          domain={[0, 100]}
+        />
       </div>
 
       <div className="mt-3 space-y-1">

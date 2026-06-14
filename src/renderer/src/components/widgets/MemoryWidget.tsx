@@ -25,7 +25,13 @@ export function MemoryWidget() {
       <UsageBar percent={memory.usagePercent} />
 
       <div className="mt-3">
-        <MiniChart data={history} color="#a855f7" formatValue={(v) => `${v}%`} domain={[0, 100]} />
+        <MiniChart
+          data={history}
+          color="#a855f7"
+          ariaLabel="Recent memory usage trend"
+          formatValue={(v) => `${v}%`}
+          domain={[0, 100]}
+        />
       </div>
 
       <div className="mt-3 space-y-1">

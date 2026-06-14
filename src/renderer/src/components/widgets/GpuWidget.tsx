@@ -1,12 +1,15 @@
 import { useGpuMetrics } from '../../hooks/useMetrics'
+import { useHistoryStore } from '../../store/historyStore'
 import { useTemp } from '../../hooks/useTemp'
 import { formatBytes } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
+import { MiniChart } from '../ui/MiniChart'
 
 export function GpuWidget() {
   const gpu = useGpuMetrics()
+  const history = useHistoryStore((state) => state.gpu)
   const { formatTemp } = useTemp()
 
   if (!gpu || !gpu.hasGpu) {
@@ -33,6 +36,16 @@ export function GpuWidget() {
       </div>
 
       <UsageBar percent={controller.utilizationPercent} />
+
+      <div className="mt-3">
+        <MiniChart
+          data={history}
+          color="#ec4899"
+          ariaLabel="Recent GPU usage trend"
+          formatValue={(value) => `${value}%`}
+          domain={[0, 100]}
+        />
+      </div>
 
       <div className="mt-4 space-y-1">
         <StatRow
