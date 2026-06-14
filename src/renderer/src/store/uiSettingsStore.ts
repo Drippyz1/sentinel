@@ -21,6 +21,7 @@ interface UiSettingsState extends UiSettings {
   setHistoryView: (view: UiSettings['historyView']) => void
   setHistoryMetricVisible: (metric: HistoryMetric, visible: boolean) => void
   setHistoryRangeMinutes: (minutes: number) => void
+  setHistoryAlertMarkers: (visible: boolean) => void
   setProcessDensity: (density: ProcessDensity) => void
   setProcessQuickFilter: (filter: ProcessQuickFilter) => void
   setSystemView: (view: SystemView) => void
@@ -51,6 +52,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
     battery: true
   },
   historyRangeMinutes: 60,
+  historyAlertMarkers: true,
   processDensity: 'comfortable',
   processQuickFilter: 'all',
   systemView: 'advanced'
@@ -140,6 +142,11 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   setHistoryRangeMinutes: (minutes) => {
     set({ historyRangeMinutes: minutes })
     persist({ historyRangeMinutes: minutes })
+  },
+
+  setHistoryAlertMarkers: (historyAlertMarkers) => {
+    set({ historyAlertMarkers })
+    persist({ historyAlertMarkers })
   },
 
   setProcessDensity: (density) => {

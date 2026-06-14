@@ -37,6 +37,7 @@ export interface UiSettings {
   historyView: HistoryView
   historyMetrics: HistoryMetricVisibility
   historyRangeMinutes: number
+  historyAlertMarkers: boolean
   processDensity: ProcessDensity
   processQuickFilter: ProcessQuickFilter
   systemView: SystemView

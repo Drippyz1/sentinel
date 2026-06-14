@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { getDatabase } from './database'
 import type {
   AlertHistoryEntry,
+  AlertMarker,
   MonitoringAlertSeverity,
   MonitoringAlertType,
   NewAlertHistoryEntry
@@ -55,6 +56,29 @@ function loadAlertHistory(): AlertHistoryEntry[] {
 export function getAlertHistory(): AlertHistoryEntry[] {
   if (!cachedAlerts) cachedAlerts = loadAlertHistory()
   return [...cachedAlerts]
+}
+
+export function getAlertMarkers(minutes: number): AlertMarker[] {
+  const cutoff = Date.now() - minutes * 60 * 1000
+  const rows = getDatabase()
+    .prepare(
+      `SELECT id, timestamp, type, severity, title, message, metric_value, threshold
+       FROM alert_history
+       WHERE timestamp > ?
+       ORDER BY timestamp ASC, id ASC`
+    )
+    .all(cutoff) as Omit<AlertHistoryRow, 'is_read'>[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    timestamp: row.timestamp,
+    type: row.type,
+    severity: row.severity,
+    title: row.title,
+    message: row.message,
+    metricValue: row.metric_value,
+    threshold: row.threshold
+  }))
 }
 
 export function recordAlertHistory(entries: NewAlertHistoryEntry[]): AlertHistoryEntry[] {

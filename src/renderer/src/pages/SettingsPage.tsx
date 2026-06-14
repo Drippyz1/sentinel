@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: AppSettings = {
       battery: true
     },
     historyRangeMinutes: 60,
+    historyAlertMarkers: true,
     processDensity: 'comfortable',
     processQuickFilter: 'all',
     systemView: 'advanced'

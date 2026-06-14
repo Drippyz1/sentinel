@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AlertHistoryEntry,
+  AlertMarker,
   AppSettings,
   MetricsSnapshot,
   ProcessDetails,
@@ -44,6 +45,8 @@ if (process.contextIsolated) {
         ipcRenderer.invoke('export-system-report', format),
       getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
       getAlertHistory: (): Promise<AlertHistoryEntry[]> => ipcRenderer.invoke('get-alert-history'),
+      getAlertMarkers: (minutes: number): Promise<AlertMarker[]> =>
+        ipcRenderer.invoke('get-alert-markers', minutes),
       markAllAlertsRead: (): Promise<AlertHistoryEntry[]> =>
         ipcRenderer.invoke('mark-all-alerts-read'),
       clearAlertHistory: (): Promise<AlertHistoryEntry[]> =>

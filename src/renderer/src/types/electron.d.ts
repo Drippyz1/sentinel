@@ -1,5 +1,6 @@
 import type {
   AlertHistoryEntry,
+  AlertMarker,
   AnomalyReport,
   AppSettings,
   BatteryMetrics,
@@ -50,6 +51,7 @@ declare global {
       exportSystemReport: (format: SystemReportFormat) => Promise<SystemReportExport>
       getAnomalyReport: () => Promise<AnomalyReport | null>
       getAlertHistory: () => Promise<AlertHistoryEntry[]>
+      getAlertMarkers: (minutes: number) => Promise<AlertMarker[]>
       markAllAlertsRead: () => Promise<AlertHistoryEntry[]>
       clearAlertHistory: () => Promise<AlertHistoryEntry[]>
       onAlertHistoryUpdated: (callback: (alerts: AlertHistoryEntry[]) => void) => () => void

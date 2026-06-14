@@ -3,9 +3,11 @@ import { assertTrustedIpcSender } from '../ipcSecurity'
 import {
   clearAlertHistory,
   getAlertHistory,
+  getAlertMarkers,
   markAllAlertHistoryRead
 } from '../storage/alertHistory'
 import type { AlertHistoryEntry } from '../../shared/contracts'
+import { isValidHistoryRange } from '../ipcSecurity'
 
 export function broadcastAlertHistory(alerts: AlertHistoryEntry[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -17,6 +19,12 @@ export function registerAlertIpc(): void {
   ipcMain.handle('get-alert-history', (event) => {
     assertTrustedIpcSender(event)
     return getAlertHistory()
+  })
+
+  ipcMain.handle('get-alert-markers', (event, minutes: unknown) => {
+    assertTrustedIpcSender(event)
+    if (!isValidHistoryRange(minutes)) throw new Error('Invalid history range')
+    return getAlertMarkers(minutes)
   })
 
   ipcMain.handle('mark-all-alerts-read', (event) => {

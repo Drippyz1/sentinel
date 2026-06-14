@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   AreaChart,
   Area,
@@ -6,9 +6,15 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  CartesianGrid
+  CartesianGrid,
+  ReferenceLine
 } from 'recharts'
-import type { HistoryMetric, SnapshotRow } from '../../../shared/contracts'
+import type {
+  AlertMarker,
+  HistoryMetric,
+  MonitoringAlertType,
+  SnapshotRow
+} from '../../../shared/contracts'
 import { normalizeTemperature } from '../../../shared/utils/temperature'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
@@ -82,6 +88,13 @@ const METRIC_GROUPS: {
   }
 ]
 
+const ALERT_METRIC_MAP: Record<MonitoringAlertType, HistoryMetric> = {
+  cpu: 'cpu',
+  memory: 'memory',
+  disk: 'disk',
+  battery: 'battery'
+}
+
 function formatXAxis(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
@@ -100,6 +113,46 @@ interface ChartCardProps {
   color: string
   formatValue: (v: number) => string
   domain?: [number, number]
+  alertMarkers?: AlertMarker[]
+}
+
+interface AlertMarkerLineProps {
+  marker: AlertMarker
+  x1?: number
+  x2?: number
+  y1?: number
+  y2?: number
+}
+
+function AlertMarkerLine({ marker, x1, x2, y1, y2 }: AlertMarkerLineProps) {
+  if (x1 === undefined || x2 === undefined || y1 === undefined || y2 === undefined) return <g />
+
+  const color = marker.severity === 'critical' ? '#ef4444' : '#f59e0b'
+  const tooltip = [
+    marker.title,
+    marker.message,
+    `Actual value: ${marker.metricValue.toFixed(1)}%`,
+    `Threshold: ${marker.threshold}%`,
+    new Date(marker.timestamp).toLocaleTimeString()
+  ].join('\n')
+
+  return (
+    <g>
+      <title>{tooltip}</title>
+      <line x1={x1} x2={x2} y1={y1} y2={y2} stroke="transparent" strokeWidth={10} />
+      <line
+        x1={x1}
+        x2={x2}
+        y1={y1}
+        y2={y2}
+        stroke={color}
+        strokeWidth={1}
+        strokeDasharray="3 3"
+        opacity={0.65}
+      />
+      <circle cx={x1} cy={y1 + 6} r={3.5} fill={color} stroke="var(--bg-card)" strokeWidth={1} />
+    </g>
+  )
 }
 
 function ChartCard({
@@ -108,7 +161,8 @@ function ChartCard({
   dataKey,
   color,
   formatValue,
-  domain = [0, 100]
+  domain = [0, 100],
+  alertMarkers = []
 }: ChartCardProps) {
   return (
     <Card title={title}>
@@ -117,6 +171,9 @@ function ChartCard({
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="timestamp"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            scale="time"
             tickFormatter={formatXAxis}
             tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
             tickLine={false}
@@ -151,6 +208,14 @@ function ChartCard({
             dot={false}
             isAnimationActive={false}
           />
+          {alertMarkers.map((marker) => (
+            <ReferenceLine
+              key={marker.id}
+              x={marker.timestamp}
+              ifOverflow="hidden"
+              shape={<AlertMarkerLine marker={marker} />}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </Card>
@@ -201,6 +266,7 @@ function HistoryEmptyState({ title, message }: { title: string; message: string 
 
 export function HistoryPage() {
   const [data, setData] = useState<SnapshotRow[]>([])
+  const [alertMarkers, setAlertMarkers] = useState<AlertMarker[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -210,13 +276,21 @@ export function HistoryPage() {
   const setView = useUiSettingsStore((state) => state.setHistoryView)
   const visibility = useUiSettingsStore((state) => state.historyMetrics)
   const setHistoryMetricVisible = useUiSettingsStore((state) => state.setHistoryMetricVisible)
+  const showAlertMarkers = useUiSettingsStore((state) => state.historyAlertMarkers)
+  const setShowAlertMarkers = useUiSettingsStore((state) => state.setHistoryAlertMarkers)
   const selectedRange = RANGES.find((range) => range.minutes === historyRangeMinutes) ?? RANGES[1]
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
     try {
-      const rows = await window.electronAPI.getHistoryDownsampled(selectedRange.minutes)
+      const [rows, markers] = await Promise.all([
+        window.electronAPI.getHistoryDownsampled(selectedRange.minutes),
+        window.electronAPI.getAlertMarkers(selectedRange.minutes).catch((error) => {
+          console.error('Failed to load alert markers:', error)
+          return []
+        })
+      ])
       setData(
         rows.map((snapshot) => ({
           ...snapshot,
@@ -224,6 +298,7 @@ export function HistoryPage() {
           gpu_temperature: normalizeTemperature(snapshot.gpu_temperature)
         }))
       )
+      setAlertMarkers(markers)
       setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to load history:', err)
@@ -275,6 +350,43 @@ export function HistoryPage() {
   }
 
   const hasVisibleMetrics = Object.values(visibility).some(Boolean)
+  const markersByType = useMemo(() => {
+    const grouped = new Map<MonitoringAlertType, AlertMarker[]>()
+    for (const marker of alertMarkers) {
+      const markers = grouped.get(marker.type) ?? []
+      markers.push(marker)
+      grouped.set(marker.type, markers)
+    }
+    return grouped
+  }, [alertMarkers])
+  const visibleAlertMarkers = useMemo(
+    () =>
+      showAlertMarkers
+        ? alertMarkers.filter((marker) => visibility[ALERT_METRIC_MAP[marker.type]])
+        : [],
+    [alertMarkers, showAlertMarkers, visibility]
+  )
+  const tableAlertMarkers = useMemo(() => {
+    const matched = new Map<number, AlertMarker[]>()
+    if (data.length === 0 || visibleAlertMarkers.length === 0) return matched
+
+    let snapshotIndex = 0
+    for (const marker of visibleAlertMarkers) {
+      while (
+        snapshotIndex + 1 < data.length &&
+        Math.abs(data[snapshotIndex + 1].timestamp - marker.timestamp) <=
+          Math.abs(data[snapshotIndex].timestamp - marker.timestamp)
+      ) {
+        snapshotIndex += 1
+      }
+
+      const snapshot = data[snapshotIndex]
+      if (Math.abs(snapshot.timestamp - marker.timestamp) <= 60_000) {
+        matched.set(snapshot.timestamp, [...(matched.get(snapshot.timestamp) ?? []), marker])
+      }
+    }
+    return matched
+  }, [data, visibleAlertMarkers])
   const hasGpuData = data.some((snapshot) => snapshot.gpu_usage !== null)
   const hasBatteryData = data.some((snapshot) => snapshot.battery !== null)
   const hasCpuTemperatureData = data.some((snapshot) => snapshot.cpu_temperature !== null)
@@ -392,6 +504,22 @@ export function HistoryPage() {
             })}
           </div>
         </ControlGroup>
+        <ControlGroup label="Alert Markers" className="max-w-full">
+          <div>
+            <SegmentedControl
+              value={showAlertMarkers ? 'on' : 'off'}
+              onChange={(value) => setShowAlertMarkers(value === 'on')}
+              ariaLabel="Show alert markers"
+              options={[
+                { label: 'On', value: 'on' },
+                { label: 'Off', value: 'off' }
+              ]}
+            />
+            <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              Show alerts directly on charts.
+            </p>
+          </div>
+        </ControlGroup>
       </div>
 
       {isLoading && data.length === 0 ? (
@@ -420,6 +548,7 @@ export function HistoryPage() {
                   >
                     Timestamp
                   </th>
+                  {showAlertMarkers && <HistoryTableHeader label="Alert" />}
                   {visibility.cpu && (
                     <>
                       <HistoryTableHeader label="CPU" />
@@ -449,74 +578,112 @@ export function HistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((snapshot) => (
-                  <tr
-                    key={snapshot.timestamp}
-                    className="transition-colors"
-                    style={{ backgroundColor: 'transparent' }}
-                    onMouseEnter={(event) => {
-                      event.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'
-                    }}
-                    onMouseLeave={(event) => {
-                      event.currentTarget.style.backgroundColor = 'transparent'
-                    }}
-                  >
-                    <HistoryTableCell
-                      value={new Date(snapshot.timestamp).toLocaleString()}
-                      align="left"
-                    />
-                    {visibility.cpu && (
-                      <>
-                        <HistoryTableCell value={`${snapshot.cpu_usage}%`} />
-                        {hasCpuTemperatureData && (
-                          <HistoryTableCell
-                            value={
-                              snapshot.cpu_temperature === null
-                                ? '—'
-                                : formatTemperature(snapshot.cpu_temperature)
-                            }
-                          />
-                        )}
-                      </>
-                    )}
-                    {visibility.memory && <HistoryTableCell value={`${snapshot.memory_usage}%`} />}
-                    {visibility.network && (
-                      <>
-                        <HistoryTableCell value={formatSpeed(snapshot.net_down)} />
-                        <HistoryTableCell value={formatSpeed(snapshot.net_up)} />
-                      </>
-                    )}
-                    {visibility.disk && (
-                      <>
-                        <HistoryTableCell value={formatSpeed(snapshot.disk_read)} />
-                        <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
-                      </>
-                    )}
-                    {visibility.gpu && (
-                      <>
-                        {hasGpuData && (
-                          <HistoryTableCell
-                            value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
-                          />
-                        )}
-                        {hasGpuTemperatureData && (
-                          <HistoryTableCell
-                            value={
-                              snapshot.gpu_temperature === null
-                                ? '—'
-                                : formatTemperature(snapshot.gpu_temperature)
-                            }
-                          />
-                        )}
-                      </>
-                    )}
-                    {visibility.battery && hasBatteryData && (
+                {data.map((snapshot) => {
+                  const rowAlerts = tableAlertMarkers.get(snapshot.timestamp) ?? []
+                  const alertTitle = rowAlerts
+                    .map(
+                      (marker) =>
+                        `${marker.title}: ${marker.metricValue.toFixed(1)}% (threshold ${marker.threshold}%)`
+                    )
+                    .join('\n')
+
+                  return (
+                    <tr
+                      key={snapshot.timestamp}
+                      className="transition-colors"
+                      style={{ backgroundColor: 'transparent' }}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.backgroundColor = 'transparent'
+                      }}
+                    >
                       <HistoryTableCell
-                        value={snapshot.battery === null ? '—' : `${snapshot.battery}%`}
+                        value={new Date(snapshot.timestamp).toLocaleString()}
+                        align="left"
                       />
-                    )}
-                  </tr>
-                ))}
+                      {showAlertMarkers && (
+                        <td
+                          className="px-3 py-2.5 text-center"
+                          title={alertTitle || undefined}
+                          aria-label={
+                            rowAlerts.length > 0
+                              ? `${rowAlerts.length} alert${rowAlerts.length === 1 ? '' : 's'}`
+                              : 'No alerts'
+                          }
+                        >
+                          {rowAlerts.length > 0 ? (
+                            <span
+                              className="font-semibold"
+                              style={{
+                                color: rowAlerts.some((marker) => marker.severity === 'critical')
+                                  ? 'var(--accent-red)'
+                                  : 'var(--accent-amber)'
+                              }}
+                            >
+                              Alert
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      )}
+                      {visibility.cpu && (
+                        <>
+                          <HistoryTableCell value={`${snapshot.cpu_usage}%`} />
+                          {hasCpuTemperatureData && (
+                            <HistoryTableCell
+                              value={
+                                snapshot.cpu_temperature === null
+                                  ? '—'
+                                  : formatTemperature(snapshot.cpu_temperature)
+                              }
+                            />
+                          )}
+                        </>
+                      )}
+                      {visibility.memory && (
+                        <HistoryTableCell value={`${snapshot.memory_usage}%`} />
+                      )}
+                      {visibility.network && (
+                        <>
+                          <HistoryTableCell value={formatSpeed(snapshot.net_down)} />
+                          <HistoryTableCell value={formatSpeed(snapshot.net_up)} />
+                        </>
+                      )}
+                      {visibility.disk && (
+                        <>
+                          <HistoryTableCell value={formatSpeed(snapshot.disk_read)} />
+                          <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
+                        </>
+                      )}
+                      {visibility.gpu && (
+                        <>
+                          {hasGpuData && (
+                            <HistoryTableCell
+                              value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
+                            />
+                          )}
+                          {hasGpuTemperatureData && (
+                            <HistoryTableCell
+                              value={
+                                snapshot.gpu_temperature === null
+                                  ? '—'
+                                  : formatTemperature(snapshot.gpu_temperature)
+                              }
+                            />
+                          )}
+                        </>
+                      )}
+                      {visibility.battery && hasBatteryData && (
+                        <HistoryTableCell
+                          value={snapshot.battery === null ? '—' : `${snapshot.battery}%`}
+                        />
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -532,6 +699,7 @@ export function HistoryPage() {
                 color="#3b82f6"
                 formatValue={(v) => `${v}%`}
                 domain={[0, 100]}
+                alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
               />
               {hasCpuTemperatureData && (
                 <ChartCard
@@ -541,6 +709,7 @@ export function HistoryPage() {
                   color="#f59e0b"
                   formatValue={formatTemperature}
                   domain={[0, maxCpuTemperature]}
+                  alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
                 />
               )}
             </>
@@ -553,6 +722,7 @@ export function HistoryPage() {
               color="#a855f7"
               formatValue={(v) => `${v}%`}
               domain={[0, 100]}
+              alertMarkers={showAlertMarkers ? markersByType.get('memory') : undefined}
             />
           )}
           {visibility.network && (
@@ -584,6 +754,7 @@ export function HistoryPage() {
                 color="#22c55e"
                 formatValue={formatSpeed}
                 domain={[0, maxDiskRead]}
+                alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
               />
               <ChartCard
                 title="Disk Write"
@@ -592,6 +763,7 @@ export function HistoryPage() {
                 color="#ef4444"
                 formatValue={formatSpeed}
                 domain={[0, maxDiskWrite]}
+                alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
               />
             </>
           )}
@@ -627,6 +799,7 @@ export function HistoryPage() {
               color="#84cc16"
               formatValue={(v) => `${v}%`}
               domain={[0, 100]}
+              alertMarkers={showAlertMarkers ? markersByType.get('battery') : undefined}
             />
           )}
         </div>

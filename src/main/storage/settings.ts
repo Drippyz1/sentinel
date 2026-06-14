@@ -39,6 +39,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
     battery: true
   },
   historyRangeMinutes: 60,
+  historyAlertMarkers: true,
   processDensity: 'comfortable',
   processQuickFilter: 'all',
   systemView: 'advanced'
@@ -154,6 +155,7 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     isValidDashboardWidgetOrder(ui.dashboardWidgetOrder) &&
     isOneOf(ui.historyView, ['chart', 'table']) &&
     isOneOf(ui.historyRangeMinutes, HISTORY_RANGES) &&
+    typeof ui.historyAlertMarkers === 'boolean' &&
     isOneOf(ui.processDensity, ['compact', 'comfortable']) &&
     isOneOf(ui.processQuickFilter, ['all', 'cpu', 'memory']) &&
     isOneOf(ui.systemView, ['simple', 'advanced']) &&
@@ -176,6 +178,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
     'historyView',
     'historyMetrics',
     'historyRangeMinutes',
+    'historyAlertMarkers',
     'processDensity',
     'processQuickFilter',
     'systemView'
@@ -209,6 +212,9 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
     value.historyRangeMinutes !== undefined &&
     !isOneOf(value.historyRangeMinutes, HISTORY_RANGES)
   ) {
+    return false
+  }
+  if (value.historyAlertMarkers !== undefined && typeof value.historyAlertMarkers !== 'boolean') {
     return false
   }
   if (
@@ -438,6 +444,10 @@ function normalizeSettings(value: unknown): AppSettings {
       historyRangeMinutes: HISTORY_RANGES.some((minutes) => minutes === historyRangeMinutes)
         ? historyRangeMinutes
         : DEFAULT_UI_SETTINGS.historyRangeMinutes,
+      historyAlertMarkers: booleanOr(
+        rawUi.historyAlertMarkers,
+        DEFAULT_UI_SETTINGS.historyAlertMarkers
+      ),
       processDensity: isOneOf(rawUi.processDensity, ['compact', 'comfortable'])
         ? rawUi.processDensity
         : DEFAULT_UI_SETTINGS.processDensity,
