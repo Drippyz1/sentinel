@@ -12,6 +12,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electronAPI', {
       // Mini tray interface
       openMainWindow: () => ipcRenderer.invoke('open-main-window'),
+      quitApp: () => ipcRenderer.invoke('quit-app'),
       setTrayCompact: (compact: boolean) => ipcRenderer.invoke('set-tray-compact', compact),
 
       // Live metrics

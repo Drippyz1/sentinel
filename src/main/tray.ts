@@ -2,12 +2,7 @@ import { app, Tray, BrowserWindow, Menu, nativeImage, screen } from 'electron'
 import { join } from 'path'
 import { loadSettings } from './storage/settings'
 import type { UiSettingsPatch } from '../shared/contracts'
-import {
-  createTrayWindow,
-  TRAY_COMPACT_HEIGHT,
-  TRAY_HEIGHT,
-  TRAY_WIDTH
-} from './windows/trayWindow'
+import { createTrayWindow, setTrayWindowCompact } from './windows/trayWindow'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null
@@ -39,22 +34,32 @@ function positionTrayWindow(): void {
 
   const trayBounds = tray.getBounds()
   const windowBounds = trayWindow.getBounds()
-  const display = screen.getDisplayNearestPoint({
-    x: Math.round(trayBounds.x + trayBounds.width / 2),
-    y: Math.round(trayBounds.y + trayBounds.height / 2)
-  })
+  const hasTrayBounds = trayBounds.width > 0 && trayBounds.height > 0
+  const anchorPoint = hasTrayBounds
+    ? {
+        x: Math.round(trayBounds.x + trayBounds.width / 2),
+        y: Math.round(trayBounds.y + trayBounds.height / 2)
+      }
+    : screen.getCursorScreenPoint()
+  const display = screen.getDisplayNearestPoint(anchorPoint)
   const workArea = display.workArea
-  const preferredX = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2)
-  const belowY = Math.round(trayBounds.y + trayBounds.height + 6)
-  const aboveY = Math.round(trayBounds.y - windowBounds.height - 6)
-  const x = Math.min(
-    Math.max(preferredX, workArea.x + 8),
-    workArea.x + workArea.width - windowBounds.width - 8
-  )
-  const y =
-    belowY + windowBounds.height <= workArea.y + workArea.height
-      ? belowY
-      : Math.max(workArea.y + 8, aboveY)
+  const minimumX = workArea.x + 8
+  const maximumX = workArea.x + workArea.width - windowBounds.width - 8
+  const minimumY = workArea.y + 8
+  const maximumY = workArea.y + workArea.height - windowBounds.height - 8
+
+  let preferredX = maximumX
+  let preferredY = maximumY
+
+  if (hasTrayBounds) {
+    preferredX = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2)
+    const belowY = Math.round(trayBounds.y + trayBounds.height + 6)
+    const aboveY = Math.round(trayBounds.y - windowBounds.height - 6)
+    preferredY = belowY + windowBounds.height <= workArea.y + workArea.height ? belowY : aboveY
+  }
+
+  const x = Math.min(Math.max(preferredX, minimumX), Math.max(minimumX, maximumX))
+  const y = Math.min(Math.max(preferredY, minimumY), Math.max(minimumY, maximumY))
 
   trayWindow.setPosition(x, y)
 }
@@ -79,8 +84,7 @@ export function setupTray(
     }
 
     positionTrayWindow()
-    trayWindow.show()
-    trayWindow.focus()
+    trayWindow.showInactive()
   })
 
   tray.on('right-click', () => {
@@ -107,7 +111,7 @@ export function setupTray(
 
 export function setTrayCompact(compact: boolean): void {
   if (!trayWindow || trayWindow.isDestroyed()) return
-  trayWindow.setSize(TRAY_WIDTH, compact ? TRAY_COMPACT_HEIGHT : TRAY_HEIGHT, true)
+  setTrayWindowCompact(trayWindow, compact)
   if (trayWindow.isVisible()) positionTrayWindow()
 }
 

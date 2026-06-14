@@ -25,6 +25,7 @@ declare global {
     electronAPI: {
       // Mini tray interface
       openMainWindow: () => Promise<void>
+      quitApp: () => Promise<void>
       setTrayCompact: (compact: boolean) => Promise<void>
 
       // Live hardware metrics

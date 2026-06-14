@@ -21,6 +21,11 @@ export function registerShellIpc({ showMainWindow, setTrayCompact }: ShellIpcOpt
     showMainWindow()
   })
 
+  ipcMain.handle('quit-app', (event) => {
+    assertTrustedIpcSender(event)
+    app.quit()
+  })
+
   ipcMain.handle('set-tray-compact', (event, compact: unknown) => {
     assertTrustedIpcSender(event)
     if (typeof compact === 'boolean') setTrayCompact(compact)

@@ -4,6 +4,7 @@ import {
   useCpuMetrics,
   useDiskMetrics,
   useGpuMetrics,
+  useAnomalyReport,
   useMemoryMetrics,
   useMetricsStatus,
   useMetricsSubscription,
@@ -67,6 +68,7 @@ function TrayContent() {
   const network = useNetworkMetrics()
   const gpu = useGpuMetrics()
   const battery = useBatteryMetrics()
+  const anomalyReport = useAnomalyReport()
   const { isLoading, lastUpdated } = useMetricsStatus()
   const primaryDrive = disk?.drives.find((drive) => drive.mount === '/') ?? disk?.drives[0]
   const gpuController = gpu?.controllers[0]
@@ -113,6 +115,9 @@ function TrayContent() {
           <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>
             {lastUpdated ? `Updated ${formatTime(lastUpdated)}` : 'Waiting for metrics'}
             {isPaused ? ' · Paused' : ''}
+            {anomalyReport?.hasAnomalies
+              ? ` · ${anomalyReport.anomalies.length} alert${anomalyReport.anomalies.length === 1 ? '' : 's'}`
+              : ''}
           </p>
         </div>
         <button
@@ -132,14 +137,14 @@ function TrayContent() {
       <section className="min-h-0 flex-1 divide-y" style={{ borderColor: 'var(--border)' }}>
         <MetricRow
           label="CPU"
-          value={cpu ? formatPercent(cpu.usagePercent, 0) : 'N/A'}
+          value={cpu ? formatPercent(cpu.usagePercent, 0) : '—'}
           percent={cpu?.usagePercent ?? 0}
           detail={cpu ? `${cpu.speedGHz} GHz · ${cpu.cores} cores` : undefined}
           compact={compact}
         />
         <MetricRow
-          label="Memory"
-          value={memory ? formatPercent(memory.usagePercent, 0) : 'N/A'}
+          label="Mem"
+          value={memory ? formatPercent(memory.usagePercent, 0) : '—'}
           percent={memory?.usagePercent ?? 0}
           accent="purple"
           detail={
@@ -149,17 +154,19 @@ function TrayContent() {
           }
           compact={compact}
         />
-        <MetricRow
-          label="GPU"
-          value={gpuController ? formatPercent(gpuController.utilizationPercent, 0) : 'N/A'}
-          percent={gpuController?.utilizationPercent ?? 0}
-          accent="purple"
-          detail={gpuController?.name}
-          compact={compact}
-        />
+        {!compact && (
+          <MetricRow
+            label="GPU"
+            value={gpuController ? formatPercent(gpuController.utilizationPercent, 0) : '—'}
+            percent={gpuController?.utilizationPercent ?? 0}
+            accent="purple"
+            detail={gpuController?.name ?? 'Unavailable'}
+            compact={compact}
+          />
+        )}
         <MetricRow
           label="Disk"
-          value={primaryDrive ? formatPercent(primaryDrive.usagePercent, 0) : 'N/A'}
+          value={primaryDrive ? formatPercent(primaryDrive.usagePercent, 0) : '—'}
           percent={primaryDrive?.usagePercent ?? 0}
           detail={
             disk
@@ -170,23 +177,20 @@ function TrayContent() {
         />
 
         <div className={compact ? 'py-2' : 'py-2.5'}>
-          <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-            Network
-          </p>
           <div className="grid grid-cols-2 gap-2">
             <div
               className="min-w-0 rounded-lg px-2 py-1.5"
               style={{ background: 'var(--bg-card)' }}
             >
               <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Download
+                Down
               </p>
               <p
                 className="truncate font-mono text-xs font-semibold tabular-nums"
                 style={{ color: 'var(--accent-green)' }}
-                title={formatSpeed(network?.totalDownloadBytesPerSec ?? 0)}
+                title={network ? formatSpeed(network.totalDownloadBytesPerSec) : 'Unavailable'}
               >
-                {formatSpeed(network?.totalDownloadBytesPerSec ?? 0)}
+                {network ? formatSpeed(network.totalDownloadBytesPerSec) : '—'}
               </p>
             </div>
             <div
@@ -194,33 +198,51 @@ function TrayContent() {
               style={{ background: 'var(--bg-card)' }}
             >
               <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Upload
+                Up
               </p>
               <p
                 className="truncate font-mono text-xs font-semibold tabular-nums"
                 style={{ color: 'var(--accent-blue)' }}
-                title={formatSpeed(network?.totalUploadBytesPerSec ?? 0)}
+                title={network ? formatSpeed(network.totalUploadBytesPerSec) : 'Unavailable'}
               >
-                {formatSpeed(network?.totalUploadBytesPerSec ?? 0)}
+                {network ? formatSpeed(network.totalUploadBytesPerSec) : '—'}
               </p>
             </div>
           </div>
         </div>
 
-        {!compact && battery?.hasBattery && (
+        {!compact && (
           <div className="flex items-center justify-between gap-3 py-2">
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Battery
             </span>
-            <span className="font-mono text-xs font-semibold tabular-nums">
-              {battery.chargePercent}% · {battery.isCharging ? 'Charging' : 'On battery'}
+            <span className="min-w-0 truncate text-right font-mono text-xs font-semibold tabular-nums">
+              {battery?.hasBattery
+                ? `${battery.chargePercent}% · ${battery.isCharging ? 'Charging' : 'On battery'}`
+                : '—'}
+            </span>
+          </div>
+        )}
+
+        {!compact && (
+          <div className="flex items-center justify-between gap-3 py-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Alerts
+            </span>
+            <span
+              className="min-w-0 truncate text-right text-xs font-semibold"
+              style={{
+                color: anomalyReport?.hasAnomalies ? 'var(--accent-amber)' : 'var(--accent-green)'
+              }}
+            >
+              {anomalyReport?.hasAnomalies ? `${anomalyReport.anomalies.length} active` : 'Clear'}
             </span>
           </div>
         )}
       </section>
 
       <footer
-        className="grid grid-cols-2 gap-2 border-t pt-2.5"
+        className="grid grid-cols-3 gap-2 border-t pt-2.5"
         style={{ borderColor: 'var(--border)' }}
       >
         <button
@@ -233,7 +255,7 @@ function TrayContent() {
             color: isPaused ? 'var(--accent-green)' : 'var(--accent-amber)'
           }}
         >
-          {isPaused ? 'Resume Updates' : 'Pause Updates'}
+          {isPaused ? 'Resume' : 'Pause'}
         </button>
         <button
           type="button"
@@ -246,6 +268,18 @@ function TrayContent() {
           }}
         >
           {compact ? 'Expanded' : 'Compact'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void window.electronAPI.quitApp()}
+          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
+          style={{
+            color: 'var(--accent-red)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.25)'
+          }}
+        >
+          Quit
         </button>
       </footer>
     </div>
