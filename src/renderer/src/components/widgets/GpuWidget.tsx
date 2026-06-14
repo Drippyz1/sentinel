@@ -37,17 +37,30 @@ export function GpuWidget() {
 
       <UsageBar percent={controller.utilizationPercent} />
 
-      <div className="mt-3">
-        <MiniChart
-          data={history}
-          color="#ec4899"
-          ariaLabel="Recent GPU usage trend"
-          formatValue={(value) => `${value}%`}
-          domain={[0, 100]}
-        />
+      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+        {history.length >= 2 ? (
+          <MiniChart
+            data={history}
+            color="#ec4899"
+            ariaLabel="Recent GPU usage trend"
+            formatValue={(value) => `${value}%`}
+            domain={[0, 100]}
+          />
+        ) : (
+          <div
+            className="rounded-lg border px-3 py-6 text-center text-sm"
+            style={{
+              backgroundColor: 'var(--bg-base)',
+              borderColor: 'var(--border)',
+              color: 'var(--text-muted)'
+            }}
+          >
+            No GPU activity data available
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 space-y-1">
+      <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
         <StatRow
           label="Temperature"
           value={formatTemp(controller.temperatureCelsius)}

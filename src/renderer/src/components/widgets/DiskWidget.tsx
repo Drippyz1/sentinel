@@ -28,41 +28,33 @@ export function DiskWidget() {
 
       <UsageBar percent={primaryDrive.usagePercent} />
 
-      <div className="mt-3 space-y-1">
+      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="grid grid-cols-2 gap-3">
+          <MiniChart
+            data={readHistory}
+            color="#22c55e"
+            label="Read · Last 2 min"
+            status={formatSpeed(disk.io.readBytesPerSec)}
+            ariaLabel="Recent disk read activity trend"
+            formatValue={formatSpeed}
+            domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
+          />
+          <MiniChart
+            data={writeHistory}
+            color="#f59e0b"
+            label="Write · Last 2 min"
+            status={formatSpeed(disk.io.writeBytesPerSec)}
+            ariaLabel="Recent disk write activity trend"
+            formatValue={formatSpeed}
+            domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
         <StatRow label="Used" value={formatBytes(primaryDrive.usedBytes)} accent="blue" />
         <StatRow label="Free" value={formatBytes(primaryDrive.freeBytes)} accent="green" />
         <StatRow label="Total" value={formatBytes(primaryDrive.totalBytes)} accent="blue" />
-      </div>
-
-      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="min-w-0">
-            <p className="truncate text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
-              Read — {formatSpeed(disk.io.readBytesPerSec)}
-            </p>
-            <MiniChart
-              data={readHistory}
-              color="#22c55e"
-              ariaLabel="Recent disk read activity trend"
-              formatValue={formatSpeed}
-              domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
-              height={50}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
-              Write — {formatSpeed(disk.io.writeBytesPerSec)}
-            </p>
-            <MiniChart
-              data={writeHistory}
-              color="#f59e0b"
-              ariaLabel="Recent disk write activity trend"
-              formatValue={formatSpeed}
-              domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
-              height={50}
-            />
-          </div>
-        </div>
       </div>
     </Card>
   )

@@ -4,6 +4,7 @@ import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
+import { getTrendDirection } from '../../utils/trend'
 
 function formatTime(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}m`
@@ -55,6 +56,12 @@ export function BatteryWidget() {
     : battery.isPluggedIn
       ? 'Plugged in'
       : 'On battery'
+  const batteryTrend = getTrendDirection(history, 0.25)
+  const trendStatus = battery.isCharging
+    ? 'Charging'
+    : batteryTrend === 'falling'
+      ? 'Discharging'
+      : 'Stable'
 
   return (
     <Card title="Battery" subtitle={statusLabel}>
@@ -74,17 +81,18 @@ export function BatteryWidget() {
 
       <UsageBar percent={battery.chargePercent} accent={chargeAccent} />
 
-      <div className="mt-3">
+      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
         <MiniChart
           data={history}
           color={battery.isCharging ? '#22c55e' : '#3b82f6'}
+          status={trendStatus}
           ariaLabel="Recent battery percentage trend"
           formatValue={(value) => `${value}%`}
           domain={[0, 100]}
         />
       </div>
 
-      <div className="mt-4 space-y-1">
+      <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
         {battery.timeRemainingMins !== null && (
           <StatRow
             label={battery.isCharging ? 'Time to full' : 'Time remaining'}

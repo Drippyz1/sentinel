@@ -15,7 +15,7 @@ export function NetworkWidget() {
 
   return (
     <Card title="Network">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="min-w-0 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-base)' }}>
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
             Download
@@ -42,21 +42,25 @@ export function NetworkWidget() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <MiniChart
-          data={downHistory}
-          color="#22c55e"
-          ariaLabel="Recent network download trend"
-          formatValue={formatSpeed}
-          domain={[0, Math.max(...downHistory.map((p) => p.value), 1)]}
-        />
-        <MiniChart
-          data={upHistory}
-          color="#3b82f6"
-          ariaLabel="Recent network upload trend"
-          formatValue={formatSpeed}
-          domain={[0, Math.max(...upHistory.map((p) => p.value), 1)]}
-        />
+      <div className="mt-4 mb-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="grid grid-cols-2 gap-3">
+          <MiniChart
+            data={downHistory}
+            color="#22c55e"
+            label="Download · Last 2 min"
+            ariaLabel="Recent network download trend"
+            formatValue={formatSpeed}
+            domain={[0, Math.max(...downHistory.map((p) => p.value), 1)]}
+          />
+          <MiniChart
+            data={upHistory}
+            color="#3b82f6"
+            label="Upload · Last 2 min"
+            ariaLabel="Recent network upload trend"
+            formatValue={formatSpeed}
+            domain={[0, Math.max(...upHistory.map((p) => p.value), 1)]}
+          />
+        </div>
       </div>
 
       {activeInterfaces.length > 0 && (
