@@ -9,6 +9,7 @@ import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 // ─────────────────────────────────────────────
@@ -499,8 +500,8 @@ export function SystemPage() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-start justify-end gap-2">
-          <div className="min-w-0 text-right">
+        <div className="flex w-full flex-wrap items-start gap-4 sm:w-auto sm:justify-end">
+          <ControlGroup label="Actions">
             <button
               type="button"
               onClick={() => {
@@ -523,16 +524,18 @@ export function SystemPage() {
             >
               Reports may contain identifying system and network details. Review before sharing.
             </p>
-          </div>
-          <SegmentedControl
-            value={view}
-            onChange={setView}
-            ariaLabel="System detail level"
-            options={[
-              { label: 'Simple', value: 'simple' },
-              { label: 'Advanced', value: 'advanced' }
-            ]}
-          />
+          </ControlGroup>
+          <ControlGroup label="View">
+            <SegmentedControl
+              value={view}
+              onChange={setView}
+              ariaLabel="System detail level"
+              options={[
+                { label: 'Simple', value: 'simple' },
+                { label: 'Advanced', value: 'advanced' }
+              ]}
+            />
+          </ControlGroup>
         </div>
       </div>
 

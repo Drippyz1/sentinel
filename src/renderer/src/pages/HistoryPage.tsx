@@ -12,6 +12,7 @@ import type { HistoryMetric, SnapshotRow } from '../../../shared/contracts'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 const RANGES = [
@@ -301,40 +302,46 @@ export function HistoryPage() {
             </p>
           )}
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          <button
-            onClick={exportCsv}
-            disabled={data.length === 0}
-            className="min-h-9 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all"
-            style={{
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border)',
-              cursor: data.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: data.length === 0 ? 0.5 : 1
-            }}
-          >
-            Export CSV
-          </button>
-          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5 sm:flex-none">
-            {RANGES.map((range) => (
-              <button
-                key={range.minutes}
-                onClick={() => setHistoryRangeMinutes(range.minutes)}
-                className="min-h-9 flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all sm:flex-none"
-                style={{
-                  backgroundColor:
-                    selectedRange.minutes === range.minutes
-                      ? 'var(--accent-blue)'
-                      : 'var(--bg-card)',
-                  color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
-                  border: '1px solid var(--border)'
-                }}
-              >
-                {range.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex w-full flex-wrap items-start gap-4 sm:w-auto sm:justify-end">
+          <ControlGroup label="Actions">
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={data.length === 0}
+              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                cursor: data.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: data.length === 0 ? 0.5 : 1
+              }}
+            >
+              Export CSV
+            </button>
+          </ControlGroup>
+          <ControlGroup label="Time range" className="min-w-0 flex-1 sm:flex-none">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {RANGES.map((range) => (
+                <button
+                  key={range.minutes}
+                  type="button"
+                  onClick={() => setHistoryRangeMinutes(range.minutes)}
+                  className="min-h-10 flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:flex-none"
+                  style={{
+                    backgroundColor:
+                      selectedRange.minutes === range.minutes
+                        ? 'var(--accent-blue)'
+                        : 'var(--bg-card)',
+                    color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
+                    border: '1px solid var(--border)'
+                  }}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </ControlGroup>
         </div>
       </div>
 
@@ -342,15 +349,7 @@ export function HistoryPage() {
         className="flex flex-wrap items-center justify-between gap-4 rounded-xl p-3 mb-5"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-          <div>
-            <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-              View
-            </p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Choose how history is displayed
-            </p>
-          </div>
+        <ControlGroup label="View" className="flex-1">
           <SegmentedControl
             value={view}
             onChange={setView}
@@ -360,33 +359,32 @@ export function HistoryPage() {
               { label: 'Table', value: 'table' }
             ]}
           />
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-            Metrics
-          </span>
-          {METRIC_GROUPS.map((metric) => {
-            const isVisible = visibility[metric.value]
+        </ControlGroup>
+        <ControlGroup label="Visible metrics" className="max-w-full">
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {METRIC_GROUPS.map((metric) => {
+              const isVisible = visibility[metric.value]
 
-            return (
-              <button
-                key={metric.value}
-                type="button"
-                onClick={() => toggleMetric(metric.value)}
-                className="min-h-8 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={{
-                  backgroundColor: isVisible ? metric.background : 'var(--bg-base)',
-                  border: `1px solid ${isVisible ? metric.color : 'var(--border)'}`,
-                  color: isVisible ? metric.color : 'var(--text-muted)',
-                  boxShadow: isVisible ? `0 0 0 1px ${metric.background}` : 'none'
-                }}
-                aria-pressed={isVisible}
-              >
-                {metric.label}
-              </button>
-            )
-          })}
-        </div>
+              return (
+                <button
+                  key={metric.value}
+                  type="button"
+                  onClick={() => toggleMetric(metric.value)}
+                  className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                  style={{
+                    backgroundColor: isVisible ? metric.background : 'var(--bg-base)',
+                    border: `1px solid ${isVisible ? metric.color : 'var(--border)'}`,
+                    color: isVisible ? metric.color : 'var(--text-muted)',
+                    boxShadow: isVisible ? `0 0 0 1px ${metric.background}` : 'none'
+                  }}
+                  aria-pressed={isVisible}
+                >
+                  {metric.label}
+                </button>
+              )
+            })}
+          </div>
+        </ControlGroup>
       </div>
 
       {isLoading && data.length === 0 ? (

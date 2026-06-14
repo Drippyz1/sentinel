@@ -3,6 +3,7 @@ import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
 import { formatBytes, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
 
 type SortKey = 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
@@ -266,10 +267,7 @@ export function ProcessesPage() {
           className="flex flex-wrap items-end justify-between gap-4 mb-4 rounded-xl p-3"
           style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
         >
-          <div className="min-w-0">
-            <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-              Quick filter
-            </p>
+          <ControlGroup label="Filter">
             <SegmentedControl
               value={quickFilter}
               onChange={setQuickFilter}
@@ -280,11 +278,8 @@ export function ProcessesPage() {
                 { label: 'High Memory', value: 'memory' }
               ]}
             />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-              Row density
-            </p>
+          </ControlGroup>
+          <ControlGroup label="Density">
             <SegmentedControl
               value={density}
               onChange={setDensity}
@@ -294,7 +289,7 @@ export function ProcessesPage() {
                 { label: 'Comfortable', value: 'comfortable' }
               ]}
             />
-          </div>
+          </ControlGroup>
         </div>
 
         <div className="overflow-x-auto">

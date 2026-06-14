@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppSettings } from '../../../shared/contracts'
+import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 
 const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: 1,
@@ -12,6 +13,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   anomalyNotifications: true,
   ui: {
     dashboardPollingPaused: false,
+    dashboardWidgets: {
+      cpu: true,
+      memory: true,
+      gpu: true,
+      disk: true,
+      network: true,
+      battery: true,
+      anomalies: true
+    },
     historyView: 'chart',
     historyMetrics: {
       cpu: true,
@@ -73,25 +83,8 @@ function Row({
           </span>
         )}
       </div>
-      <div className="max-w-full flex-shrink-0 sm:ml-auto">{children}</div>
+      <div className="flex max-w-full flex-shrink-0 items-center sm:ml-auto">{children}</div>
     </div>
-  )
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="relative inline-flex items-center w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none"
-      style={{ background: checked ? 'var(--accent-blue)' : 'var(--border)' }}
-    >
-      <span
-        className="inline-block w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
-        style={{ transform: checked ? 'translateX(22px)' : 'translateX(2px)' }}
-      />
-    </button>
   )
 }
 
@@ -197,7 +190,7 @@ export function SettingsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-7">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Settings
         </h2>
@@ -217,13 +210,21 @@ export function SettingsPage() {
       {isMac && (
         <Section title="System">
           <Row label="Launch at login" description="Start Sentinel automatically when you log in">
-            <Toggle checked={settings.launchAtLogin} onChange={(v) => update('launchAtLogin', v)} />
+            <ToggleSwitch
+              checked={settings.launchAtLogin}
+              label="Launch at login"
+              onChange={(value) => update('launchAtLogin', value)}
+            />
           </Row>
           <Row
             label="Hide from Dock"
             description="Remove the app icon from the macOS Dock — still accessible via menu bar"
           >
-            <Toggle checked={settings.hideFromDock} onChange={(v) => update('hideFromDock', v)} />
+            <ToggleSwitch
+              checked={settings.hideFromDock}
+              label="Hide from Dock"
+              onChange={(value) => update('hideFromDock', value)}
+            />
           </Row>
         </Section>
       )}
@@ -288,9 +289,10 @@ export function SettingsPage() {
           label="Anomaly notifications"
           description="Send a system notification when an anomaly is detected"
         >
-          <Toggle
+          <ToggleSwitch
             checked={settings.anomalyNotifications}
-            onChange={(v) => update('anomalyNotifications', v)}
+            label="Anomaly notifications"
+            onChange={(value) => update('anomalyNotifications', value)}
           />
         </Row>
       </Section>

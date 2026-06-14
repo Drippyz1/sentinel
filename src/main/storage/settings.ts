@@ -11,6 +11,15 @@ export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], nu
 
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
+  dashboardWidgets: {
+    cpu: true,
+    memory: true,
+    gpu: true,
+    disk: true,
+    network: true,
+    battery: true,
+    anomalies: true
+  },
   historyView: 'chart',
   historyMetrics: {
     cpu: true,
@@ -67,6 +76,10 @@ export function updateUiSettings(patch: UiSettingsPatch): boolean {
       ui: {
         ...settings.ui,
         ...patch,
+        dashboardWidgets: {
+          ...settings.ui.dashboardWidgets,
+          ...patch.dashboardWidgets
+        },
         historyMetrics: {
           ...settings.ui.historyMetrics,
           ...patch.historyMetrics
@@ -81,6 +94,8 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(value)) return false
   const ui = value.ui
   if (!isRecord(ui)) return false
+  const dashboardWidgets = ui.dashboardWidgets
+  if (!isRecord(dashboardWidgets)) return false
   const metrics = ui.historyMetrics
   if (!isRecord(metrics)) return false
 
@@ -94,6 +109,13 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     isOneOf(value.anomalySensitivity, ['sensitive', 'balanced', 'conservative']) &&
     typeof value.anomalyNotifications === 'boolean' &&
     typeof ui.dashboardPollingPaused === 'boolean' &&
+    typeof dashboardWidgets.cpu === 'boolean' &&
+    typeof dashboardWidgets.memory === 'boolean' &&
+    typeof dashboardWidgets.gpu === 'boolean' &&
+    typeof dashboardWidgets.disk === 'boolean' &&
+    typeof dashboardWidgets.network === 'boolean' &&
+    typeof dashboardWidgets.battery === 'boolean' &&
+    typeof dashboardWidgets.anomalies === 'boolean' &&
     isOneOf(ui.historyView, ['chart', 'table']) &&
     isOneOf(ui.historyRangeMinutes, HISTORY_RANGES) &&
     isOneOf(ui.processDensity, ['compact', 'comfortable']) &&
@@ -113,6 +135,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
 
   const validKeys = new Set([
     'dashboardPollingPaused',
+    'dashboardWidgets',
     'historyView',
     'historyMetrics',
     'historyRangeMinutes',
@@ -127,6 +150,14 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
     typeof value.dashboardPollingPaused !== 'boolean'
   ) {
     return false
+  }
+  if (value.dashboardWidgets !== undefined) {
+    if (!isRecord(value.dashboardWidgets)) return false
+    const widgetKeys = new Set(['cpu', 'memory', 'gpu', 'disk', 'network', 'battery', 'anomalies'])
+    if (Object.keys(value.dashboardWidgets).some((key) => !widgetKeys.has(key))) return false
+    if (Object.values(value.dashboardWidgets).some((widget) => typeof widget !== 'boolean')) {
+      return false
+    }
   }
   if (value.historyView !== undefined && !isOneOf(value.historyView, ['chart', 'table'])) {
     return false
@@ -206,6 +237,7 @@ function numberOr(value: unknown, fallback: number): number {
 function normalizeSettings(value: unknown): AppSettings {
   const raw = isRecord(value) ? value : {}
   const rawUi = isRecord(raw.ui) ? raw.ui : {}
+  const rawDashboardWidgets = isRecord(rawUi.dashboardWidgets) ? rawUi.dashboardWidgets : {}
   const rawMetrics = isRecord(rawUi.historyMetrics) ? rawUi.historyMetrics : {}
   const historyRangeMinutes = numberOr(
     rawUi.historyRangeMinutes,
@@ -232,6 +264,24 @@ function normalizeSettings(value: unknown): AppSettings {
         rawUi.dashboardPollingPaused,
         DEFAULT_UI_SETTINGS.dashboardPollingPaused
       ),
+      dashboardWidgets: {
+        cpu: booleanOr(rawDashboardWidgets.cpu, DEFAULT_UI_SETTINGS.dashboardWidgets.cpu),
+        memory: booleanOr(rawDashboardWidgets.memory, DEFAULT_UI_SETTINGS.dashboardWidgets.memory),
+        gpu: booleanOr(rawDashboardWidgets.gpu, DEFAULT_UI_SETTINGS.dashboardWidgets.gpu),
+        disk: booleanOr(rawDashboardWidgets.disk, DEFAULT_UI_SETTINGS.dashboardWidgets.disk),
+        network: booleanOr(
+          rawDashboardWidgets.network,
+          DEFAULT_UI_SETTINGS.dashboardWidgets.network
+        ),
+        battery: booleanOr(
+          rawDashboardWidgets.battery,
+          DEFAULT_UI_SETTINGS.dashboardWidgets.battery
+        ),
+        anomalies: booleanOr(
+          rawDashboardWidgets.anomalies,
+          DEFAULT_UI_SETTINGS.dashboardWidgets.anomalies
+        )
+      },
       historyView: isOneOf(rawUi.historyView, ['chart', 'table'])
         ? rawUi.historyView
         : DEFAULT_UI_SETTINGS.historyView,

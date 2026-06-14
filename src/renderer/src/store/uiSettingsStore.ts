@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  DashboardWidgetVisibility,
   HistoryMetric,
   ProcessDensity,
   ProcessQuickFilter,
@@ -12,6 +13,7 @@ interface UiSettingsState extends UiSettings {
   initialized: boolean
   initialize: () => Promise<void>
   setDashboardPollingPaused: (paused: boolean) => void
+  setDashboardWidgets: (widgets: DashboardWidgetVisibility) => void
   setHistoryView: (view: UiSettings['historyView']) => void
   setHistoryMetricVisible: (metric: HistoryMetric, visible: boolean) => void
   setHistoryRangeMinutes: (minutes: number) => void
@@ -20,8 +22,19 @@ interface UiSettingsState extends UiSettings {
   setSystemView: (view: SystemView) => void
 }
 
+export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetVisibility = {
+  cpu: true,
+  memory: true,
+  gpu: true,
+  disk: true,
+  network: true,
+  battery: true,
+  anomalies: true
+}
+
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
+  dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
   historyView: 'chart',
   historyMetrics: {
     cpu: true,
@@ -43,6 +56,9 @@ let stopListening: (() => void) | null = null
 function mergePatch(state: UiSettingsState, patch: UiSettingsPatch): Partial<UiSettingsState> {
   return {
     ...patch,
+    dashboardWidgets: patch.dashboardWidgets
+      ? { ...state.dashboardWidgets, ...patch.dashboardWidgets }
+      : state.dashboardWidgets,
     historyMetrics: patch.historyMetrics
       ? { ...state.historyMetrics, ...patch.historyMetrics }
       : state.historyMetrics
@@ -86,6 +102,11 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   setDashboardPollingPaused: (paused) => {
     set({ dashboardPollingPaused: paused })
     persist({ dashboardPollingPaused: paused })
+  },
+
+  setDashboardWidgets: (widgets) => {
+    set({ dashboardWidgets: widgets })
+    persist({ dashboardWidgets: widgets })
   },
 
   setHistoryView: (view) => {

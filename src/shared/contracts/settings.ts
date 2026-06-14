@@ -3,11 +3,21 @@ export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'bat
 export type ProcessDensity = 'compact' | 'comfortable'
 export type ProcessQuickFilter = 'all' | 'cpu' | 'memory'
 export type SystemView = 'simple' | 'advanced'
+export type DashboardWidget =
+  | 'cpu'
+  | 'memory'
+  | 'gpu'
+  | 'disk'
+  | 'network'
+  | 'battery'
+  | 'anomalies'
 
 export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
+export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
 
 export interface UiSettings {
   dashboardPollingPaused: boolean
+  dashboardWidgets: DashboardWidgetVisibility
   historyView: HistoryView
   historyMetrics: HistoryMetricVisibility
   historyRangeMinutes: number
@@ -16,7 +26,8 @@ export interface UiSettings {
   systemView: SystemView
 }
 
-export type UiSettingsPatch = Partial<Omit<UiSettings, 'historyMetrics'>> & {
+export type UiSettingsPatch = Partial<Omit<UiSettings, 'dashboardWidgets' | 'historyMetrics'>> & {
+  dashboardWidgets?: Partial<DashboardWidgetVisibility>
   historyMetrics?: Partial<HistoryMetricVisibility>
 }
 
