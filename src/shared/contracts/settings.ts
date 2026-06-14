@@ -3,14 +3,16 @@ export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'bat
 export type ProcessDensity = 'compact' | 'comfortable'
 export type ProcessQuickFilter = 'all' | 'cpu' | 'memory'
 export type SystemView = 'simple' | 'advanced'
-export type DashboardWidget =
-  | 'cpu'
-  | 'memory'
-  | 'gpu'
-  | 'disk'
-  | 'network'
-  | 'battery'
-  | 'anomalies'
+export const DASHBOARD_WIDGET_KEYS = [
+  'cpu',
+  'memory',
+  'gpu',
+  'disk',
+  'network',
+  'battery',
+  'anomalies'
+] as const
+export type DashboardWidget = (typeof DASHBOARD_WIDGET_KEYS)[number]
 
 export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
 export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
@@ -31,6 +33,7 @@ export interface MonitoringAlerts {
 export interface UiSettings {
   dashboardPollingPaused: boolean
   dashboardWidgets: DashboardWidgetVisibility
+  dashboardWidgetOrder: DashboardWidget[]
   historyView: HistoryView
   historyMetrics: HistoryMetricVisibility
   historyRangeMinutes: number

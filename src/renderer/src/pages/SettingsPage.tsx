@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS: AppSettings = {
       battery: true,
       anomalies: true
     },
+    dashboardWidgetOrder: ['cpu', 'memory', 'gpu', 'disk', 'network', 'battery', 'anomalies'],
     historyView: 'chart',
     historyMetrics: {
       cpu: true,

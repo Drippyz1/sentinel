@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  DashboardWidget,
   DashboardWidgetVisibility,
   HistoryMetric,
   ProcessDensity,
@@ -8,12 +9,15 @@ import type {
   UiSettings,
   UiSettingsPatch
 } from '../../../shared/contracts'
+import { DASHBOARD_WIDGET_KEYS } from '../../../shared/contracts'
 
 interface UiSettingsState extends UiSettings {
   initialized: boolean
   initialize: () => Promise<void>
   setDashboardPollingPaused: (paused: boolean) => void
   setDashboardWidgets: (widgets: DashboardWidgetVisibility) => void
+  setDashboardWidgetOrder: (order: DashboardWidget[]) => void
+  setDashboardPreferences: (widgets: DashboardWidgetVisibility, order: DashboardWidget[]) => void
   setHistoryView: (view: UiSettings['historyView']) => void
   setHistoryMetricVisible: (metric: HistoryMetric, visible: boolean) => void
   setHistoryRangeMinutes: (minutes: number) => void
@@ -31,10 +35,12 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetVisibility = {
   battery: true,
   anomalies: true
 }
+export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidget[] = [...DASHBOARD_WIDGET_KEYS]
 
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
+  dashboardWidgetOrder: DEFAULT_DASHBOARD_WIDGET_ORDER,
   historyView: 'chart',
   historyMetrics: {
     cpu: true,
@@ -107,6 +113,16 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   setDashboardWidgets: (widgets) => {
     set({ dashboardWidgets: widgets })
     persist({ dashboardWidgets: widgets })
+  },
+
+  setDashboardWidgetOrder: (dashboardWidgetOrder) => {
+    set({ dashboardWidgetOrder })
+    persist({ dashboardWidgetOrder })
+  },
+
+  setDashboardPreferences: (dashboardWidgets, dashboardWidgetOrder) => {
+    set({ dashboardWidgets, dashboardWidgetOrder })
+    persist({ dashboardWidgets, dashboardWidgetOrder })
   },
 
   setHistoryView: (view) => {

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import type { ComponentType } from 'react'
 import type { DashboardWidget, DashboardWidgetVisibility } from '../../../shared/contracts'
+import { DASHBOARD_WIDGET_KEYS } from '../../../shared/contracts'
 import { CpuWidget } from '../components/widgets/CpuWidget'
 import { MemoryWidget } from '../components/widgets/MemoryWidget'
 import { DiskWidget } from '../components/widgets/DiskWidget'
@@ -10,30 +12,66 @@ import { AnomalyPanel } from '../components/widgets/AnomalyPanel'
 import { ControlGroup } from '../components/ui/ControlGroup'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 import { useMetricsStatus } from '../hooks/useMetrics'
-import { DEFAULT_DASHBOARD_WIDGETS, useUiSettingsStore } from '../store/uiSettingsStore'
+import {
+  DEFAULT_DASHBOARD_WIDGET_ORDER,
+  DEFAULT_DASHBOARD_WIDGETS,
+  useUiSettingsStore
+} from '../store/uiSettingsStore'
 import { formatTime } from '../utils/format'
 
-const DASHBOARD_WIDGET_OPTIONS: { key: DashboardWidget; label: string; description: string }[] = [
-  { key: 'cpu', label: 'CPU', description: 'Processor usage and load' },
-  { key: 'memory', label: 'Memory', description: 'Memory usage and pressure' },
-  { key: 'gpu', label: 'GPU', description: 'Graphics utilization' },
-  { key: 'disk', label: 'Disk', description: 'Storage activity and capacity' },
-  { key: 'network', label: 'Network', description: 'Download and upload activity' },
-  { key: 'battery', label: 'Battery', description: 'Charge and power status' },
-  { key: 'anomalies', label: 'Anomalies', description: 'Unusual metric activity' }
-]
+const DASHBOARD_WIDGET_METADATA: Record<DashboardWidget, { label: string; description: string }> = {
+  cpu: { label: 'CPU', description: 'Processor usage and load' },
+  memory: { label: 'Memory', description: 'Memory usage and pressure' },
+  gpu: { label: 'GPU', description: 'Graphics utilization' },
+  disk: { label: 'Disk', description: 'Storage activity and capacity' },
+  network: { label: 'Network', description: 'Download and upload activity' },
+  battery: { label: 'Battery', description: 'Charge and power status' },
+  anomalies: { label: 'Anomalies', description: 'Unusual metric activity' }
+}
+
+const DASHBOARD_WIDGET_COMPONENTS: Record<DashboardWidget, ComponentType> = {
+  cpu: CpuWidget,
+  memory: MemoryWidget,
+  gpu: GpuWidget,
+  disk: DiskWidget,
+  network: NetworkWidget,
+  battery: BatteryWidget,
+  anomalies: AnomalyPanel
+}
+
+const DASHBOARD_WIDGET_OPTIONS = DASHBOARD_WIDGET_KEYS.map((key) => ({
+  key,
+  ...DASHBOARD_WIDGET_METADATA[key]
+}))
 
 function DashboardCustomizationDialog({
   widgets,
-  onChange,
+  order,
+  onVisibilityChange,
+  onOrderChange,
+  onResetEverything,
   onClose
 }: {
   widgets: DashboardWidgetVisibility
-  onChange: (widgets: DashboardWidgetVisibility) => void
+  order: DashboardWidget[]
+  onVisibilityChange: (widgets: DashboardWidgetVisibility) => void
+  onOrderChange: (order: DashboardWidget[]) => void
+  onResetEverything: () => void
   onClose: () => void
 }) {
   const visibleCount = Object.values(widgets).filter(Boolean).length
   const allVisible = visibleCount === DASHBOARD_WIDGET_OPTIONS.length
+  const optionsByKey = new Map(DASHBOARD_WIDGET_OPTIONS.map((widget) => [widget.key, widget]))
+
+  function moveWidget(index: number, direction: -1 | 1) {
+    const destination = index + direction
+    if (destination < 0 || destination >= order.length) return
+    const nextOrder = [...order]
+    const movedWidget = nextOrder[index]
+    nextOrder[index] = nextOrder[destination]
+    nextOrder[destination] = movedWidget
+    onOrderChange(nextOrder)
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -71,7 +109,8 @@ function DashboardCustomizationDialog({
               Customize Dashboard
             </h2>
             <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Choose which widgets appear in your overview. Changes are saved automatically.
+              Choose which widgets appear and arrange their dashboard order. Changes are saved
+              automatically.
             </p>
           </div>
           <button
@@ -86,73 +125,145 @@ function DashboardCustomizationDialog({
           </button>
         </div>
 
-        <div className="mt-5 space-y-1">
-          {DASHBOARD_WIDGET_OPTIONS.map((widget) => (
-            <div
-              key={widget.key}
-              className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5"
-              style={{ backgroundColor: 'var(--bg-base)' }}
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {widget.label}
-                </p>
-                <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {widget.description}
-                </p>
-              </div>
-              <ToggleSwitch
-                checked={widgets[widget.key]}
-                label={`Show ${widget.label} widget`}
-                onChange={(visible) => onChange({ ...widgets, [widget.key]: visible })}
-              />
-            </div>
-          ))}
+        <div className="mt-5">
+          <p
+            className="mb-2 text-xs font-semibold uppercase tracking-wider"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Widgets and order
+          </p>
+          <div className="space-y-1">
+            {order.map((widgetKey, index) => {
+              const widget = optionsByKey.get(widgetKey)
+              if (!widget) return null
+
+              return (
+                <div
+                  key={widget.key}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                  style={{ backgroundColor: 'var(--bg-base)' }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {widget.label}
+                    </p>
+                    <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {widget.description}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => moveWidget(index, -1)}
+                      aria-label={`Move ${widget.label} widget up`}
+                      className="min-h-8 rounded-lg px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-30"
+                      style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === order.length - 1}
+                      onClick={() => moveWidget(index, 1)}
+                      aria-label={`Move ${widget.label} widget down`}
+                      className="min-h-8 rounded-lg px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-30"
+                      style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                    >
+                      Down
+                    </button>
+                    <ToggleSwitch
+                      checked={widgets[widget.key]}
+                      label={`Show ${widget.label} widget`}
+                      onChange={(visible) =>
+                        onVisibilityChange({ ...widgets, [widget.key]: visible })
+                      }
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            disabled={allVisible}
-            onClick={() =>
-              onChange(
-                Object.fromEntries(
-                  DASHBOARD_WIDGET_OPTIONS.map((widget) => [widget.key, true])
-                ) as DashboardWidgetVisibility
-              )
-            }
-            className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-          >
-            Enable All
-          </button>
-          <button
-            type="button"
-            disabled={visibleCount === 0}
-            onClick={() =>
-              onChange(
-                Object.fromEntries(
-                  DASHBOARD_WIDGET_OPTIONS.map((widget) => [widget.key, false])
-                ) as DashboardWidgetVisibility
-              )
-            }
-            className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-          >
-            Disable All
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange({ ...DEFAULT_DASHBOARD_WIDGETS })}
-            className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold transition-all"
-            style={{
-              backgroundColor: 'var(--accent-blue)',
-              color: 'white',
-              border: '1px solid var(--accent-blue)'
-            }}
-          >
-            Reset to Defaults
-          </button>
+        <div className="mt-5 space-y-4">
+          <div>
+            <p
+              className="mb-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Visibility
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={allVisible}
+                onClick={() =>
+                  onVisibilityChange(
+                    Object.fromEntries(
+                      DASHBOARD_WIDGET_OPTIONS.map((widget) => [widget.key, true])
+                    ) as DashboardWidgetVisibility
+                  )
+                }
+                className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                Enable All Widgets
+              </button>
+              <button
+                type="button"
+                disabled={visibleCount === 0}
+                onClick={() =>
+                  onVisibilityChange(
+                    Object.fromEntries(
+                      DASHBOARD_WIDGET_OPTIONS.map((widget) => [widget.key, false])
+                    ) as DashboardWidgetVisibility
+                  )
+                }
+                className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                Disable All Widgets
+              </button>
+              <button
+                type="button"
+                onClick={() => onVisibilityChange({ ...DEFAULT_DASHBOARD_WIDGETS })}
+                className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                Reset Visibility
+              </button>
+            </div>
+          </div>
+          <div>
+            <p
+              className="mb-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Reset
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onOrderChange([...DEFAULT_DASHBOARD_WIDGET_ORDER])}
+                className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                Reset Order
+              </button>
+              <button
+                type="button"
+                onClick={onResetEverything}
+                className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold text-white"
+                style={{
+                  backgroundColor: 'var(--accent-blue)',
+                  border: '1px solid var(--accent-blue)'
+                }}
+              >
+                Reset Everything
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -165,7 +276,10 @@ export function DashboardPage() {
   const isPollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
   const setPollingPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
   const widgets = useUiSettingsStore((state) => state.dashboardWidgets)
+  const widgetOrder = useUiSettingsStore((state) => state.dashboardWidgetOrder)
   const setDashboardWidgets = useUiSettingsStore((state) => state.setDashboardWidgets)
+  const setDashboardWidgetOrder = useUiSettingsStore((state) => state.setDashboardWidgetOrder)
+  const setDashboardPreferences = useUiSettingsStore((state) => state.setDashboardPreferences)
   const hasVisibleWidgets = Object.values(widgets).some(Boolean)
 
   return (
@@ -173,7 +287,14 @@ export function DashboardPage() {
       {showCustomization && (
         <DashboardCustomizationDialog
           widgets={widgets}
-          onChange={setDashboardWidgets}
+          order={widgetOrder}
+          onVisibilityChange={setDashboardWidgets}
+          onOrderChange={setDashboardWidgetOrder}
+          onResetEverything={() =>
+            setDashboardPreferences({ ...DEFAULT_DASHBOARD_WIDGETS }, [
+              ...DEFAULT_DASHBOARD_WIDGET_ORDER
+            ])
+          }
           onClose={() => setShowCustomization(false)}
         />
       )}
@@ -223,18 +344,21 @@ export function DashboardPage() {
       </div>
 
       {hasVisibleWidgets ? (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 mb-4 items-stretch">
-            {widgets.cpu && <CpuWidget />}
-            {widgets.memory && <MemoryWidget />}
-            {widgets.disk && <DiskWidget />}
-            {widgets.network && <NetworkWidget />}
-            {widgets.gpu && <GpuWidget />}
-            {widgets.battery && <BatteryWidget />}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 mb-4 items-stretch">
+          {widgetOrder.map((widget) => {
+            if (!widgets[widget]) return null
+            const Widget = DASHBOARD_WIDGET_COMPONENTS[widget]
 
-          {widgets.anomalies && <AnomalyPanel />}
-        </>
+            return (
+              <div
+                key={widget}
+                className={widget === 'anomalies' ? 'lg:col-span-2 2xl:col-span-3' : 'contents'}
+              >
+                <Widget />
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <div
           className="flex min-h-64 items-center justify-center rounded-xl px-6 py-12 text-center"
@@ -242,22 +366,36 @@ export function DashboardPage() {
         >
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Your dashboard is empty
+              No dashboard widgets are currently visible.
             </p>
             <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Restore the default widgets or customize the dashboard to choose what appears here.
+              Restore the default layout or enable every widget to rebuild your overview.
             </p>
-            <button
-              type="button"
-              onClick={() => setDashboardWidgets({ ...DEFAULT_DASHBOARD_WIDGETS })}
-              className="mt-4 min-h-10 rounded-lg px-4 py-2 text-xs font-semibold text-white transition-all"
-              style={{
-                backgroundColor: 'var(--accent-blue)',
-                border: '1px solid var(--accent-blue)'
-              }}
-            >
-              Restore Defaults
-            </button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setDashboardPreferences({ ...DEFAULT_DASHBOARD_WIDGETS }, [
+                    ...DEFAULT_DASHBOARD_WIDGET_ORDER
+                  ])
+                }
+                className="min-h-10 rounded-lg px-4 py-2 text-xs font-semibold text-white"
+                style={{
+                  backgroundColor: 'var(--accent-blue)',
+                  border: '1px solid var(--accent-blue)'
+                }}
+              >
+                Restore Defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => setDashboardWidgets({ ...DEFAULT_DASHBOARD_WIDGETS })}
+                className="min-h-10 rounded-lg px-4 py-2 text-xs font-semibold"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                Enable All Widgets
+              </button>
+            </div>
           </div>
         </div>
       )}

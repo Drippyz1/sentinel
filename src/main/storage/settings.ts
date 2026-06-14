@@ -3,11 +3,13 @@ import { join } from 'path'
 import { readFileSync, renameSync, writeFileSync } from 'fs'
 import type {
   AppSettings,
+  DashboardWidget,
   MonitoringAlerts,
   SettingsSaveResult,
   UiSettings,
   UiSettingsPatch
 } from '../../shared/contracts'
+import { DASHBOARD_WIDGET_KEYS } from '../../shared/contracts'
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
   sensitive: 2.0,
@@ -26,6 +28,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
     battery: true,
     anomalies: true
   },
+  dashboardWidgetOrder: [...DASHBOARD_WIDGET_KEYS],
   historyView: 'chart',
   historyMetrics: {
     cpu: true,
@@ -148,6 +151,7 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     typeof dashboardWidgets.network === 'boolean' &&
     typeof dashboardWidgets.battery === 'boolean' &&
     typeof dashboardWidgets.anomalies === 'boolean' &&
+    isValidDashboardWidgetOrder(ui.dashboardWidgetOrder) &&
     isOneOf(ui.historyView, ['chart', 'table']) &&
     isOneOf(ui.historyRangeMinutes, HISTORY_RANGES) &&
     isOneOf(ui.processDensity, ['compact', 'comfortable']) &&
@@ -168,6 +172,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   const validKeys = new Set([
     'dashboardPollingPaused',
     'dashboardWidgets',
+    'dashboardWidgetOrder',
     'historyView',
     'historyMetrics',
     'historyRangeMinutes',
@@ -190,6 +195,12 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
     if (Object.values(value.dashboardWidgets).some((widget) => typeof widget !== 'boolean')) {
       return false
     }
+  }
+  if (
+    value.dashboardWidgetOrder !== undefined &&
+    !isValidDashboardWidgetOrder(value.dashboardWidgetOrder)
+  ) {
+    return false
   }
   if (value.historyView !== undefined && !isOneOf(value.historyView, ['chart', 'table'])) {
     return false
@@ -282,6 +293,26 @@ function booleanOr(value: unknown, fallback: boolean): boolean {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function isDashboardWidget(value: unknown): value is DashboardWidget {
+  return typeof value === 'string' && DASHBOARD_WIDGET_KEYS.includes(value as DashboardWidget)
+}
+
+function isValidDashboardWidgetOrder(value: unknown): value is DashboardWidget[] {
+  return (
+    Array.isArray(value) &&
+    value.length === DASHBOARD_WIDGET_KEYS.length &&
+    value.every(isDashboardWidget) &&
+    new Set(value).size === DASHBOARD_WIDGET_KEYS.length
+  )
+}
+
+function normalizeDashboardWidgetOrder(value: unknown): DashboardWidget[] {
+  const savedOrder = Array.isArray(value) ? value.filter(isDashboardWidget) : []
+  const uniqueOrder = [...new Set(savedOrder)]
+  const missingWidgets = DASHBOARD_WIDGET_KEYS.filter((widget) => !uniqueOrder.includes(widget))
+  return [...uniqueOrder, ...missingWidgets]
 }
 
 function isValidMonitoringAlertRule(value: unknown, minimum: number, maximum: number): boolean {
@@ -392,6 +423,7 @@ function normalizeSettings(value: unknown): AppSettings {
           DEFAULT_UI_SETTINGS.dashboardWidgets.anomalies
         )
       },
+      dashboardWidgetOrder: normalizeDashboardWidgetOrder(rawUi.dashboardWidgetOrder),
       historyView: isOneOf(rawUi.historyView, ['chart', 'table'])
         ? rawUi.historyView
         : DEFAULT_UI_SETTINGS.historyView,
