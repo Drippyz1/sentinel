@@ -3,11 +3,13 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { setThreshold } from './analysis/anomalyDetector'
 import { invalidateSystemInfoCache } from './collectors/systemInfo'
 import { registerIpcHandlers } from './ipc'
+import { broadcastAlertHistory } from './ipc/alerts'
 import { AppLifecycle } from './lifecycle/appLifecycle'
 import { MetricsService } from './services/MetricsService'
 import { MonitoringAlertService } from './services/MonitoringAlertService'
 import { closeDatabase, getDatabase } from './storage/database'
 import { cleanOldSnapshots, recordSnapshot } from './storage/recorder'
+import { recordAlertHistory } from './storage/alertHistory'
 import { loadSettings, SENSITIVITY_THRESHOLD, updateUiSettings } from './storage/settings'
 import { destroyTray, setTrayCompact, setupTray, showMainWindow } from './tray'
 import { createMainWindow } from './windows/mainWindow'
@@ -55,7 +57,9 @@ app.whenReady().then(() => {
   getDatabase()
 
   let lastNotificationAt = 0
-  const monitoringAlertService = new MonitoringAlertService()
+  const monitoringAlertService = new MonitoringAlertService({
+    onTriggered: (alerts) => broadcastAlertHistory(recordAlertHistory(alerts))
+  })
   const metricsService = new MetricsService({
     getIntervalMs: () => loadSettings().pollIntervalMs,
     shouldBroadcast: () => !loadSettings().ui.dashboardPollingPaused,

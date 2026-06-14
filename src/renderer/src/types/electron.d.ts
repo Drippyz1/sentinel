@@ -1,4 +1,5 @@
 import type {
+  AlertHistoryEntry,
   AnomalyReport,
   AppSettings,
   BatteryMetrics,
@@ -45,6 +46,10 @@ declare global {
       getStartupMetrics: () => Promise<StartupMetrics>
       exportSystemReport: (format: SystemReportFormat) => Promise<SystemReportExport>
       getAnomalyReport: () => Promise<AnomalyReport | null>
+      getAlertHistory: () => Promise<AlertHistoryEntry[]>
+      markAllAlertsRead: () => Promise<AlertHistoryEntry[]>
+      clearAlertHistory: () => Promise<AlertHistoryEntry[]>
+      onAlertHistoryUpdated: (callback: (alerts: AlertHistoryEntry[]) => void) => () => void
       toggleStartupItem: (itemPath: string, enable: boolean) => Promise<boolean>
 
       // Settings

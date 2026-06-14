@@ -51,6 +51,25 @@ function initializeSchema(db: Database.Database) {
     ON metric_snapshots(timestamp)
   `)
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_history (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp    INTEGER NOT NULL,
+      type         TEXT    NOT NULL,
+      severity     TEXT    NOT NULL,
+      title        TEXT    NOT NULL,
+      message      TEXT    NOT NULL,
+      metric_value REAL    NOT NULL,
+      threshold    REAL    NOT NULL,
+      is_read      INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_alert_history_timestamp
+    ON alert_history(timestamp DESC)
+  `)
+
   // Migrate existing databases that have the old NOT NULL constraints.
   // SQLite can't ALTER COLUMN, so we recreate the table if the old
   // schema is detected by checking the column info.

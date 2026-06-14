@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AlertHistoryEntry,
   AppSettings,
   MetricsSnapshot,
   SettingsSaveResult,
@@ -38,6 +39,17 @@ if (process.contextIsolated) {
       exportSystemReport: (format: SystemReportFormat) =>
         ipcRenderer.invoke('export-system-report', format),
       getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
+      getAlertHistory: (): Promise<AlertHistoryEntry[]> => ipcRenderer.invoke('get-alert-history'),
+      markAllAlertsRead: (): Promise<AlertHistoryEntry[]> =>
+        ipcRenderer.invoke('mark-all-alerts-read'),
+      clearAlertHistory: (): Promise<AlertHistoryEntry[]> =>
+        ipcRenderer.invoke('clear-alert-history'),
+      onAlertHistoryUpdated: (callback: (alerts: AlertHistoryEntry[]) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, alerts: AlertHistoryEntry[]) =>
+          callback(alerts)
+        ipcRenderer.on('alert-history-updated', listener)
+        return () => ipcRenderer.removeListener('alert-history-updated', listener)
+      },
       toggleStartupItem: (itemPath: string, enable: boolean) =>
         ipcRenderer.invoke('toggle-startup-item', itemPath, enable),
 

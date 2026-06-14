@@ -4,7 +4,6 @@ import {
   useCpuMetrics,
   useDiskMetrics,
   useGpuMetrics,
-  useAnomalyReport,
   useMemoryMetrics,
   useMetricsStatus,
   useMetricsSubscription,
@@ -12,6 +11,7 @@ import {
 } from './hooks/useMetrics'
 import { UsageBar } from './components/ui/UsageBar'
 import { useUiSettingsStore } from './store/uiSettingsStore'
+import { useAlertHistoryStore } from './store/alertHistoryStore'
 import { formatBytes, formatPercent, formatSpeed, formatTime } from './utils/format'
 
 interface MetricRowProps {
@@ -54,11 +54,14 @@ function TrayContent() {
   const initialized = useUiSettingsStore((state) => state.initialized)
   const isPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
   const setPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
+  const initializeAlertHistory = useAlertHistoryStore((state) => state.initialize)
+  const alerts = useAlertHistoryStore((state) => state.alerts)
   const [compact, setCompact] = useState(false)
 
   useEffect(() => {
     void initializeUiSettings()
-  }, [initializeUiSettings])
+    void initializeAlertHistory()
+  }, [initializeAlertHistory, initializeUiSettings])
 
   useMetricsSubscription()
 
@@ -68,8 +71,9 @@ function TrayContent() {
   const network = useNetworkMetrics()
   const gpu = useGpuMetrics()
   const battery = useBatteryMetrics()
-  const anomalyReport = useAnomalyReport()
   const { isLoading, lastUpdated } = useMetricsStatus()
+  const unreadAlerts = alerts.filter((alert) => !alert.read)
+  const mostRecentAlert = alerts[0]
   const primaryDrive = disk?.drives.find((drive) => drive.mount === '/') ?? disk?.drives[0]
   const gpuController = gpu?.controllers[0]
 
@@ -115,8 +119,8 @@ function TrayContent() {
           <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>
             {lastUpdated ? `Updated ${formatTime(lastUpdated)}` : 'Waiting for metrics'}
             {isPaused ? ' · Paused' : ''}
-            {anomalyReport?.hasAnomalies
-              ? ` · ${anomalyReport.anomalies.length} alert${anomalyReport.anomalies.length === 1 ? '' : 's'}`
+            {unreadAlerts.length > 0
+              ? ` · ${unreadAlerts.length} unread alert${unreadAlerts.length === 1 ? '' : 's'}`
               : ''}
           </p>
         </div>
@@ -232,10 +236,13 @@ function TrayContent() {
             <span
               className="min-w-0 truncate text-right text-xs font-semibold"
               style={{
-                color: anomalyReport?.hasAnomalies ? 'var(--accent-amber)' : 'var(--accent-green)'
+                color: unreadAlerts.length > 0 ? 'var(--accent-amber)' : 'var(--accent-green)'
               }}
+              title={mostRecentAlert?.title}
             >
-              {anomalyReport?.hasAnomalies ? `${anomalyReport.anomalies.length} active` : 'Clear'}
+              {unreadAlerts.length > 0
+                ? `${unreadAlerts.length} unread`
+                : mostRecentAlert?.title || 'None'}
             </span>
           </div>
         )}

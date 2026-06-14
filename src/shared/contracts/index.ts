@@ -1,3 +1,4 @@
+export * from './alerts'
 export * from './history'
 export * from './metrics'
 export * from './report'

@@ -1,5 +1,11 @@
 import { Notification } from 'electron'
-import type { MetricsSnapshot, MonitoringAlerts, MonitoringAlertRule } from '../../shared/contracts'
+import type {
+  MetricsSnapshot,
+  MonitoringAlerts,
+  MonitoringAlertRule,
+  MonitoringAlertSeverity,
+  NewAlertHistoryEntry
+} from '../../shared/contracts'
 
 const SUSTAINED_THRESHOLD_MS = 10_000
 const MAX_SAMPLE_GAP_MS = 30_000
@@ -21,6 +27,10 @@ interface AlertReading {
   message: string
 }
 
+interface MonitoringAlertServiceOptions {
+  onTriggered?: (alerts: NewAlertHistoryEntry[]) => void
+}
+
 export class MonitoringAlertService {
   private readonly states: Record<AlertKey, AlertState> = {
     cpu: { exceededSince: null, lastObservedAt: null, thresholdPercent: null },
@@ -30,6 +40,8 @@ export class MonitoringAlertService {
   }
 
   private lastNotificationAt = 0
+
+  constructor(private readonly options: MonitoringAlertServiceOptions = {}) {}
 
   processSnapshot(snapshot: MetricsSnapshot, settings: MonitoringAlerts): void {
     const now = snapshot.timestamp
@@ -81,7 +93,38 @@ export class MonitoringAlertService {
       this.lastNotificationAt = now
     } catch (error) {
       console.error('Failed to show monitoring alert notification:', error)
+      return
     }
+
+    try {
+      this.options.onTriggered?.(
+        sustainedAlerts.flatMap((alert) =>
+          alert.value === null
+            ? []
+            : [
+                {
+                  timestamp: now,
+                  type: alert.key,
+                  severity: this.getSeverity(alert),
+                  title: `${alert.label} Alert`,
+                  message: alert.message,
+                  metricValue: alert.value,
+                  threshold: alert.rule.thresholdPercent
+                }
+              ]
+        )
+      )
+    } catch (error) {
+      console.error('Failed to record monitoring alert history:', error)
+    }
+  }
+
+  private getSeverity(alert: AlertReading): MonitoringAlertSeverity {
+    if (alert.value === null) return 'warning'
+    if (alert.key === 'battery') {
+      return alert.value <= Math.min(10, alert.rule.thresholdPercent) ? 'critical' : 'warning'
+    }
+    return alert.value >= Math.min(100, alert.rule.thresholdPercent + 10) ? 'critical' : 'warning'
   }
 
   private getReadings(snapshot: MetricsSnapshot, settings: MonitoringAlerts): AlertReading[] {

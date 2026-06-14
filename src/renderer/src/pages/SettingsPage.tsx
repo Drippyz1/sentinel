@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { AppSettings, MonitoringAlertRule, MonitoringAlerts } from '../../../shared/contracts'
+import type {
+  AlertHistoryEntry,
+  AppSettings,
+  MonitoringAlertRule,
+  MonitoringAlerts
+} from '../../../shared/contracts'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
+import { useAlertHistoryStore } from '../store/alertHistoryStore'
 
 const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: 1,
@@ -187,6 +193,133 @@ function AlertSettingRow({
   )
 }
 
+function AlertHistoryItem({ alert }: { alert: AlertHistoryEntry }) {
+  const timestamp = new Date(alert.timestamp).toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
+
+  return (
+    <li
+      className="rounded-lg px-3 py-3"
+      style={{
+        backgroundColor: alert.read ? 'var(--bg-base)' : 'rgba(59, 130, 246, 0.08)',
+        border: `1px solid ${alert.read ? 'var(--border)' : 'rgba(59, 130, 246, 0.3)'}`
+      }}
+    >
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {!alert.read && (
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: 'var(--accent-blue)' }}
+              aria-label="Unread"
+            />
+          )}
+          <p className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {alert.title}
+          </p>
+        </div>
+        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: 'var(--text-muted)' }}>
+          {timestamp}
+        </span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        {alert.message}
+      </p>
+      <p className="mt-1.5 text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+        Recorded {alert.metricValue.toFixed(1)}% · Threshold {alert.threshold}% ·{' '}
+        <span
+          style={{
+            color: alert.severity === 'critical' ? 'var(--accent-red)' : 'var(--accent-amber)'
+          }}
+        >
+          {alert.severity}
+        </span>
+      </p>
+    </li>
+  )
+}
+
+function AlertHistorySection() {
+  const alerts = useAlertHistoryStore((state) => state.alerts)
+  const initialized = useAlertHistoryStore((state) => state.initialized)
+  const markAllRead = useAlertHistoryStore((state) => state.markAllRead)
+  const clear = useAlertHistoryStore((state) => state.clear)
+  const unreadCount = alerts.filter((alert) => !alert.read).length
+  const [actionPending, setActionPending] = useState<'read' | 'clear' | null>(null)
+
+  async function runAction(action: 'read' | 'clear') {
+    setActionPending(action)
+    try {
+      await (action === 'read' ? markAllRead() : clear())
+    } catch (error) {
+      console.error(
+        `Failed to ${action === 'read' ? 'mark alerts as read' : 'clear alerts'}:`,
+        error
+      )
+    } finally {
+      setActionPending(null)
+    }
+  }
+
+  return (
+    <Section
+      title="Alert History"
+      description="The latest 100 monitoring alerts are stored locally on this device."
+    >
+      <div className="p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {unreadCount > 0
+              ? `${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}`
+              : 'All alerts read'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={unreadCount === 0 || actionPending !== null}
+              onClick={() => void runAction('read')}
+              className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+            >
+              {actionPending === 'read' ? 'Marking...' : 'Mark all as read'}
+            </button>
+            <button
+              type="button"
+              disabled={alerts.length === 0 || actionPending !== null}
+              onClick={() => void runAction('clear')}
+              className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ color: 'var(--accent-red)', border: '1px solid var(--border)' }}
+            >
+              {actionPending === 'clear' ? 'Clearing...' : 'Clear History'}
+            </button>
+          </div>
+        </div>
+
+        {!initialized ? (
+          <div className="py-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+            Loading alert history...
+          </div>
+        ) : alerts.length === 0 ? (
+          <div
+            className="rounded-lg px-4 py-8 text-center text-sm"
+            style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+          >
+            No alerts triggered yet.
+          </div>
+        ) : (
+          <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
+            {alerts.map((alert) => (
+              <AlertHistoryItem key={alert.id} alert={alert} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </Section>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -196,6 +329,7 @@ export function SettingsPage() {
   const [loadError, setLoadError] = useState(false)
   const [launchAtLoginError, setLaunchAtLoginError] = useState<string | null>(null)
   const [savingLaunchAtLogin, setSavingLaunchAtLogin] = useState(false)
+  const initializeAlertHistory = useAlertHistoryStore((state) => state.initialize)
 
   useEffect(() => {
     window.electronAPI
@@ -207,6 +341,10 @@ export function SettingsPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    void initializeAlertHistory()
+  }, [initializeAlertHistory])
 
   async function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     const previous = settings
@@ -433,6 +571,8 @@ export function SettingsPage() {
           />
         </Row>
       </Section>
+
+      <AlertHistorySection />
 
       {/* ── Data & Storage ───────────────────────── */}
       <Section title="Data & Storage">
