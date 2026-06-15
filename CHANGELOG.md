@@ -2,6 +2,35 @@
 
 All notable changes to Sentinel are documented in this file.
 
+## [0.4.0] - 2026-06-15
+
+### Added
+
+- Network Connections page with local-only connection inspection, search, protocol and state
+  filters, process grouping, and copy actions.
+- Floating Mini Monitor with live CPU, memory, GPU, network, and battery metrics.
+- Diagnostic Bundle export containing privacy-filtered reports, history, alerts, settings, and
+  application metadata.
+- Persistent Alert History with unread state, retention controls, and compact alert analytics.
+- Process Details drawer with extended process metadata and safe quick actions.
+- Dashboard widget reordering with migration-safe persistence for future widgets.
+- Historical alert markers for correlating alerts with CPU, memory, disk, and battery charts.
+- Dashboard mini charts and Compact, Comfortable, and Detailed density modes.
+
+### Changed
+
+- Improved dashboard customization, metric trend presentation, responsive controls, and widget
+  layout behavior.
+- Expanded report privacy disclosures and sanitization for troubleshooting exports.
+- Centralized live metric collection so dashboard, tray, history, and mini-monitor consumers share
+  snapshots.
+
+### Fixed
+
+- Corrected Mini Monitor restoration and shutdown lifecycle behavior.
+- Constrained tray popover sizing and separated tray state from the main application window.
+- Improved macOS Launch at Login failures and unsupported thermal sensor messaging.
+
 ## [0.2.0] - 2026-06-13
 
 > Upgrade note: v0.1.0 packages used the template version `1.0.0` and bundle identifier
@@ -35,5 +64,6 @@ All notable changes to Sentinel are documented in this file.
 
 - Initial public release.
 
+[0.4.0]: https://github.com/Drippyz1/sentinel/compare/v0.3.1...v0.4.0
 [0.2.0]: https://github.com/Drippyz1/sentinel/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Drippyz1/sentinel/releases/tag/v0.1.0
