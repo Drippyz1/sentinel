@@ -1,6 +1,7 @@
 export * from './alerts'
 export * from './history'
 export * from './metrics'
+export * from './networkConnections'
 export * from './report'
 export * from './settings'
 export * from './system'

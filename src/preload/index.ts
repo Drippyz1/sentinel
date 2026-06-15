@@ -6,6 +6,7 @@ import type {
   AppSettings,
   DiagnosticBundleExport,
   MetricsSnapshot,
+  NetworkConnectionsResult,
   ProcessDetails,
   SettingsSaveResult,
   SystemReportFormat,
@@ -36,6 +37,8 @@ if (process.contextIsolated) {
       getMemoryMetrics: () => ipcRenderer.invoke('get-memory-metrics'),
       getDiskMetrics: () => ipcRenderer.invoke('get-disk-metrics'),
       getNetworkMetrics: () => ipcRenderer.invoke('get-network-metrics'),
+      getNetworkConnections: (): Promise<NetworkConnectionsResult> =>
+        ipcRenderer.invoke('get-network-connections'),
       getProcessMetrics: () => ipcRenderer.invoke('get-process-metrics'),
       getProcessDetails: (pid: number): Promise<ProcessDetails | null> =>
         ipcRenderer.invoke('get-process-details', pid),

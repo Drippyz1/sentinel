@@ -3,6 +3,7 @@ import { registerAlertIpc } from './alerts'
 import { registerHistoryIpc } from './history'
 import { registerMetricsIpc } from './metrics'
 import { registerMiniMonitorIpc } from './miniMonitor'
+import { registerNetworkConnectionsIpc } from './networkConnections'
 import { registerProcessIpc } from './processes'
 import { registerSettingsIpc } from './settings'
 import { registerShellIpc } from './shell'
@@ -23,6 +24,7 @@ export function registerIpcHandlers(options: RegisterIpcOptions): void {
   registerAlertIpc()
   registerMetricsIpc(options.metricsService)
   registerMiniMonitorIpc(options)
+  registerNetworkConnectionsIpc()
   registerHistoryIpc()
   registerSettingsIpc(options)
   registerProcessIpc(options.metricsService)

@@ -5,6 +5,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProcessesPage } from './pages/ProcessesPage'
 import { HistoryPage } from './pages/HistoryPage'
+import { NetworkConnectionsPage } from './pages/NetworkConnectionsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SystemPage } from './pages/SystemPage'
 import { useUiSettingsStore } from './store/uiSettingsStore'
@@ -42,6 +43,7 @@ function AppContent() {
       <Route path="/" element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="processes" element={<ProcessesPage />} />
+        <Route path="network" element={<NetworkConnectionsPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="system" element={<SystemPage />} />

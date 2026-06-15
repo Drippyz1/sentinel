@@ -13,6 +13,7 @@ import type {
   MemoryMetrics,
   MetricsSnapshot,
   NetworkMetrics,
+  NetworkConnectionsResult,
   ProcessDetails,
   ProcessMetrics,
   SettingsSaveResult,
@@ -43,6 +44,7 @@ declare global {
       getMemoryMetrics: () => Promise<MemoryMetrics>
       getDiskMetrics: () => Promise<DiskMetrics>
       getNetworkMetrics: () => Promise<NetworkMetrics>
+      getNetworkConnections: () => Promise<NetworkConnectionsResult>
       getProcessMetrics: () => Promise<ProcessMetrics>
       getProcessDetails: (pid: number) => Promise<ProcessDetails | null>
       revealProcess: (pid: number) => Promise<boolean>
