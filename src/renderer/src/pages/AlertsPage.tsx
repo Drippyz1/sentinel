@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type {
   AlertAnalytics,
   AlertHistoryEntry,
@@ -196,6 +197,8 @@ function AlertHistoryItem({ alert }: { alert: AlertHistoryEntry }) {
 }
 
 export function AlertsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const alerts = useAlertHistoryStore((state) => state.alerts)
   const analytics = useAlertHistoryStore((state) => state.analytics)
   const initialized = useAlertHistoryStore((state) => state.initialized)
@@ -209,6 +212,17 @@ export function AlertsPage() {
   useEffect(() => {
     void initialize()
   }, [initialize])
+
+  useEffect(() => {
+    const command = location.state?.command
+    if (command !== 'focus-alert-history' && command !== 'focus-alert-analytics') return
+    const targetId = command === 'focus-alert-history' ? 'alert-history' : 'alert-analytics'
+    const scrollTimer = setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      navigate(location.pathname, { replace: true, state: null })
+    }, 0)
+    return () => clearTimeout(scrollTimer)
+  }, [location.pathname, location.state, navigate])
 
   const unreadCount = analytics?.unreadAlerts ?? alerts.filter((alert) => !alert.read).length
   const filteredAlerts = useMemo(() => {
@@ -284,102 +298,106 @@ export function AlertsPage() {
         </div>
       </div>
 
-      <AlertAnalyticsPanel analytics={analytics} loading={!initialized} />
+      <section id="alert-analytics" className="scroll-mt-4">
+        <AlertAnalyticsPanel analytics={analytics} loading={!initialized} />
+      </section>
 
-      <Card className="mt-4">
-        <div className="mb-4">
-          <label
-            htmlFor="alert-search"
-            className="mb-1.5 block text-xs font-semibold"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Search alerts
-          </label>
-          <div className="relative">
-            <input
-              id="alert-search"
-              type="search"
-              placeholder="Title, message, type, severity, or value"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="min-h-10 w-full rounded-lg py-2.5 pl-3.5 pr-16 text-sm outline-none"
-              style={{
-                color: 'var(--text-primary)',
-                backgroundColor: 'var(--bg-base)',
-                border: '1px solid var(--accent-blue)'
-              }}
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute bottom-1.5 right-2 min-h-7 rounded-md px-2 text-xs"
-                style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
-              >
-                Clear
-              </button>
-            )}
+      <section id="alert-history" className="mt-4 scroll-mt-4">
+        <Card>
+          <div className="mb-4">
+            <label
+              htmlFor="alert-search"
+              className="mb-1.5 block text-xs font-semibold"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Search alerts
+            </label>
+            <div className="relative">
+              <input
+                id="alert-search"
+                type="search"
+                placeholder="Title, message, type, severity, or value"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="min-h-10 w-full rounded-lg py-2.5 pl-3.5 pr-16 text-sm outline-none"
+                style={{
+                  color: 'var(--text-primary)',
+                  backgroundColor: 'var(--bg-base)',
+                  border: '1px solid var(--accent-blue)'
+                }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute bottom-1.5 right-2 min-h-7 rounded-md px-2 text-xs"
+                  style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div
-          className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl p-3"
-          style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
-        >
-          <ControlGroup label="Filter">
-            <SegmentedControl
-              value={filter}
-              onChange={setFilter}
-              ariaLabel="Alert history filter"
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'CPU', value: 'cpu' },
-                { label: 'Memory', value: 'memory' },
-                { label: 'Disk', value: 'disk' },
-                { label: 'Battery', value: 'battery' },
-                { label: 'Warning', value: 'warning' },
-                { label: 'Critical', value: 'critical' },
-                { label: 'Unread', value: 'unread' }
-              ]}
-            />
-          </ControlGroup>
-          <p className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
-            {filteredAlerts.length} of {alerts.length} alerts
-          </p>
-        </div>
-
-        {!initialized ? (
-          <div className="py-12 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            Loading alert history...
-          </div>
-        ) : alerts.length === 0 ? (
           <div
-            className="rounded-lg px-4 py-12 text-center"
-            style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+            className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl p-3"
+            style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
           >
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              No alerts triggered yet.
+            <ControlGroup label="Filter">
+              <SegmentedControl
+                value={filter}
+                onChange={setFilter}
+                ariaLabel="Alert history filter"
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'CPU', value: 'cpu' },
+                  { label: 'Memory', value: 'memory' },
+                  { label: 'Disk', value: 'disk' },
+                  { label: 'Battery', value: 'battery' },
+                  { label: 'Warning', value: 'warning' },
+                  { label: 'Critical', value: 'critical' },
+                  { label: 'Unread', value: 'unread' }
+                ]}
+              />
+            </ControlGroup>
+            <p className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+              {filteredAlerts.length} of {alerts.length} alerts
             </p>
-            <p className="mt-1 text-xs">Triggered monitoring alerts will appear here.</p>
           </div>
-        ) : filteredAlerts.length === 0 ? (
-          <div
-            className="rounded-lg px-4 py-12 text-center"
-            style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
-          >
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              No alerts match these filters.
-            </p>
-            <p className="mt-1 text-xs">Adjust the search or filter to see more results.</p>
-          </div>
-        ) : (
-          <ul className="max-h-[calc(100vh-520px)] min-h-48 space-y-2 overflow-y-auto pr-1">
-            {filteredAlerts.map((alert) => (
-              <AlertHistoryItem key={alert.id} alert={alert} />
-            ))}
-          </ul>
-        )}
-      </Card>
+
+          {!initialized ? (
+            <div className="py-12 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+              Loading alert history...
+            </div>
+          ) : alerts.length === 0 ? (
+            <div
+              className="rounded-lg px-4 py-12 text-center"
+              style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+            >
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                No alerts triggered yet.
+              </p>
+              <p className="mt-1 text-xs">Triggered monitoring alerts will appear here.</p>
+            </div>
+          ) : filteredAlerts.length === 0 ? (
+            <div
+              className="rounded-lg px-4 py-12 text-center"
+              style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+            >
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                No alerts match these filters.
+              </p>
+              <p className="mt-1 text-xs">Adjust the search or filter to see more results.</p>
+            </div>
+          ) : (
+            <ul className="max-h-[calc(100vh-520px)] min-h-48 space-y-2 overflow-y-auto pr-1">
+              {filteredAlerts.map((alert) => (
+                <AlertHistoryItem key={alert.id} alert={alert} />
+              ))}
+            </ul>
+          )}
+        </Card>
+      </section>
     </div>
   )
 }

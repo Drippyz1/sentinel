@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type {
   StartupMetrics,
   SystemInfo,
@@ -551,6 +552,8 @@ function StartupCard({
 // ─────────────────────────────────────────────
 
 export function SystemPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const cpu = useCpuMetrics()
   const gpu = useGpuMetrics()
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
@@ -572,6 +575,16 @@ export function SystemPage() {
     (gpu === null ||
       !gpu.hasGpu ||
       gpu.controllers.every((controller) => controller.temperatureCelsius === null))
+
+  useEffect(() => {
+    if (location.state?.command !== 'open-diagnostic-bundle') return
+    const openDialog = setTimeout(() => {
+      setBundleError(null)
+      setShowBundleDialog(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }, 0)
+    return () => clearTimeout(openDialog)
+  }, [location.pathname, location.state, navigate])
 
   const refreshStartup = useCallback(() => {
     setLoadingStartup(true)
