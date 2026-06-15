@@ -24,4 +24,14 @@ export interface AlertHistoryEntry {
   read: boolean
 }
 
+export interface AlertAnalytics {
+  alertsLast24Hours: number
+  alertsLast7Days: number
+  unreadAlerts: number
+  mostCommonType: MonitoringAlertType | null
+  lastAlertTimestamp: number | null
+  countsByType: Record<MonitoringAlertType, number>
+  countsBySeverity: Record<MonitoringAlertSeverity, number>
+}
+
 export type NewAlertHistoryEntry = Omit<AlertHistoryEntry, 'id' | 'read'>

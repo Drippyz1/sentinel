@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import type {
+  AlertAnalytics,
   AlertHistoryEntry,
   AppSettings,
   MonitoringAlertRule,
-  MonitoringAlerts
+  MonitoringAlerts,
+  MonitoringAlertType
 } from '../../../shared/contracts'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 import { useAlertHistoryStore } from '../store/alertHistoryStore'
@@ -247,12 +249,143 @@ function AlertHistoryItem({ alert }: { alert: AlertHistoryEntry }) {
   )
 }
 
+const ALERT_TYPE_LABELS: Record<MonitoringAlertType, string> = {
+  cpu: 'CPU',
+  memory: 'Memory',
+  disk: 'Disk',
+  battery: 'Battery'
+}
+
+function AlertAnalyticsPanel({
+  analytics,
+  loading
+}: {
+  analytics: AlertAnalytics | null
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <div
+        className="mb-4 rounded-lg px-3 py-5 text-center text-xs"
+        style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+      >
+        Loading alert analytics...
+      </div>
+    )
+  }
+
+  if (!analytics) {
+    return (
+      <div
+        className="mb-4 rounded-lg px-3 py-5 text-center text-xs"
+        style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-base)' }}
+      >
+        Alert analytics are unavailable.
+      </div>
+    )
+  }
+
+  const lastAlert = analytics.lastAlertTimestamp
+    ? new Date(analytics.lastAlertTimestamp).toLocaleString([], {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })
+    : 'No alerts yet'
+  const overview = [
+    { label: 'Last 24 hours', value: analytics.alertsLast24Hours.toString() },
+    { label: 'Last 7 days', value: analytics.alertsLast7Days.toString() },
+    { label: 'Unread', value: analytics.unreadAlerts.toString() },
+    {
+      label: 'Most common',
+      value: analytics.mostCommonType ? ALERT_TYPE_LABELS[analytics.mostCommonType] : 'None'
+    },
+    { label: 'Last alert', value: lastAlert }
+  ]
+
+  return (
+    <div
+      className="mb-4 rounded-lg p-3"
+      style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {overview.map((item) => (
+          <div key={item.label} className="min-w-0 rounded-md px-2.5 py-2">
+            <p
+              className="text-[10px] font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {item.label}
+            </p>
+            <p
+              className="mt-1 truncate text-sm font-semibold tabular-nums"
+              style={{ color: 'var(--text-primary)' }}
+              title={item.value}
+            >
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-2"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div>
+          <p
+            className="mb-2 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            By type
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.entries(analytics.countsByType) as [MonitoringAlertType, number][]).map(
+              ([type, count]) => (
+                <span
+                  key={type}
+                  className="rounded-md px-2 py-1 text-xs tabular-nums"
+                  style={{ color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                >
+                  {ALERT_TYPE_LABELS[type]} {count}
+                </span>
+              )
+            )}
+          </div>
+        </div>
+        <div>
+          <p
+            className="mb-2 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            By severity
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className="rounded-md px-2 py-1 text-xs tabular-nums"
+              style={{ color: 'var(--accent-amber)', border: '1px solid var(--border)' }}
+            >
+              Warning {analytics.countsBySeverity.warning}
+            </span>
+            <span
+              className="rounded-md px-2 py-1 text-xs tabular-nums"
+              style={{ color: 'var(--accent-red)', border: '1px solid var(--border)' }}
+            >
+              Critical {analytics.countsBySeverity.critical}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AlertHistorySection() {
   const alerts = useAlertHistoryStore((state) => state.alerts)
+  const analytics = useAlertHistoryStore((state) => state.analytics)
   const initialized = useAlertHistoryStore((state) => state.initialized)
   const markAllRead = useAlertHistoryStore((state) => state.markAllRead)
   const clear = useAlertHistoryStore((state) => state.clear)
-  const unreadCount = alerts.filter((alert) => !alert.read).length
+  const unreadCount = analytics?.unreadAlerts ?? alerts.filter((alert) => !alert.read).length
   const [actionPending, setActionPending] = useState<'read' | 'clear' | null>(null)
 
   async function runAction(action: 'read' | 'clear') {
@@ -275,6 +408,8 @@ function AlertHistorySection() {
       description="The latest 100 monitoring alerts are stored locally on this device."
     >
       <div className="p-4">
+        <AlertAnalyticsPanel analytics={analytics} loading={!initialized} />
+
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {unreadCount > 0

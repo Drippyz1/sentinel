@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AlertAnalytics,
   AlertHistoryEntry,
   AlertMarker,
   AppSettings,
@@ -52,6 +53,7 @@ if (process.contextIsolated) {
         ipcRenderer.invoke('export-diagnostic-bundle'),
       getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
       getAlertHistory: (): Promise<AlertHistoryEntry[]> => ipcRenderer.invoke('get-alert-history'),
+      getAlertAnalytics: (): Promise<AlertAnalytics> => ipcRenderer.invoke('get-alert-analytics'),
       getAlertMarkers: (minutes: number): Promise<AlertMarker[]> =>
         ipcRenderer.invoke('get-alert-markers', minutes),
       markAllAlertsRead: (): Promise<AlertHistoryEntry[]> =>
@@ -63,6 +65,12 @@ if (process.contextIsolated) {
           callback(alerts)
         ipcRenderer.on('alert-history-updated', listener)
         return () => ipcRenderer.removeListener('alert-history-updated', listener)
+      },
+      onAlertAnalyticsUpdated: (callback: (analytics: AlertAnalytics) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, analytics: AlertAnalytics) =>
+          callback(analytics)
+        ipcRenderer.on('alert-analytics-updated', listener)
+        return () => ipcRenderer.removeListener('alert-analytics-updated', listener)
       },
       toggleStartupItem: (itemPath: string, enable: boolean) =>
         ipcRenderer.invoke('toggle-startup-item', itemPath, enable),

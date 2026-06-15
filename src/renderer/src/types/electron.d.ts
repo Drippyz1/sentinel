@@ -1,4 +1,5 @@
 import type {
+  AlertAnalytics,
   AlertHistoryEntry,
   AlertMarker,
   AnomalyReport,
@@ -56,10 +57,12 @@ declare global {
       exportDiagnosticBundle: () => Promise<DiagnosticBundleExport>
       getAnomalyReport: () => Promise<AnomalyReport | null>
       getAlertHistory: () => Promise<AlertHistoryEntry[]>
+      getAlertAnalytics: () => Promise<AlertAnalytics>
       getAlertMarkers: (minutes: number) => Promise<AlertMarker[]>
       markAllAlertsRead: () => Promise<AlertHistoryEntry[]>
       clearAlertHistory: () => Promise<AlertHistoryEntry[]>
       onAlertHistoryUpdated: (callback: (alerts: AlertHistoryEntry[]) => void) => () => void
+      onAlertAnalyticsUpdated: (callback: (analytics: AlertAnalytics) => void) => () => void
       toggleStartupItem: (itemPath: string, enable: boolean) => Promise<boolean>
 
       // Settings
