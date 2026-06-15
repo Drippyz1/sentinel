@@ -84,3 +84,9 @@ export interface SystemReportExport {
   mimeType: 'application/json' | 'text/plain'
   content: string
 }
+
+export interface DiagnosticBundleExport {
+  filename: string
+  mimeType: 'application/zip'
+  content: ArrayBuffer
+}

@@ -66,7 +66,8 @@ function positionTrayWindow(): void {
 
 export function setupTray(
   mainWindowProvider: () => BrowserWindow | null,
-  saveUiSettings: (patch: UiSettingsPatch) => boolean
+  saveUiSettings: (patch: UiSettingsPatch) => boolean,
+  showMiniMonitor: () => void
 ) {
   getMainWindow = mainWindowProvider
   const icon = createTrayIcon()
@@ -98,6 +99,10 @@ export function setupTray(
         {
           label: paused ? 'Resume Live Updates' : 'Pause Live Updates',
           click: () => saveUiSettings({ dashboardPollingPaused: !paused })
+        },
+        {
+          label: 'Show Mini Monitor',
+          click: showMiniMonitor
         },
         { type: 'separator' },
         {

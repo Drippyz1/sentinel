@@ -10,11 +10,23 @@ import { getHistoryMetadata } from '../storage/queries'
 import { loadSettings } from '../storage/settings'
 import type { SystemReport, SystemReportExport, SystemReportFormat } from '../../shared/contracts'
 import { normalizeTemperature } from '../../shared/utils/temperature'
+import { sanitizePrivateText } from './privacy'
 
 export async function createSystemReportExport(
   metricsService: MetricsService,
   format: SystemReportFormat
 ): Promise<SystemReportExport> {
+  const report = await createSystemReport(metricsService)
+  const generatedAt = new Date(report.generatedAt)
+  const extension = format === 'json' ? 'json' : 'txt'
+  return {
+    filename: `sentinel-report-${formatFilenameTimestamp(generatedAt)}.${extension}`,
+    mimeType: format === 'json' ? 'application/json' : 'text/plain',
+    content: serializeSystemReport(report, format)
+  }
+}
+
+export async function createSystemReport(metricsService: MetricsService): Promise<SystemReport> {
   const [snapshot, systemInfo, startup, databaseSizeBytes] = await Promise.all([
     metricsService.getLatestSnapshot(),
     getSystemInfo(),
@@ -31,7 +43,7 @@ export async function createSystemReportExport(
     enabled
   }))
 
-  const report: SystemReport = {
+  return {
     generatedAt: generatedAt.toISOString(),
     system: {
       hostname: systemInfo.hostname,
@@ -99,13 +111,10 @@ export async function createSystemReportExport(
       newestSnapshotTimestamp: toIsoTimestamp(history.newestTimestamp)
     }
   }
+}
 
-  const extension = format === 'json' ? 'json' : 'txt'
-  return {
-    filename: `sentinel-report-${formatFilenameTimestamp(generatedAt)}.${extension}`,
-    mimeType: format === 'json' ? 'application/json' : 'text/plain',
-    content: format === 'json' ? JSON.stringify(report, null, 2) : formatTextReport(report)
-  }
+export function serializeSystemReport(report: SystemReport, format: SystemReportFormat): string {
+  return format === 'json' ? JSON.stringify(report, null, 2) : formatTextReport(report)
 }
 
 async function getDatabaseSize(): Promise<number | null> {
@@ -140,7 +149,7 @@ function toStartupReportItem(item: { name: string; type: string; description: st
   return {
     name: item.name,
     type: item.type,
-    description: item.description
+    description: sanitizePrivateText(item.description)
   }
 }
 
@@ -148,7 +157,7 @@ function toIsoTimestamp(timestamp: number | null): string | null {
   return timestamp === null ? null : new Date(timestamp).toISOString()
 }
 
-function formatFilenameTimestamp(date: Date): string {
+export function formatFilenameTimestamp(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0')
   return [
     date.getFullYear(),

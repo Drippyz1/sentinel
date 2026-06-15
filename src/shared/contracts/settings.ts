@@ -18,6 +18,11 @@ export type DashboardWidget = (typeof DASHBOARD_WIDGET_KEYS)[number]
 export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
 export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
 
+export interface MiniMonitorPosition {
+  x: number
+  y: number
+}
+
 export interface MonitoringAlertRule {
   enabled: boolean
   thresholdPercent: number
@@ -34,6 +39,9 @@ export interface MonitoringAlerts {
 export interface UiSettings {
   dashboardPollingPaused: boolean
   dashboardDensity: DashboardDensity
+  miniMonitorVisible: boolean
+  miniMonitorAlwaysOnTop: boolean
+  miniMonitorPosition: MiniMonitorPosition | null
   dashboardWidgets: DashboardWidgetVisibility
   dashboardWidgetOrder: DashboardWidget[]
   historyView: HistoryView

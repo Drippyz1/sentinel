@@ -1,16 +1,16 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
-  --bg-base:       #0d0f14;
-  --bg-card:       #13161e;
+  --bg-base: #0d0f14;
+  --bg-card: #13161e;
   --bg-card-hover: #1a1d28;
-  --border:        #1e2130;
-  --text-primary:  #e8eaf0;
-  --text-muted:    #6b7280;
-  --accent-blue:   #3b82f6;
-  --accent-green:  #22c55e;
-  --accent-amber:  #f59e0b;
-  --accent-red:    #ef4444;
+  --border: #1e2130;
+  --text-primary: #e8eaf0;
+  --text-muted: #6b7280;
+  --accent-blue: #3b82f6;
+  --accent-green: #22c55e;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
   --accent-purple: #a855f7;
 }
 
@@ -56,6 +56,15 @@ button:disabled {
 #root {
   height: 100vh;
   min-width: 0;
+}
+
+.window-drag {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag,
+.window-no-drag * {
+  -webkit-app-region: no-drag;
 }
 
 /* Custom scrollbar so it matches the dark theme */

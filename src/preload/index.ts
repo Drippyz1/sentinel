@@ -3,6 +3,7 @@ import type {
   AlertHistoryEntry,
   AlertMarker,
   AppSettings,
+  DiagnosticBundleExport,
   MetricsSnapshot,
   ProcessDetails,
   SettingsSaveResult,
@@ -17,6 +18,10 @@ if (process.contextIsolated) {
       openMainWindow: () => ipcRenderer.invoke('open-main-window'),
       quitApp: () => ipcRenderer.invoke('quit-app'),
       setTrayCompact: (compact: boolean) => ipcRenderer.invoke('set-tray-compact', compact),
+      showMiniMonitor: () => ipcRenderer.invoke('show-mini-monitor'),
+      hideMiniMonitor: () => ipcRenderer.invoke('hide-mini-monitor'),
+      setMiniMonitorAlwaysOnTop: (alwaysOnTop: boolean) =>
+        ipcRenderer.invoke('set-mini-monitor-always-on-top', alwaysOnTop),
 
       // Live metrics
       getLatestMetrics: () => ipcRenderer.invoke('get-latest-metrics'),
@@ -43,6 +48,8 @@ if (process.contextIsolated) {
       getStartupMetrics: () => ipcRenderer.invoke('get-startup-metrics'),
       exportSystemReport: (format: SystemReportFormat) =>
         ipcRenderer.invoke('export-system-report', format),
+      exportDiagnosticBundle: (): Promise<DiagnosticBundleExport> =>
+        ipcRenderer.invoke('export-diagnostic-bundle'),
       getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
       getAlertHistory: (): Promise<AlertHistoryEntry[]> => ipcRenderer.invoke('get-alert-history'),
       getAlertMarkers: (minutes: number): Promise<AlertMarker[]> =>

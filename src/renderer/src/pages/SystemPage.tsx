@@ -176,6 +176,131 @@ function ReportExportDialog({
   )
 }
 
+function DiagnosticBundleDialog({
+  error,
+  isExporting,
+  onCancel,
+  onExport
+}: {
+  error: string | null
+  isExporting: boolean
+  onCancel: () => void
+  onExport: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
+      onClick={() => {
+        if (!isExporting) onCancel()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="diagnostic-bundle-title"
+        className="w-full max-w-md rounded-xl p-5 shadow-xl"
+        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2
+          id="diagnostic-bundle-title"
+          className="text-base font-semibold"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          Export diagnostic bundle?
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          This ZIP is designed for troubleshooting and may contain identifying device or network
+          details.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div
+            className="rounded-lg px-3 py-3 text-xs"
+            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Included
+            </p>
+            <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
+              <li>System information</li>
+              <li>Alert history</li>
+              <li>History metrics</li>
+              <li>Settings</li>
+            </ul>
+          </div>
+          <div
+            className="rounded-lg px-3 py-3 text-xs"
+            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Excluded
+            </p>
+            <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
+              <li>Serial numbers</li>
+              <li>Private paths</li>
+              <li>Credentials</li>
+            </ul>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Review the bundle contents before attaching it to a public issue.
+        </p>
+
+        {error && (
+          <div
+            className="mt-4 rounded-lg px-3 py-2 text-xs"
+            style={{
+              color: 'var(--accent-red)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)'
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onExport}
+            disabled={isExporting}
+            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: 'var(--accent-blue)',
+              border: '1px solid var(--accent-blue)'
+            }}
+          >
+            {isExporting ? 'Exporting...' : 'Export Bundle'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function downloadExport(content: BlobPart, mimeType: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 // ─────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────
@@ -438,6 +563,9 @@ export function SystemPage() {
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportingFormat, setExportingFormat] = useState<SystemReportFormat | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [showBundleDialog, setShowBundleDialog] = useState(false)
+  const [isExportingBundle, setIsExportingBundle] = useState(false)
+  const [bundleError, setBundleError] = useState<string | null>(null)
   const temperaturesUnavailable =
     cpu !== null &&
     cpu.temperature === null &&
@@ -489,22 +617,28 @@ export function SystemPage() {
     setExportError(null)
     try {
       const report = await window.electronAPI.exportSystemReport(format)
-      const url = URL.createObjectURL(
-        new Blob([report.content], { type: `${report.mimeType};charset=utf-8` })
-      )
-      const link = document.createElement('a')
-      link.href = url
-      link.download = report.filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 0)
+      downloadExport(report.content, `${report.mimeType};charset=utf-8`, report.filename)
       setShowExportDialog(false)
     } catch (error) {
       console.error('Failed to export system report:', error)
       setExportError('The system report could not be generated. Please try again.')
     } finally {
       setExportingFormat(null)
+    }
+  }
+
+  async function exportDiagnosticBundle() {
+    setIsExportingBundle(true)
+    setBundleError(null)
+    try {
+      const bundle = await window.electronAPI.exportDiagnosticBundle()
+      downloadExport(bundle.content, bundle.mimeType, bundle.filename)
+      setShowBundleDialog(false)
+    } catch (error) {
+      console.error('Failed to export diagnostic bundle:', error)
+      setBundleError('The diagnostic bundle could not be generated. Please try again.')
+    } finally {
+      setIsExportingBundle(false)
     }
   }
 
@@ -521,6 +655,17 @@ export function SystemPage() {
           onExport={(format) => void exportReport(format)}
         />
       )}
+      {showBundleDialog && (
+        <DiagnosticBundleDialog
+          error={bundleError}
+          isExporting={isExportingBundle}
+          onCancel={() => {
+            setShowBundleDialog(false)
+            setBundleError(null)
+          }}
+          onExport={() => void exportDiagnosticBundle()}
+        />
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
@@ -535,22 +680,40 @@ export function SystemPage() {
         </div>
         <div className="flex w-full flex-wrap items-start gap-4 sm:w-auto sm:justify-end">
           <ControlGroup label="Actions">
-            <button
-              type="button"
-              onClick={() => {
-                setExportError(null)
-                setShowExportDialog(true)
-              }}
-              disabled={exportingFormat !== null}
-              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                backgroundColor: 'var(--accent-blue)',
-                color: 'white',
-                border: '1px solid var(--accent-blue)'
-              }}
-            >
-              Export Report
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setExportError(null)
+                  setShowExportDialog(true)
+                }}
+                disabled={exportingFormat !== null || isExportingBundle}
+                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--accent-blue)',
+                  color: 'white',
+                  border: '1px solid var(--accent-blue)'
+                }}
+              >
+                Export Report
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBundleError(null)
+                  setShowBundleDialog(true)
+                }}
+                disabled={exportingFormat !== null || isExportingBundle}
+                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                Diagnostic Bundle
+              </button>
+            </div>
             <p
               className="mt-1 max-w-56 text-[10px] leading-relaxed"
               style={{ color: 'var(--text-muted)' }}

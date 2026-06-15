@@ -360,6 +360,18 @@ export function DashboardPage() {
               >
                 Customize Dashboard
               </button>
+              <button
+                type="button"
+                onClick={() => void window.electronAPI.showMiniMonitor()}
+                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--accent-blue)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                Mini Monitor
+              </button>
             </div>
           </ControlGroup>
         </div>

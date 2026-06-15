@@ -5,6 +5,7 @@ import type {
   AppSettings,
   BatteryMetrics,
   CpuMetrics,
+  DiagnosticBundleExport,
   DiskMetrics,
   GpuMetrics,
   HistorySummary,
@@ -30,6 +31,9 @@ declare global {
       openMainWindow: () => Promise<void>
       quitApp: () => Promise<void>
       setTrayCompact: (compact: boolean) => Promise<void>
+      showMiniMonitor: () => Promise<void>
+      hideMiniMonitor: () => Promise<void>
+      setMiniMonitorAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
 
       // Live hardware metrics
       getLatestMetrics: () => Promise<MetricsSnapshot>
@@ -49,6 +53,7 @@ declare global {
       getThermalMetrics: () => Promise<ThermalMetrics>
       getStartupMetrics: () => Promise<StartupMetrics>
       exportSystemReport: (format: SystemReportFormat) => Promise<SystemReportExport>
+      exportDiagnosticBundle: () => Promise<DiagnosticBundleExport>
       getAnomalyReport: () => Promise<AnomalyReport | null>
       getAlertHistory: () => Promise<AlertHistoryEntry[]>
       getAlertMarkers: (minutes: number) => Promise<AlertMarker[]>

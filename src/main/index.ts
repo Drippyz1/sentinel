@@ -5,18 +5,20 @@ import { invalidateSystemInfoCache } from './collectors/systemInfo'
 import { registerIpcHandlers } from './ipc'
 import { broadcastAlertHistory } from './ipc/alerts'
 import { AppLifecycle } from './lifecycle/appLifecycle'
+import { MiniMonitorController } from './miniMonitor'
 import { MetricsService } from './services/MetricsService'
 import { MonitoringAlertService } from './services/MonitoringAlertService'
 import { closeDatabase, getDatabase } from './storage/database'
 import { cleanOldSnapshots, recordSnapshot } from './storage/recorder'
 import { recordAlertHistory } from './storage/alertHistory'
 import { loadSettings, SENSITIVITY_THRESHOLD, updateUiSettings } from './storage/settings'
-import { destroyTray, setTrayCompact, setupTray, showMainWindow } from './tray'
+import { destroyTray, setTrayCompact, setupTray } from './tray'
 import { createMainWindow } from './windows/mainWindow'
 import type { UiSettingsPatch } from '../shared/contracts'
 
 const APP_ID = 'io.github.drippyz1.sentinel'
 let mainWindow: BrowserWindow | null = null
+let miniMonitor: MiniMonitorController | null = null
 let stopBackgroundTasks: () => Promise<void> = async () => {}
 
 function openMainWindow(): BrowserWindow {
@@ -30,12 +32,24 @@ function openMainWindow(): BrowserWindow {
   return window
 }
 
+function showOrCreateMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    openMainWindow()
+    return
+  }
+
+  mainWindow.show()
+  mainWindow.focus()
+}
+
 const lifecycle = new AppLifecycle({
   createMainWindow: openMainWindow,
   getMainWindow: () => mainWindow,
   stopBackgroundTasks: () => stopBackgroundTasks(),
   closeResources: () => {
     closeDatabase()
+    miniMonitor?.destroy()
+    miniMonitor = null
     destroyTray()
   }
 })
@@ -118,13 +132,21 @@ app.whenReady().then(() => {
     return true
   }
 
+  miniMonitor = new MiniMonitorController({
+    saveUiSettings: saveUiSettingsPatch
+  })
+
   openMainWindow()
-  setupTray(() => mainWindow, saveUiSettingsPatch)
+  setupTray(() => mainWindow, saveUiSettingsPatch, miniMonitor.show)
+  miniMonitor.restore()
   registerIpcHandlers({
     metricsService,
     saveUiSettingsPatch,
-    showMainWindow,
-    setTrayCompact
+    showMainWindow: showOrCreateMainWindow,
+    setTrayCompact,
+    showMiniMonitor: miniMonitor.show,
+    hideMiniMonitor: miniMonitor.hide,
+    setMiniMonitorAlwaysOnTop: miniMonitor.setAlwaysOnTop
   })
 })
 

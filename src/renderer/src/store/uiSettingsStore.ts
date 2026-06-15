@@ -43,6 +43,9 @@ export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidget[] = [...DASHBOARD_W
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
   dashboardDensity: 'comfortable',
+  miniMonitorVisible: false,
+  miniMonitorAlwaysOnTop: true,
+  miniMonitorPosition: null,
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
   dashboardWidgetOrder: DEFAULT_DASHBOARD_WIDGET_ORDER,
   historyView: 'chart',

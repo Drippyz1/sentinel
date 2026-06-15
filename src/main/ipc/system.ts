@@ -8,6 +8,7 @@ import {
   isValidStartupPathInput
 } from '../collectors/startup'
 import { assertTrustedIpcSender } from '../ipcSecurity'
+import { createDiagnosticBundle } from '../reports/diagnosticBundle'
 import { createSystemReportExport } from '../reports/systemReport'
 import { MetricsService } from '../services/MetricsService'
 import type { SystemReportFormat } from '../../shared/contracts'
@@ -34,6 +35,10 @@ export function registerSystemIpc(metricsService: MetricsService): void {
     assertTrustedIpcSender(event)
     if (!isSystemReportFormat(format)) throw new Error('Invalid report format')
     return createSystemReportExport(metricsService, format)
+  })
+  ipcMain.handle('export-diagnostic-bundle', async (event) => {
+    assertTrustedIpcSender(event)
+    return createDiagnosticBundle(metricsService)
   })
 }
 

@@ -27,6 +27,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   ui: {
     dashboardPollingPaused: false,
     dashboardDensity: 'comfortable',
+    miniMonitorVisible: false,
+    miniMonitorAlwaysOnTop: true,
+    miniMonitorPosition: null,
     dashboardWidgets: {
       cpu: true,
       memory: true,

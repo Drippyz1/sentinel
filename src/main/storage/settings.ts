@@ -20,6 +20,9 @@ export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], nu
 const DEFAULT_UI_SETTINGS: UiSettings = {
   dashboardPollingPaused: false,
   dashboardDensity: 'comfortable',
+  miniMonitorVisible: false,
+  miniMonitorAlwaysOnTop: true,
+  miniMonitorPosition: null,
   dashboardWidgets: {
     cpu: true,
     memory: true,
@@ -147,6 +150,9 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     isOneOf(monitoringAlerts.cooldownMinutes, ALERT_COOLDOWNS) &&
     typeof ui.dashboardPollingPaused === 'boolean' &&
     isOneOf(ui.dashboardDensity, ['compact', 'comfortable', 'detailed']) &&
+    typeof ui.miniMonitorVisible === 'boolean' &&
+    typeof ui.miniMonitorAlwaysOnTop === 'boolean' &&
+    isValidMiniMonitorPosition(ui.miniMonitorPosition) &&
     typeof dashboardWidgets.cpu === 'boolean' &&
     typeof dashboardWidgets.memory === 'boolean' &&
     typeof dashboardWidgets.gpu === 'boolean' &&
@@ -176,6 +182,9 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   const validKeys = new Set([
     'dashboardPollingPaused',
     'dashboardDensity',
+    'miniMonitorVisible',
+    'miniMonitorAlwaysOnTop',
+    'miniMonitorPosition',
     'dashboardWidgets',
     'dashboardWidgetOrder',
     'historyView',
@@ -197,6 +206,21 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   if (
     value.dashboardDensity !== undefined &&
     !isOneOf(value.dashboardDensity, ['compact', 'comfortable', 'detailed'])
+  ) {
+    return false
+  }
+  if (value.miniMonitorVisible !== undefined && typeof value.miniMonitorVisible !== 'boolean') {
+    return false
+  }
+  if (
+    value.miniMonitorAlwaysOnTop !== undefined &&
+    typeof value.miniMonitorAlwaysOnTop !== 'boolean'
+  ) {
+    return false
+  }
+  if (
+    value.miniMonitorPosition !== undefined &&
+    !isValidMiniMonitorPosition(value.miniMonitorPosition)
   ) {
     return false
   }
@@ -323,6 +347,18 @@ function isValidDashboardWidgetOrder(value: unknown): value is DashboardWidget[]
   )
 }
 
+function isValidMiniMonitorPosition(value: unknown): value is UiSettings['miniMonitorPosition'] {
+  if (value === null) return true
+  if (!isRecord(value)) return false
+  return (
+    Object.keys(value).every((key) => key === 'x' || key === 'y') &&
+    typeof value.x === 'number' &&
+    Number.isFinite(value.x) &&
+    typeof value.y === 'number' &&
+    Number.isFinite(value.y)
+  )
+}
+
 function normalizeDashboardWidgetOrder(value: unknown): DashboardWidget[] {
   const savedOrder = Array.isArray(value) ? value.filter(isDashboardWidget) : []
   const uniqueOrder = [...new Set(savedOrder)]
@@ -423,6 +459,17 @@ function normalizeSettings(value: unknown): AppSettings {
       dashboardDensity: isOneOf(rawUi.dashboardDensity, ['compact', 'comfortable', 'detailed'])
         ? rawUi.dashboardDensity
         : DEFAULT_UI_SETTINGS.dashboardDensity,
+      miniMonitorVisible: booleanOr(
+        rawUi.miniMonitorVisible,
+        DEFAULT_UI_SETTINGS.miniMonitorVisible
+      ),
+      miniMonitorAlwaysOnTop: booleanOr(
+        rawUi.miniMonitorAlwaysOnTop,
+        DEFAULT_UI_SETTINGS.miniMonitorAlwaysOnTop
+      ),
+      miniMonitorPosition: isValidMiniMonitorPosition(rawUi.miniMonitorPosition)
+        ? rawUi.miniMonitorPosition
+        : DEFAULT_UI_SETTINGS.miniMonitorPosition,
       dashboardWidgets: {
         cpu: booleanOr(rawDashboardWidgets.cpu, DEFAULT_UI_SETTINGS.dashboardWidgets.cpu),
         memory: booleanOr(rawDashboardWidgets.memory, DEFAULT_UI_SETTINGS.dashboardWidgets.memory),

@@ -16,6 +16,7 @@ import type {
   SnapshotRow
 } from '../../../shared/contracts'
 import { normalizeTemperature } from '../../../shared/utils/temperature'
+import { formatHistoryCsv } from '../../../shared/utils/historyCsv'
 import { formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
@@ -28,20 +29,6 @@ const RANGES = [
   { label: '3 hours', minutes: 180 },
   { label: '6 hours', minutes: 360 },
   { label: '24 hours', minutes: 1440 }
-]
-
-const CSV_HEADER = [
-  'timestamp',
-  'cpu_usage',
-  'memory_usage',
-  'disk_read',
-  'disk_write',
-  'net_down',
-  'net_up',
-  'gpu_usage',
-  'cpu_temperature',
-  'gpu_temperature',
-  'battery'
 ]
 
 const METRIC_GROUPS: {
@@ -318,22 +305,7 @@ export function HistoryPage() {
   }, [loadHistory])
 
   function exportCsv() {
-    const rows = data.map((snapshot) =>
-      [
-        new Date(snapshot.timestamp).toISOString(),
-        snapshot.cpu_usage,
-        snapshot.memory_usage,
-        snapshot.disk_read,
-        snapshot.disk_write,
-        snapshot.net_down,
-        snapshot.net_up,
-        snapshot.gpu_usage ?? '',
-        snapshot.cpu_temperature ?? '',
-        snapshot.gpu_temperature ?? '',
-        snapshot.battery ?? ''
-      ].join(',')
-    )
-    const csv = `\uFEFF${[CSV_HEADER.join(','), ...rows].join('\r\n')}`
+    const csv = formatHistoryCsv(data)
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
 
