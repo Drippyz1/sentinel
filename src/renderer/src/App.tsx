@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { useMetricsStatus, useMetricsSubscription } from './hooks/useMetrics'
 import { AppLayout } from './components/layout/AppLayout'
+import { AlertsPage } from './pages/AlertsPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProcessesPage } from './pages/ProcessesPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -42,6 +43,7 @@ function AppContent() {
     <Routes>
       <Route path="/" element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
         <Route path="processes" element={<ProcessesPage />} />
         <Route path="network" element={<NetworkConnectionsPage />} />
         <Route path="history" element={<HistoryPage />} />

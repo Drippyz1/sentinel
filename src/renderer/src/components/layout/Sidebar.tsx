@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useAlertHistoryStore } from '../../store/alertHistoryStore'
 
 const NAV_ITEMS = [
   {
@@ -18,6 +20,25 @@ const NAV_ITEMS = [
         <rect x="14" y="3" width="7" height="7" />
         <rect x="3" y="14" width="7" height="7" />
         <rect x="14" y="14" width="7" height="7" />
+      </svg>
+    )
+  },
+  {
+    path: '/alerts',
+    label: 'Alerts',
+    icon: (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
       </svg>
     )
   },
@@ -120,6 +141,15 @@ const NAV_ITEMS = [
 ]
 
 export function Sidebar() {
+  const initializeAlerts = useAlertHistoryStore((state) => state.initialize)
+  const alerts = useAlertHistoryStore((state) => state.alerts)
+  const analytics = useAlertHistoryStore((state) => state.analytics)
+  const unreadCount = analytics?.unreadAlerts ?? alerts.filter((alert) => !alert.read).length
+
+  useEffect(() => {
+    void initializeAlerts()
+  }, [initializeAlerts])
+
   return (
     <aside
       className="flex h-full w-16 shrink-0 flex-col py-4 sm:w-52"
@@ -134,24 +164,41 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 px-3">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'} // "end" means only match exactly "/" not "/anything"
-            className="flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                       font-medium transition-all sm:justify-start"
-            title={item.label}
-            aria-label={item.label}
-            style={({ isActive }) => ({
-              backgroundColor: isActive ? 'var(--bg-card)' : 'transparent',
-              color: isActive ? 'var(--text-primary)' : 'var(--text-muted)'
-            })}
-          >
-            {item.icon}
-            <span className="hidden sm:block">{item.label}</span>
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const itemUnreadCount = item.path === '/alerts' ? unreadCount : 0
+          const label =
+            itemUnreadCount > 0
+              ? `${item.label}, ${itemUnreadCount} unread alert${itemUnreadCount === 1 ? '' : 's'}`
+              : item.label
+
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'} // "end" means only match exactly "/" not "/anything"
+              className="relative flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm
+                         font-medium transition-all sm:justify-start"
+              title={label}
+              aria-label={label}
+              style={({ isActive }) => ({
+                backgroundColor: isActive ? 'var(--bg-card)' : 'transparent',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-muted)'
+              })}
+            >
+              {item.icon}
+              <span className="hidden sm:block">{item.label}</span>
+              {itemUnreadCount > 0 && (
+                <span
+                  className="absolute right-1 top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white sm:static sm:ml-auto sm:min-h-5 sm:min-w-5 sm:text-[10px]"
+                  style={{ backgroundColor: 'var(--accent-red)' }}
+                  aria-hidden="true"
+                >
+                  {itemUnreadCount > 99 ? '99+' : itemUnreadCount}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
     </aside>
   )
