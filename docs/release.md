@@ -84,8 +84,8 @@ The release profile avoids Snap in CI because Snap packaging requires extra host
 Release tags must match `package.json` exactly:
 
 ```bash
-git tag v0.4.2
-git push origin v0.4.2
+git tag v0.4.3
+git push origin v0.4.3
 ```
 
 `npm run verify:version` checks that `package.json`, `package-lock.json`, the GitHub tag, and
