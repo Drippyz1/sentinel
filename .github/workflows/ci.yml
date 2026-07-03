@@ -43,3 +43,9 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+      - name: Verify release metadata
+        run: npm run verify:version
+
+      - name: Package unpacked Linux app
+        run: npm run build:unpack

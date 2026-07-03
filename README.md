@@ -199,6 +199,10 @@ npm run build:linux
 
 Platform packages are written to `dist/`. Build each target on its native operating system because Sentinel includes the native `better-sqlite3` module.
 
+Use `npm run dist:mac:dev` for local macOS smoke-test packages. Public release builds use
+the guarded `dist:*` scripts and require signing/notarization credentials where the platform
+expects them. See [docs/release.md](docs/release.md) for exact release steps.
+
 > Startup item management and detailed thermal information currently use macOS system services. Other monitoring features use cross-platform collectors where supported by the host.
 
 ## Roadmap

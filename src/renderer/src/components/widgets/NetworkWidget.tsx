@@ -14,7 +14,15 @@ export function NetworkWidget({ density }: DashboardWidgetProps) {
   const network = useNetworkMetrics()
   const downHistory = useHistoryStore((state) => state.networkDown)
   const upHistory = useHistoryStore((state) => state.networkUp)
-  if (!network) return null
+  if (!network) {
+    return (
+      <Card title="Network" subtitle="Collecting metrics" density={density}>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Reading network data...
+        </p>
+      </Card>
+    )
+  }
 
   const activeInterfaces = network.interfaces.filter((i) => i.isActive)
   const compact = isCompactDashboard(density)

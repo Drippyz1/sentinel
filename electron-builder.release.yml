@@ -1,0 +1,22 @@
+extends: electron-builder.yml
+beforePack: build/beforePack.release.cjs
+mac:
+  icon: resources/icon.icns
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  forceCodeSigning: true
+  entitlements: build/entitlements.mac.release.plist
+  entitlementsInherit: build/entitlements.mac.release.inherit.plist
+  entitlementsLoginHelper: build/entitlements.mac.release.inherit.plist
+  notarize: true
+win:
+  executableName: sentinel
+  icon: resources/icon.ico
+linux:
+  icon: resources/icon.png
+  target:
+    - AppImage
+    - deb
+  maintainer: Drippyz1
+  category: Utility

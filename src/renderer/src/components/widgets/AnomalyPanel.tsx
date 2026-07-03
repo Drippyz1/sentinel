@@ -76,7 +76,15 @@ function AnomalyItem({ anomaly, compact }: { anomaly: Anomaly; compact: boolean 
 export function AnomalyPanel({ density }: DashboardWidgetProps) {
   const report = useAnomalyReport()
 
-  if (!report) return null
+  if (!report) {
+    return (
+      <Card title="Anomaly Detection" density={density}>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Waiting for metric samples...
+        </p>
+      </Card>
+    )
+  }
   const compact = isCompactDashboard(density)
 
   // Still warming up — show progress

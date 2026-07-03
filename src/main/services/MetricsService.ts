@@ -7,7 +7,76 @@ import { getGpuMetrics } from '../collectors/gpu'
 import { getBatteryMetrics } from '../collectors/battery'
 import { getProcessMetrics } from '../collectors/processes'
 import { checkForAnomalies } from '../analysis/anomalyDetector'
-import type { MetricsSnapshot } from '../../shared/contracts'
+import type {
+  BatteryMetrics,
+  CpuMetrics,
+  DiskMetrics,
+  GpuMetrics,
+  MemoryMetrics,
+  MetricsSnapshot,
+  NetworkMetrics,
+  ProcessMetrics
+} from '../../shared/contracts'
+import { normalizeDiskMetrics } from '../../shared/utils/disk'
+
+const FALLBACK_CPU: CpuMetrics = {
+  manufacturer: 'Unknown',
+  brand: 'Unavailable',
+  speedGHz: 0,
+  cores: 0,
+  usagePercent: 0,
+  perCoreUsage: [],
+  temperature: null
+}
+
+const FALLBACK_MEMORY: MemoryMetrics = {
+  totalBytes: 0,
+  usedBytes: 0,
+  freeBytes: 0,
+  activeBytes: 0,
+  inactiveBytes: 0,
+  cachedBytes: 0,
+  swapTotalBytes: 0,
+  swapUsedBytes: 0,
+  usagePercent: 0,
+  swapUsagePercent: 0
+}
+
+const FALLBACK_DISK: DiskMetrics = {
+  drives: [],
+  io: { readBytesPerSec: 0, writeBytesPerSec: 0 }
+}
+
+const FALLBACK_NETWORK: NetworkMetrics = {
+  interfaces: [],
+  totalDownloadBytesPerSec: 0,
+  totalUploadBytesPerSec: 0
+}
+
+const FALLBACK_GPU: GpuMetrics = {
+  controllers: [],
+  hasGpu: false
+}
+
+const FALLBACK_BATTERY: BatteryMetrics = {
+  hasBattery: false,
+  chargePercent: 0,
+  isCharging: false,
+  isPluggedIn: false,
+  timeRemainingMins: null,
+  voltage: null,
+  capacityWh: null,
+  designCapacityWh: null,
+  healthPercent: null,
+  cycleCount: null,
+  manufacturer: null,
+  model: null
+}
+
+const FALLBACK_PROCESSES: ProcessMetrics = {
+  list: [],
+  total: 0
+}
 
 interface MetricsServiceOptions {
   getIntervalMs: () => number
@@ -107,25 +176,27 @@ export class MetricsService {
   }
 
   private async collectSnapshot(): Promise<MetricsSnapshot> {
-    const processesPromise = getProcessMetrics().catch((error) => {
-      console.error('Process metrics collection failed:', error)
-      return this.latestSnapshot?.processes ?? { list: [], total: 0 }
-    })
+    const previous = this.latestSnapshot
     const [cpu, memory, disk, network, gpu, battery, processes] = await Promise.all([
-      getCpuMetrics(),
-      getMemoryMetrics(),
-      getDiskMetrics(),
-      getNetworkMetrics(),
-      getGpuMetrics(),
-      getBatteryMetrics(),
-      processesPromise
+      this.collectMetric('CPU', getCpuMetrics, () => previous?.cpu ?? FALLBACK_CPU),
+      this.collectMetric('Memory', getMemoryMetrics, () => previous?.memory ?? FALLBACK_MEMORY),
+      this.collectMetric('Disk', getDiskMetrics, () => previous?.disk ?? FALLBACK_DISK),
+      this.collectMetric('Network', getNetworkMetrics, () => previous?.network ?? FALLBACK_NETWORK),
+      this.collectMetric('GPU', getGpuMetrics, () => previous?.gpu ?? FALLBACK_GPU),
+      this.collectMetric('Battery', getBatteryMetrics, () => previous?.battery ?? FALLBACK_BATTERY),
+      this.collectMetric(
+        'Process',
+        getProcessMetrics,
+        () => previous?.processes ?? FALLBACK_PROCESSES
+      )
     ])
+    const normalizedDisk = normalizeDiskMetrics(disk)
     const timestamp = Date.now()
     const anomalyReport = checkForAnomalies({
       cpu: cpu.usagePercent,
       memory: memory.usagePercent,
-      diskRead: disk.io.readBytesPerSec,
-      diskWrite: disk.io.writeBytesPerSec,
+      diskRead: normalizedDisk.io.readBytesPerSec,
+      diskWrite: normalizedDisk.io.writeBytesPerSec,
       netDown: network.totalDownloadBytesPerSec,
       netUp: network.totalUploadBytesPerSec,
       gpu: gpu.controllers[0]?.utilizationPercent ?? null
@@ -135,7 +206,7 @@ export class MetricsService {
       timestamp,
       cpu,
       memory,
-      disk,
+      disk: normalizedDisk,
       network,
       gpu,
       battery,
@@ -148,5 +219,18 @@ export class MetricsService {
     if (!this.timer) return
     clearTimeout(this.timer)
     this.timer = null
+  }
+
+  private async collectMetric<T>(
+    name: string,
+    collector: () => Promise<T>,
+    fallback: () => T
+  ): Promise<T> {
+    try {
+      return await collector()
+    } catch (error) {
+      console.error(`${name} metrics collection failed:`, error)
+      return fallback()
+    }
   }
 }

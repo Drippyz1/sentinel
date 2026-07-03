@@ -19,6 +19,12 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "verify:version": "node scripts/release/verify-version.cjs",
+    "verify:diff": "git diff --check",
+    "verify": "npm run lint && npm run typecheck && npm run build && npm run verify:version && npm run verify:diff",
+    "verify:mac": "node scripts/release/verify-mac-app.cjs",
+    "verify:mac:release": "node scripts/release/verify-mac-app.cjs --strict-release",
+    "release:check-env": "node scripts/release/check-release-env.cjs",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
@@ -26,7 +32,13 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "dist": "npm run dist:mac",
+    "dist:mac": "npm run dist:mac:release",
+    "dist:mac:dev": "npm run build && electron-builder --mac --publish never && npm run verify:mac",
+    "dist:mac:release": "npm run release:check-env -- mac && npm run build && electron-builder --mac --config electron-builder.release.yml --publish never && npm run verify:mac:release",
+    "dist:win": "npm run release:check-env -- win && npm run build && electron-builder --win --config electron-builder.release.yml --publish never",
+    "dist:linux": "npm run release:check-env -- linux && npm run build && electron-builder --linux --config electron-builder.release.yml --publish never"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

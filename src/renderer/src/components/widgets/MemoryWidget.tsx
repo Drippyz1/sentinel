@@ -15,7 +15,15 @@ import {
 export function MemoryWidget({ density }: DashboardWidgetProps) {
   const memory = useMemoryMetrics()
   const history = useHistoryStore((state) => state.memory)
-  if (!memory) return null
+  if (!memory) {
+    return (
+      <Card title="Memory" subtitle="Collecting metrics" density={density}>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Reading memory data...
+        </p>
+      </Card>
+    )
+  }
   const compact = isCompactDashboard(density)
 
   return (

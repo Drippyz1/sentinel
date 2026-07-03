@@ -22,7 +22,11 @@ nsis:
 mac:
   icon: resources/icon.icns
   category: public.app-category.utilities
-  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  entitlementsLoginHelper: build/entitlements.mac.inherit.plist
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}

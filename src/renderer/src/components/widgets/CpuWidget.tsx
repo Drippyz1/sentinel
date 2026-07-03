@@ -17,7 +17,15 @@ export function CpuWidget({ density }: DashboardWidgetProps) {
   const cpu = useCpuMetrics()
   const history = useHistoryStore((state) => state.cpu)
   const { formatTemp } = useTemp()
-  if (!cpu) return null
+  if (!cpu) {
+    return (
+      <Card title="CPU" subtitle="Collecting metrics" density={density}>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Reading processor data...
+        </p>
+      </Card>
+    )
+  }
   const compact = isCompactDashboard(density)
 
   return (
