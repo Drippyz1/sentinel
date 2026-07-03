@@ -84,9 +84,36 @@ The release profile avoids Snap in CI because Snap packaging requires extra host
 Release tags must match `package.json` exactly:
 
 ```bash
-git tag v0.4.3
-git push origin v0.4.3
+git tag v0.4.4
+git push origin v0.4.4
 ```
 
 `npm run verify:version` checks that `package.json`, `package-lock.json`, the GitHub tag, and
 the Electron Builder app identity agree before release packaging.
+
+## 0.4.4 Release Flow
+
+Create the release tag from the verified commit that contains the 0.4.4 version bump:
+
+```bash
+git status
+npm run verify
+git add .
+git commit -m "Prepare release 0.4.4"
+git push
+
+git tag v0.4.4
+git push origin v0.4.4
+```
+
+If `v0.4.4` already exists and points at the wrong commit, delete and recreate it intentionally:
+
+```bash
+git tag -d v0.4.4
+git push origin :refs/tags/v0.4.4
+git tag v0.4.4
+git push origin v0.4.4
+```
+
+The release workflow builds the commit referenced by the pushed tag, so do not reuse stale tags or
+upload artifacts produced from an older commit.
