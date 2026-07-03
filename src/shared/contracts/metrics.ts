@@ -32,8 +32,12 @@ export interface DiskDrive {
   type: string
   totalBytes: number
   usedBytes: number
+  availableBytes: number
   freeBytes: number
+  purgeableBytes: number | null
+  availableIncludesPurgeable: boolean
   usagePercent: number
+  isPrimary: boolean
 }
 
 export interface DiskIO {

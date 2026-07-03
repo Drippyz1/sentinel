@@ -12,6 +12,7 @@ import {
 import { UsageBar } from './components/ui/UsageBar'
 import { useUiSettingsStore } from './store/uiSettingsStore'
 import { useAlertHistoryStore } from './store/alertHistoryStore'
+import { selectPrimaryDrive } from '../../shared/utils/disk'
 import { formatBytes, formatPercent, formatSpeed, formatTime } from './utils/format'
 
 interface MetricRowProps {
@@ -34,7 +35,7 @@ function MetricRow({ label, value, percent, accent, detail, compact }: MetricRow
           {!compact && <UsageBar percent={percent} accent={accent} height={3} />}
         </div>
         <span
-          className="w-14 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
+          className="w-20 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
           style={{ color: 'var(--text-primary)' }}
         >
           {value}
@@ -74,7 +75,7 @@ function TrayContent() {
   const { isLoading, lastUpdated } = useMetricsStatus()
   const unreadAlerts = alerts.filter((alert) => !alert.read)
   const mostRecentAlert = alerts[0]
-  const primaryDrive = disk?.drives.find((drive) => drive.mount === '/') ?? disk?.drives[0]
+  const primaryDrive = selectPrimaryDrive(disk?.drives)
   const gpuController = gpu?.controllers[0]
 
   function toggleCompact() {
@@ -170,11 +171,11 @@ function TrayContent() {
         )}
         <MetricRow
           label="Disk"
-          value={primaryDrive ? formatPercent(primaryDrive.usagePercent, 0) : '—'}
+          value={primaryDrive ? formatBytes(primaryDrive.availableBytes) : '—'}
           percent={primaryDrive?.usagePercent ?? 0}
           detail={
-            disk
-              ? `Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`
+            disk && primaryDrive
+              ? `${formatPercent(primaryDrive.usagePercent, 0)} used · Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`
               : undefined
           }
           compact={compact}

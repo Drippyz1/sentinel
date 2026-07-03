@@ -10,6 +10,7 @@ import type {
   NetworkMetrics,
   ProcessMetrics
 } from '../../../shared/contracts'
+import { normalizeDiskMetrics } from '../../../shared/utils/disk'
 import { useHistoryStore } from './historyStore'
 
 interface MetricsState {
@@ -49,11 +50,12 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
   applySnapshot: (snapshot) => {
     const currentTimestamp = get().lastUpdated?.getTime() ?? 0
     if (snapshot.timestamp <= currentTimestamp) return
+    const disk = normalizeDiskMetrics(snapshot.disk)
 
     set({
       cpu: snapshot.cpu,
       memory: snapshot.memory,
-      disk: snapshot.disk,
+      disk,
       network: snapshot.network,
       processes: snapshot.processes,
       gpu: snapshot.gpu,
@@ -69,8 +71,8 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
       timestamp: snapshot.timestamp,
       cpu: snapshot.cpu.usagePercent,
       memory: snapshot.memory.usagePercent,
-      diskRead: snapshot.disk.io.readBytesPerSec,
-      diskWrite: snapshot.disk.io.writeBytesPerSec,
+      diskRead: disk.io.readBytesPerSec,
+      diskWrite: disk.io.writeBytesPerSec,
       networkDown: snapshot.network.totalDownloadBytesPerSec,
       networkUp: snapshot.network.totalUploadBytesPerSec,
       gpu: snapshot.gpu.controllers[0]?.utilizationPercent ?? null,

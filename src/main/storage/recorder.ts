@@ -8,6 +8,7 @@ import type {
   MemoryMetrics,
   NetworkMetrics
 } from '../../shared/contracts'
+import { normalizeDiskMetrics, selectPrimaryDrive } from '../../shared/utils/disk'
 import { normalizeTemperature } from '../../shared/utils/temperature'
 
 const RETENTION_DAYS = 7
@@ -32,12 +33,12 @@ function getInsertStmt(): Database.Statement {
   insertStmt = getDatabase().prepare(`
     INSERT INTO metric_snapshots (
       timestamp, cpu_usage, memory_usage, memory_used,
-      disk_usage, disk_read, disk_write,
+      disk_usage, disk_available, disk_free, disk_purgeable, disk_read, disk_write,
       net_down, net_up, gpu_usage, battery,
       cpu_temperature, gpu_temperature
     ) VALUES (
       @timestamp, @cpu_usage, @memory_usage, @memory_used,
-      @disk_usage, @disk_read, @disk_write,
+      @disk_usage, @disk_available, @disk_free, @disk_purgeable, @disk_read, @disk_write,
       @net_down, @net_up, @gpu_usage, @battery,
       @cpu_temperature, @gpu_temperature
     )
@@ -55,7 +56,8 @@ function getCleanupStmt(): Database.Statement {
 
 export function recordSnapshot(data: SnapshotData) {
   try {
-    const primaryDrive = data.disk.drives.find((d) => d.mount === '/') ?? data.disk.drives[0]
+    const disk = normalizeDiskMetrics(data.disk)
+    const primaryDrive = selectPrimaryDrive(disk.drives)
 
     getInsertStmt().run({
       timestamp: data.timestamp ?? Date.now(),
@@ -63,8 +65,11 @@ export function recordSnapshot(data: SnapshotData) {
       memory_usage: data.memory.usagePercent ?? 0,
       memory_used: data.memory.usedBytes ?? 0,
       disk_usage: primaryDrive?.usagePercent ?? 0,
-      disk_read: data.disk.io.readBytesPerSec ?? 0,
-      disk_write: data.disk.io.writeBytesPerSec ?? 0,
+      disk_available: primaryDrive?.availableBytes ?? null,
+      disk_free: primaryDrive?.freeBytes ?? null,
+      disk_purgeable: primaryDrive?.purgeableBytes ?? null,
+      disk_read: disk.io.readBytesPerSec,
+      disk_write: disk.io.writeBytesPerSec,
       net_down: data.network.totalDownloadBytesPerSec ?? 0,
       net_up: data.network.totalUploadBytesPerSec ?? 0,
       gpu_usage: data.gpu?.controllers[0]?.utilizationPercent ?? null,

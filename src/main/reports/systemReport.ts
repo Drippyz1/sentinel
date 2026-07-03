@@ -79,7 +79,11 @@ export async function createSystemReport(metricsService: MetricsService): Promis
       type: drive.type,
       capacityBytes: drive.totalBytes,
       usedBytes: drive.usedBytes,
-      freeBytes: drive.freeBytes
+      availableBytes: finiteOrNull(drive.availableBytes),
+      freeBytes: drive.freeBytes,
+      purgeableBytes: finiteOrNull(drive.purgeableBytes),
+      availableIncludesPurgeable: drive.availableIncludesPurgeable,
+      isPrimary: drive.isPrimary
     })),
     network: snapshot.network.interfaces.map((networkInterface) => ({
       name: networkInterface.name,
@@ -242,10 +246,21 @@ function formatTextReport(report: SystemReport): string {
       lines.push(
         `${drive.name} (${drive.mount})`,
         `  Type: ${drive.type || 'Unavailable'}`,
-        `  Capacity: ${formatBytes(drive.capacityBytes)}`,
+        `  Total: ${formatBytes(drive.capacityBytes)}`,
+        `  Available: ${formatBytes(drive.availableBytes)}`,
+        `  Free now: ${formatBytes(drive.freeBytes)}`,
+        `  Purgeable: ${formatBytes(drive.purgeableBytes)}`,
         `  Used: ${formatBytes(drive.usedBytes)}`,
-        `  Free: ${formatBytes(drive.freeBytes)}`
+        `  Available Includes Purgeable: ${drive.availableIncludesPurgeable ? 'Yes' : 'No'}`,
+        `  Primary: ${drive.isPrimary ? 'Yes' : 'No'}`
       )
+      if (
+        isApfsStorageType(drive.type) &&
+        !drive.availableIncludesPurgeable &&
+        drive.purgeableBytes === null
+      ) {
+        lines.push('  Note: Available data may exclude purgeable macOS storage.')
+      }
     })
   }
 
@@ -298,4 +313,8 @@ function formatStartupItems(items: SystemReport['startupApplications']['enabled'
   return items.length === 0
     ? ['  None']
     : items.map((item) => `  - ${item.name} [${item.type}] — ${item.description}`)
+}
+
+function isApfsStorageType(type: string): boolean {
+  return type.trim().toLowerCase() === 'apfs'
 }

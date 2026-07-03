@@ -38,7 +38,11 @@ export interface SystemReport {
     type: string
     capacityBytes: number
     usedBytes: number
+    availableBytes: number | null
     freeBytes: number
+    purgeableBytes: number | null
+    availableIncludesPurgeable: boolean
+    isPrimary: boolean
   }[]
   network: {
     name: string

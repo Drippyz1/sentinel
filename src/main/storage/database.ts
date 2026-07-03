@@ -35,6 +35,9 @@ function initializeSchema(db: Database.Database) {
       memory_usage REAL    NOT NULL,
       memory_used  INTEGER NOT NULL,
       disk_usage   REAL    NOT NULL,
+      disk_available INTEGER,
+      disk_free    INTEGER,
+      disk_purgeable INTEGER,
       disk_read    REAL,
       disk_write   REAL,
       net_down     REAL,
@@ -101,6 +104,9 @@ function migrateSchema(db: Database.Database) {
           memory_usage REAL    NOT NULL,
           memory_used  INTEGER NOT NULL,
           disk_usage   REAL    NOT NULL,
+          disk_available INTEGER,
+          disk_free    INTEGER,
+          disk_purgeable INTEGER,
           disk_read    REAL,
           disk_write   REAL,
           net_down     REAL,
@@ -113,7 +119,7 @@ function migrateSchema(db: Database.Database) {
 
         INSERT INTO metric_snapshots_new
           SELECT id, timestamp, cpu_usage, memory_usage, memory_used,
-                 disk_usage, disk_read, disk_write, net_down, net_up,
+                 disk_usage, NULL, NULL, NULL, disk_read, disk_write, net_down, net_up,
                  gpu_usage, battery, NULL, NULL
           FROM metric_snapshots;
 
@@ -135,12 +141,29 @@ function migrateSchema(db: Database.Database) {
     }
 
     const columnNames = new Set(cols.map((column) => column.name))
+    if (!columnNames.has('disk_available')) {
+      db.exec('ALTER TABLE metric_snapshots ADD COLUMN disk_available INTEGER')
+      columnNames.add('disk_available')
+      console.log('Schema migration complete: added disk available history')
+    }
+    if (!columnNames.has('disk_free')) {
+      db.exec('ALTER TABLE metric_snapshots ADD COLUMN disk_free INTEGER')
+      columnNames.add('disk_free')
+      console.log('Schema migration complete: added disk free history')
+    }
+    if (!columnNames.has('disk_purgeable')) {
+      db.exec('ALTER TABLE metric_snapshots ADD COLUMN disk_purgeable INTEGER')
+      columnNames.add('disk_purgeable')
+      console.log('Schema migration complete: added disk purgeable history')
+    }
     if (!columnNames.has('cpu_temperature')) {
       db.exec('ALTER TABLE metric_snapshots ADD COLUMN cpu_temperature REAL')
+      columnNames.add('cpu_temperature')
       console.log('Schema migration complete: added CPU temperature history')
     }
     if (!columnNames.has('gpu_temperature')) {
       db.exec('ALTER TABLE metric_snapshots ADD COLUMN gpu_temperature REAL')
+      columnNames.add('gpu_temperature')
       console.log('Schema migration complete: added GPU temperature history')
     }
 

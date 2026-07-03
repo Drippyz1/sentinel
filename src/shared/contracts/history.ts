@@ -4,6 +4,9 @@ export interface SnapshotRow {
   memory_usage: number
   memory_used: number
   disk_usage: number
+  disk_available: number | null
+  disk_free: number | null
+  disk_purgeable: number | null
   disk_read: number
   disk_write: number
   net_down: number
