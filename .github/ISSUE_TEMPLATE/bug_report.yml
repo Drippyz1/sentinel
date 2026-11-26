@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible problem with Sentinel.
+title: 'Bug: '
+labels: [bug, 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, personal identifiers or security vulnerability details. Use the repository security policy for private vulnerability reports.
+  - type: input
+    id: version
+    attributes:
+      label: Sentinel version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system, version and CPU architecture
+      placeholder: macOS, Apple Silicon; Windows, x64; or Linux distribution and architecture
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional evidence
+      description: Review screenshots, logs and diagnostic exports for private information before attaching them.

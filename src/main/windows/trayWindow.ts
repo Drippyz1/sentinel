@@ -1,13 +1,14 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { configureTrustedWindow, trustedWebPreferences } from '../ipcSecurity'
 
-export const TRAY_EXPANDED_SIZE = {
+const TRAY_EXPANDED_SIZE = {
   width: 360,
   height: 480
 } as const
 
-export const TRAY_COMPACT_SIZE = {
+const TRAY_COMPACT_SIZE = {
   width: 320,
   height: 280
 } as const
@@ -49,11 +50,9 @@ export function createTrayWindow(): BrowserWindow {
     transparent: false,
     vibrancy: 'under-window',
     visualEffectState: 'active',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+    webPreferences: trustedWebPreferences()
   })
+  configureTrustedWindow(window, 'tray')
 
   window.setFullScreenable(false)
   window.setMaximizable(false)

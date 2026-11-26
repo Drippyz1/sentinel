@@ -1,4 +1,3 @@
-// A horizontal progress bar for showing usage percentages
 interface UsageBarProps {
   percent: number // 0-100
   accent?: 'blue' | 'green' | 'amber' | 'red' | 'purple'
@@ -13,7 +12,6 @@ const accentColors = {
   purple: 'var(--accent-purple)'
 }
 
-// Automatically pick a color based on how high the usage is
 function getAccentForUsage(percent: number): 'green' | 'amber' | 'red' {
   if (percent < 60) return 'green'
   if (percent < 85) return 'amber'

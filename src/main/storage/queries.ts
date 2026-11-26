@@ -1,13 +1,9 @@
+import type Database from 'better-sqlite3'
 import { getDatabase } from './database'
-import type { HistorySummary, SnapshotRow } from '../../shared/contracts'
+import type { SnapshotRow } from '../../shared/contracts'
 import { normalizeTemperature } from '../../shared/utils/temperature'
 
-export interface HistoryQuery {
-  metric: string // which metric to return
-  minutes: number // how many minutes back to look
-}
-
-export interface HistoryMetadata {
+interface HistoryMetadata {
   snapshotCount: number
   oldestTimestamp: number | null
   newestTimestamp: number | null
@@ -27,58 +23,14 @@ export function getHistoryMetadata(): HistoryMetadata {
     .get() as HistoryMetadata
 }
 
-// Returns raw rows for a time range
-export function getSnapshots(minutes: number): SnapshotRow[] {
-  const db = getDatabase()
-  const cutoff = Date.now() - minutes * 60 * 1000
+const bucketMs = 60_000
+let downsampleStatement: Database.Statement<[number], SnapshotRow> | undefined
 
-  const rows = db
-    .prepare(
-      `
-    SELECT * FROM metric_snapshots
-    WHERE timestamp > ?
-    ORDER BY timestamp ASC
-  `
-    )
-    .all(cutoff) as SnapshotRow[]
-
-  return rows.map(normalizeSnapshotTemperatures)
-}
-
-// Returns summary stats for a time range — useful for dashboards
-export function getSummary(minutes: number): HistorySummary {
-  const db = getDatabase()
-  const cutoff = Date.now() - minutes * 60 * 1000
-
-  return db
-    .prepare(
-      `
-    SELECT
-      ROUND(AVG(cpu_usage), 1)    as avg_cpu,
-      ROUND(MAX(cpu_usage), 1)    as max_cpu,
-      ROUND(AVG(memory_usage), 1) as avg_memory,
-      ROUND(MAX(memory_usage), 1) as max_memory,
-      ROUND(AVG(net_down), 0)     as avg_net_down,
-      ROUND(MAX(net_down), 0)     as max_net_down,
-      COUNT(*)                    as sample_count
-    FROM metric_snapshots
-    WHERE timestamp > ?
-  `
-    )
-    .get(cutoff) as HistorySummary
-}
-
-// Returns one row per minute, averaged — for longer time ranges
-// Showing 10,000 raw data points in a chart is slow and pointless
-// This buckets them into 1-minute averages instead
 export function getDownsampled(minutes: number): SnapshotRow[] {
-  const db = getDatabase()
-  const cutoff = Date.now() - minutes * 60 * 1000
-  const bucketMs = 60 * 1000 // 1 minute buckets
+  const cutoff = Date.now() - minutes * bucketMs
 
-  const rows = db
-    .prepare(
-      `
+  downsampleStatement ??= getDatabase().prepare<[number], SnapshotRow>(
+    `
     SELECT
       (timestamp / ${bucketMs}) * ${bucketMs} as timestamp,
       ROUND(AVG(cpu_usage), 1)    as cpu_usage,
@@ -88,8 +40,10 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
       ROUND(AVG(disk_available), 0) as disk_available,
       ROUND(AVG(disk_free), 0)    as disk_free,
       ROUND(AVG(disk_purgeable), 0) as disk_purgeable,
-      ROUND(AVG(disk_read), 0)    as disk_read,
-      ROUND(AVG(disk_write), 0)   as disk_write,
+      ROUND(AVG(CASE WHEN disk_io_in_bytes = 1 THEN disk_read END), 0) as disk_read,
+      ROUND(AVG(CASE WHEN disk_io_in_bytes = 1 THEN disk_write END), 0) as disk_write,
+      ROUND(AVG(CASE WHEN disk_io_in_bytes IS NULL THEN disk_read END), 1) as disk_read_legacy_ops,
+      ROUND(AVG(CASE WHEN disk_io_in_bytes IS NULL THEN disk_write END), 1) as disk_write_legacy_ops,
       ROUND(AVG(net_down), 0)     as net_down,
       ROUND(AVG(net_up), 0)       as net_up,
       ROUND(AVG(gpu_usage), 1)    as gpu_usage,
@@ -109,10 +63,8 @@ export function getDownsampled(minutes: number): SnapshotRow[] {
     GROUP BY timestamp / ${bucketMs}
     ORDER BY timestamp ASC
   `
-    )
-    .all(cutoff) as SnapshotRow[]
-
-  return rows.map(normalizeSnapshotTemperatures)
+  )
+  return downsampleStatement.all(cutoff).map(normalizeSnapshotTemperatures)
 }
 
 function normalizeSnapshotTemperatures(snapshot: SnapshotRow): SnapshotRow {

@@ -1,4 +1,4 @@
-import { useCpuMetrics } from '../../hooks/useMetrics'
+import { useCpuMetrics, useCpuTemperature } from '../../hooks/useMetrics'
 import { useHistoryStore } from '../../store/historyStore'
 import { formatPercent } from '../../utils/format'
 import { useTemp } from '../../hooks/useTemp'
@@ -7,6 +7,7 @@ import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
 import { TrendIndicator } from '../ui/TrendIndicator'
+import { MetricMessage } from './MetricMessage'
 import {
   DASHBOARD_CHART_HEIGHT,
   isCompactDashboard,
@@ -15,14 +16,16 @@ import {
 
 export function CpuWidget({ density }: DashboardWidgetProps) {
   const cpu = useCpuMetrics()
+  const temperature = useCpuTemperature()
   const history = useHistoryStore((state) => state.cpu)
   const { formatTemp } = useTemp()
   if (!cpu) {
     return (
-      <Card title="CPU" subtitle="Collecting metrics" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Reading processor data...
-        </p>
+      <Card title="CPU" density={density}>
+        <MetricMessage group="cpu" name="processor data" />
+        {temperature !== null && (
+          <StatRow label="Temperature" value={formatTemp(temperature)} accent="amber" />
+        )}
       </Card>
     )
   }
@@ -65,8 +68,8 @@ export function CpuWidget({ density }: DashboardWidgetProps) {
         <>
           <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
             <StatRow label="Cores" value={`${cpu.cores}`} accent="blue" />
-            <StatRow label="Speed" value={`${cpu.speedGHz} GHz`} accent="blue" />
-            <StatRow label="Temperature" value={formatTemp(cpu.temperature)} accent="amber" />
+            <StatRow label="Base speed" value={`${cpu.speedGHz} GHz`} accent="blue" />
+            <StatRow label="Temperature" value={formatTemp(temperature)} accent="amber" />
           </div>
 
           <div className="mt-4">
@@ -76,12 +79,12 @@ export function CpuWidget({ density }: DashboardWidgetProps) {
             <div className="grid grid-cols-4 gap-1.5">
               {cpu.perCoreUsage.map((usage, i) => (
                 <div key={i} className="text-center">
-                  <UsageBar percent={usage} height={3} />
+                  {usage !== null && <UsageBar percent={usage} height={3} />}
                   <span
                     className="text-xs font-mono mt-1 block"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    {formatPercent(usage, 0)}
+                    {usage === null ? '-' : formatPercent(usage, 0)}
                   </span>
                 </div>
               ))}

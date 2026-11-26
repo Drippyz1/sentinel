@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and community feedback
+    url: https://github.com/Drippyz1/sentinel/discussions
+    about: Ask questions or discuss ideas with the community.
+  - name: Private security reporting
+    url: https://github.com/Drippyz1/sentinel/security/advisories/new
+    about: Report vulnerabilities privately rather than posting exploit details in a public issue.

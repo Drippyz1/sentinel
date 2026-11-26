@@ -30,15 +30,11 @@ export interface ThermalMetrics {
 
 export interface StartupItem {
   name: string
-  path: string
-  type: 'LaunchAgent' | 'LaunchDaemon' | 'LoginItem'
-  enabled: boolean
-  editable: boolean
-  description: string
+  type: 'LaunchAgent' | 'LaunchDaemon'
+  configuration: 'disabled' | 'not-disabled' | 'unknown'
 }
 
 export interface StartupMetrics {
+  limitation: string
   items: StartupItem[]
-  totalCount: number
-  enabledCount: number
 }

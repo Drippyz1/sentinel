@@ -1,30 +1,8 @@
-import Database from 'better-sqlite3'
-import { getDatabase } from './database'
-import type {
-  BatteryMetrics,
-  CpuMetrics,
-  DiskMetrics,
-  GpuMetrics,
-  MemoryMetrics,
-  NetworkMetrics
-} from '../../shared/contracts'
-import { normalizeDiskMetrics, selectPrimaryDrive } from '../../shared/utils/disk'
-import { normalizeTemperature } from '../../shared/utils/temperature'
+import type Database from 'better-sqlite3'
+import { canRecordHistory, getDatabase } from './database'
+import type { MetricsSnapshot } from '../../shared/contracts'
+import { historyValues } from './snapshotRow'
 
-const RETENTION_DAYS = 7
-
-interface SnapshotData {
-  timestamp?: number
-  cpu: CpuMetrics
-  memory: MemoryMetrics
-  disk: DiskMetrics
-  network: NetworkMetrics
-  gpu: GpuMetrics | null
-  battery: BatteryMetrics | null
-}
-
-// Use better-sqlite3's Statement type directly to avoid the
-// ReturnType<prepare> inference issue that triggers TS2322
 let insertStmt: Database.Statement | null = null
 let cleanupStmt: Database.Statement | null = null
 
@@ -33,12 +11,12 @@ function getInsertStmt(): Database.Statement {
   insertStmt = getDatabase().prepare(`
     INSERT INTO metric_snapshots (
       timestamp, cpu_usage, memory_usage, memory_used,
-      disk_usage, disk_available, disk_free, disk_purgeable, disk_read, disk_write,
+      disk_usage, disk_available, disk_free, disk_purgeable, disk_read, disk_write, disk_io_in_bytes,
       net_down, net_up, gpu_usage, battery,
       cpu_temperature, gpu_temperature
     ) VALUES (
       @timestamp, @cpu_usage, @memory_usage, @memory_used,
-      @disk_usage, @disk_available, @disk_free, @disk_purgeable, @disk_read, @disk_write,
+      @disk_usage, @disk_available, @disk_free, @disk_purgeable, @disk_read, @disk_write, 1,
       @net_down, @net_up, @gpu_usage, @battery,
       @cpu_temperature, @gpu_temperature
     )
@@ -54,35 +32,20 @@ function getCleanupStmt(): Database.Statement {
   return cleanupStmt
 }
 
-export function recordSnapshot(data: SnapshotData) {
+export function recordSnapshot(data: MetricsSnapshot) {
+  if (!canRecordHistory()) return
   try {
-    const disk = normalizeDiskMetrics(data.disk)
-    const primaryDrive = selectPrimaryDrive(disk.drives)
-
-    getInsertStmt().run({
-      timestamp: data.timestamp ?? Date.now(),
-      cpu_usage: data.cpu.usagePercent ?? 0,
-      memory_usage: data.memory.usagePercent ?? 0,
-      memory_used: data.memory.usedBytes ?? 0,
-      disk_usage: primaryDrive?.usagePercent ?? 0,
-      disk_available: primaryDrive?.availableBytes ?? null,
-      disk_free: primaryDrive?.freeBytes ?? null,
-      disk_purgeable: primaryDrive?.purgeableBytes ?? null,
-      disk_read: disk.io.readBytesPerSec,
-      disk_write: disk.io.writeBytesPerSec,
-      net_down: data.network.totalDownloadBytesPerSec ?? 0,
-      net_up: data.network.totalUploadBytesPerSec ?? 0,
-      gpu_usage: data.gpu?.controllers[0]?.utilizationPercent ?? null,
-      battery: data.battery?.hasBattery ? data.battery.chargePercent : null,
-      cpu_temperature: normalizeTemperature(data.cpu.temperature),
-      gpu_temperature: normalizeTemperature(data.gpu?.controllers[0]?.temperatureCelsius)
-    })
+    const metrics = historyValues(data)
+    if (Object.values(metrics).some((value) => value !== null)) {
+      getInsertStmt().run({ timestamp: data.timestamp, ...metrics })
+    }
   } catch (err) {
     console.error('Failed to record snapshot:', err)
   }
 }
 
-export function cleanOldSnapshots(retentionDays = RETENTION_DAYS) {
+export function cleanOldSnapshots(retentionDays: number) {
+  if (!canRecordHistory()) return
   try {
     const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000
     const result = getCleanupStmt().run({ cutoff })

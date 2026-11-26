@@ -1,20 +1,13 @@
 import si from 'systeminformation'
+import { totalmem, uptime } from 'node:os'
 import type { SystemInfo } from '../../shared/contracts'
+import { getCpuInventory } from '../../monitoring/collectors/cpu'
+import { cachedProbe } from '../../monitoring/probe'
 
-// Cache the result — this data never changes during a session
-let cachedInfo: SystemInfo | null = null
+const getInventory = cachedProbe(async () => {
+  const [osInfo, cpu, system] = await Promise.all([si.osInfo(), getCpuInventory(), si.system()])
 
-export async function getSystemInfo(): Promise<SystemInfo> {
-  if (cachedInfo) return cachedInfo
-
-  const [osInfo, cpu, mem, system] = await Promise.all([
-    si.osInfo(),
-    si.cpu(),
-    si.mem(),
-    si.system()
-  ])
-
-  cachedInfo = {
+  return {
     platform: osInfo.platform,
     distro: osInfo.distro,
     release: osInfo.release,
@@ -26,22 +19,15 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     cpuThreads: cpu.cores,
     cpuBaseSpeed: cpu.speed,
 
-    totalMemory: mem.total,
-
     model: system.model,
     manufacturer: system.manufacturer,
     // Redact middle of serial for privacy when sharing screenshots
-    serial: redactSerial(system.serial ?? ''),
-
-    uptimeSeconds: Math.floor(process.uptime())
+    serial: redactSerial(system.serial ?? '')
   }
+})
 
-  return cachedInfo
-}
-
-// Invalidate cache so uptime refreshes periodically
-export function invalidateSystemInfoCache() {
-  cachedInfo = null
+export async function getSystemInfo(): Promise<SystemInfo> {
+  return { ...(await getInventory()), totalMemory: totalmem(), uptimeSeconds: Math.floor(uptime()) }
 }
 
 function redactSerial(serial: string): string {

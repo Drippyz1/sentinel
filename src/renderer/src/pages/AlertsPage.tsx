@@ -202,12 +202,14 @@ export function AlertsPage() {
   const alerts = useAlertHistoryStore((state) => state.alerts)
   const analytics = useAlertHistoryStore((state) => state.analytics)
   const initialized = useAlertHistoryStore((state) => state.initialized)
+  const loadFailed = useAlertHistoryStore((state) => state.loadFailed)
   const initialize = useAlertHistoryStore((state) => state.initialize)
   const markAllRead = useAlertHistoryStore((state) => state.markAllRead)
   const clear = useAlertHistoryStore((state) => state.clear)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<AlertFilter>('all')
   const [actionPending, setActionPending] = useState<'read' | 'clear' | null>(null)
+  const [actionFailed, setActionFailed] = useState(false)
 
   useEffect(() => {
     void initialize()
@@ -253,9 +255,11 @@ export function AlertsPage() {
 
   async function runAction(action: 'read' | 'clear') {
     setActionPending(action)
+    setActionFailed(false)
     try {
       await (action === 'read' ? markAllRead() : clear())
     } catch (error) {
+      setActionFailed(true)
       console.error(
         `Failed to ${action === 'read' ? 'mark alerts as read' : 'clear alerts'}:`,
         error
@@ -298,11 +302,20 @@ export function AlertsPage() {
         </div>
       </div>
 
-      <section id="alert-analytics" className="scroll-mt-4">
-        <AlertAnalyticsPanel analytics={analytics} loading={!initialized} />
-      </section>
+      {(loadFailed || actionFailed) && (
+        <p role="alert" className="mb-4 text-sm" style={{ color: 'var(--accent-amber)' }}>
+          {loadFailed
+            ? 'Alert history could not be loaded.'
+            : 'Alert history could not be updated.'}
+        </p>
+      )}
+      {!loadFailed && (
+        <section id="alert-analytics" className="scroll-mt-4">
+          <AlertAnalyticsPanel analytics={analytics} loading={!initialized} />
+        </section>
+      )}
 
-      <section id="alert-history" className="mt-4 scroll-mt-4">
+      <section id="alert-history" className="mt-4 scroll-mt-4" hidden={loadFailed}>
         <Card>
           <div className="mb-4">
             <label

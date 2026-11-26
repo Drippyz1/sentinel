@@ -1,0 +1,4 @@
+extends: electron-builder.yml
+afterPack: build/signMacDevelopment.cjs
+mac:
+  identity: null

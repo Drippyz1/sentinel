@@ -2,8 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './assets/main.css'
 
-// Check if this window was opened as the tray popover
-// We pass #tray in the URL when creating the tray window
 const isTrayWindow = window.location.hash === '#tray'
 const isMiniMonitorWindow = window.location.hash === '#mini-monitor'
 

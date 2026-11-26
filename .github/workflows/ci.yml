@@ -17,18 +17,20 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, typecheck, and build
-    runs-on: ubuntu-latest
+    name: Checks and Linux packaging
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24.22.2
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -38,11 +40,11 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run TypeScript checks
-        run: npm run typecheck
+      - name: Check formatting
+        run: npm run format:check
 
-      - name: Build application
-        run: npm run build
+      - name: Run monitoring regression tests
+        run: npm test
 
       - name: Verify release metadata
         run: npm run verify:version

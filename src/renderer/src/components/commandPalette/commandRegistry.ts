@@ -1,4 +1,4 @@
-export interface CommandContext {
+interface CommandContext {
   navigate: (path: string, options?: { state?: Record<string, unknown>; replace?: boolean }) => void
   dashboardPaused: boolean
   setDashboardPaused: (paused: boolean) => void

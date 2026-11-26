@@ -6,8 +6,8 @@ export function normalizeDiskMetrics(metrics: DiskMetrics | null | undefined): D
   return {
     drives: (metrics?.drives ?? []).map(normalizeDiskDrive),
     io: {
-      readBytesPerSec: nonNegativeNumber(metrics?.io?.readBytesPerSec),
-      writeBytesPerSec: nonNegativeNumber(metrics?.io?.writeBytesPerSec)
+      readBytesPerSec: nullableNumber(metrics?.io?.readBytesPerSec),
+      writeBytesPerSec: nullableNumber(metrics?.io?.writeBytesPerSec)
     }
   }
 }
@@ -71,8 +71,12 @@ function capacityNumber(value: unknown, totalBytes: number): number {
 }
 
 function nullableCapacityNumber(value: unknown, totalBytes: number): number | null {
-  if (value === null || value === undefined) return null
-  return capacityNumber(value, totalBytes)
+  const number = nullableNumber(value)
+  return number === null ? null : capacityNumber(number, totalBytes)
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
 function percentageNumber(value: unknown): number {

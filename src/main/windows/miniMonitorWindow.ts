@@ -2,8 +2,9 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import type { MiniMonitorPosition } from '../../shared/contracts'
+import { configureTrustedWindow, trustedWebPreferences } from '../ipcSecurity'
 
-export const MINI_MONITOR_SIZE = {
+const MINI_MONITOR_SIZE = {
   width: 300,
   height: 278
 } as const
@@ -57,11 +58,9 @@ export function createMiniMonitorWindow({
     type: process.platform === 'darwin' ? 'panel' : undefined,
     vibrancy: 'under-window',
     visualEffectState: 'active',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+    webPreferences: trustedWebPreferences()
   })
+  configureTrustedWindow(window, 'mini')
 
   window.setAlwaysOnTop(alwaysOnTop, 'floating')
   window.setFullScreenable(false)

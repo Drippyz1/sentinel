@@ -5,9 +5,10 @@ import type {
   AlertMarker,
   AppSettings,
   DiagnosticBundleExport,
-  MetricsSnapshot,
+  LiveMetricsFrame,
   NetworkConnectionsResult,
   ProcessDetails,
+  ProcessIdentity,
   SettingsSaveResult,
   SystemReportFormat,
   UiSettingsPatch
@@ -19,6 +20,7 @@ if (process.contextIsolated) {
       // Mini tray interface
       openMainWindow: () => ipcRenderer.invoke('open-main-window'),
       quitApp: () => ipcRenderer.invoke('quit-app'),
+      copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
       setTrayCompact: (compact: boolean) => ipcRenderer.invoke('set-tray-compact', compact),
       showMiniMonitor: () => ipcRenderer.invoke('show-mini-monitor'),
       hideMiniMonitor: () => ipcRenderer.invoke('hide-mini-monitor'),
@@ -27,24 +29,17 @@ if (process.contextIsolated) {
 
       // Live metrics
       getLatestMetrics: () => ipcRenderer.invoke('get-latest-metrics'),
-      onMetricsUpdated: (callback: (snapshot: MetricsSnapshot) => void) => {
-        const listener = (_event: Electron.IpcRendererEvent, snapshot: MetricsSnapshot) =>
+      onMetricsUpdated: (callback: (snapshot: LiveMetricsFrame) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, snapshot: LiveMetricsFrame) =>
           callback(snapshot)
         ipcRenderer.on('metrics-updated', listener)
         return () => ipcRenderer.removeListener('metrics-updated', listener)
       },
-      getCpuMetrics: () => ipcRenderer.invoke('get-cpu-metrics'),
-      getMemoryMetrics: () => ipcRenderer.invoke('get-memory-metrics'),
-      getDiskMetrics: () => ipcRenderer.invoke('get-disk-metrics'),
-      getNetworkMetrics: () => ipcRenderer.invoke('get-network-metrics'),
       getNetworkConnections: (): Promise<NetworkConnectionsResult> =>
         ipcRenderer.invoke('get-network-connections'),
-      getProcessMetrics: () => ipcRenderer.invoke('get-process-metrics'),
       getProcessDetails: (pid: number): Promise<ProcessDetails | null> =>
         ipcRenderer.invoke('get-process-details', pid),
       revealProcess: (pid: number): Promise<boolean> => ipcRenderer.invoke('reveal-process', pid),
-      getGpuMetrics: () => ipcRenderer.invoke('get-gpu-metrics'),
-      getBatteryMetrics: () => ipcRenderer.invoke('get-battery-metrics'),
 
       // Advanced collectors
       getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
@@ -54,7 +49,6 @@ if (process.contextIsolated) {
         ipcRenderer.invoke('export-system-report', format),
       exportDiagnosticBundle: (): Promise<DiagnosticBundleExport> =>
         ipcRenderer.invoke('export-diagnostic-bundle'),
-      getAnomalyReport: () => ipcRenderer.invoke('get-anomaly-report'),
       getAlertHistory: (): Promise<AlertHistoryEntry[]> => ipcRenderer.invoke('get-alert-history'),
       getAlertAnalytics: (): Promise<AlertAnalytics> => ipcRenderer.invoke('get-alert-analytics'),
       getAlertMarkers: (minutes: number): Promise<AlertMarker[]> =>
@@ -75,15 +69,19 @@ if (process.contextIsolated) {
         ipcRenderer.on('alert-analytics-updated', listener)
         return () => ipcRenderer.removeListener('alert-analytics-updated', listener)
       },
-      toggleStartupItem: (itemPath: string, enable: boolean) =>
-        ipcRenderer.invoke('toggle-startup-item', itemPath, enable),
-
-      killProcess: (pid: number) => ipcRenderer.invoke('kill-process', pid),
+      killProcess: ({ pid, name, started }: ProcessIdentity) =>
+        ipcRenderer.invoke('kill-process', { pid, name, started }),
 
       // Settings
       getSettings: () => ipcRenderer.invoke('get-settings'),
       saveSettings: (settings: AppSettings): Promise<SettingsSaveResult> =>
         ipcRenderer.invoke('save-settings', settings),
+      onTempUnitChanged: (callback: (unit: AppSettings['tempUnit']) => void) => {
+        const listener = (_event: Electron.IpcRendererEvent, unit: AppSettings['tempUnit']) =>
+          callback(unit)
+        ipcRenderer.on('temp-unit-changed', listener)
+        return () => ipcRenderer.removeListener('temp-unit-changed', listener)
+      },
       saveUiSettings: (patch: UiSettingsPatch) => ipcRenderer.invoke('save-ui-settings', patch),
       onUiSettingsChanged: (callback: (patch: UiSettingsPatch) => void) => {
         const listener = (_event: Electron.IpcRendererEvent, patch: UiSettingsPatch) =>
@@ -91,13 +89,8 @@ if (process.contextIsolated) {
         ipcRenderer.on('ui-settings-changed', listener)
         return () => ipcRenderer.removeListener('ui-settings-changed', listener)
       },
-      showDock: () => ipcRenderer.invoke('show-dock'),
-      hideDock: () => ipcRenderer.invoke('hide-dock'),
 
       // Historical data
-      getHistorySnapshots: (minutes: number) =>
-        ipcRenderer.invoke('get-history-snapshots', minutes),
-      getHistorySummary: (minutes: number) => ipcRenderer.invoke('get-history-summary', minutes),
       getHistoryDownsampled: (minutes: number) =>
         ipcRenderer.invoke('get-history-downsampled', minutes)
     })

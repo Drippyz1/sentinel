@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react'
 import type { AppSettings } from '../../../shared/contracts'
 import { normalizeTemperature } from '../../../shared/utils/temperature'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 
-// Converts Celsius to Fahrenheit
 function toF(c: number): number {
   return Math.round((c * 9) / 5 + 32)
 }
 
-// Formats a nullable Celsius value using the user's preferred unit
 function fmt(celsius: number | null, unit: AppSettings['tempUnit']): string {
   const temperature = normalizeTemperature(celsius)
   if (temperature === null) return 'Unavailable'
@@ -15,26 +13,8 @@ function fmt(celsius: number | null, unit: AppSettings['tempUnit']): string {
   return `${temperature}°C`
 }
 
-// Hook — reads tempUnit from settings once on mount and whenever
-// settings change. Returns a formatTemp function ready to use in JSX.
 export function useTemp() {
-  const [unit, setUnit] = useState<AppSettings['tempUnit']>('C')
-
-  useEffect(() => {
-    const refreshUnit = async () => {
-      try {
-        const settings = await window.electronAPI.getSettings()
-        setUnit(settings.tempUnit)
-      } catch (error) {
-        console.error('Failed to refresh temperature unit:', error)
-      }
-    }
-
-    void refreshUnit()
-    const interval = setInterval(() => void refreshUnit(), 5000)
-
-    return () => clearInterval(interval)
-  }, [])
+  const unit = useUiSettingsStore((state) => state.tempUnit)
 
   return {
     unit,

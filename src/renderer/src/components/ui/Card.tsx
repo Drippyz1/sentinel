@@ -1,9 +1,8 @@
 import type { DashboardDensity } from '../../../../shared/contracts'
 
-// A reusable card container — every widget will use this
 interface CardProps {
   children: React.ReactNode
-  className?: string // lets callers add extra classes
+  className?: string
   title?: string
   subtitle?: string
   density?: DashboardDensity

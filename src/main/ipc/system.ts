@@ -1,12 +1,7 @@
 import { ipcMain } from 'electron'
 import { getSystemInfo } from '../collectors/systemInfo'
 import { getThermalMetrics } from '../collectors/thermal'
-import {
-  disableStartupItem,
-  enableStartupItem,
-  getStartupMetrics,
-  isValidStartupPathInput
-} from '../collectors/startup'
+import { getStartupMetrics } from '../collectors/startup'
 import { assertTrustedIpcSender } from '../ipcSecurity'
 import { createDiagnosticBundle } from '../reports/diagnosticBundle'
 import { createSystemReportExport } from '../reports/systemReport'
@@ -23,21 +18,16 @@ export function registerSystemIpc(metricsService: MetricsService): void {
     return getThermalMetrics()
   })
   ipcMain.handle('get-startup-metrics', async (event) => {
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'main')
     return getStartupMetrics()
   })
-  ipcMain.handle('toggle-startup-item', async (event, itemPath: unknown, enable: unknown) => {
-    assertTrustedIpcSender(event)
-    if (!isValidStartupPathInput(itemPath) || typeof enable !== 'boolean') return false
-    return enable ? enableStartupItem(itemPath) : disableStartupItem(itemPath)
-  })
   ipcMain.handle('export-system-report', async (event, format: unknown) => {
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'main')
     if (!isSystemReportFormat(format)) throw new Error('Invalid report format')
     return createSystemReportExport(metricsService, format)
   })
   ipcMain.handle('export-diagnostic-bundle', async (event) => {
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'main')
     return createDiagnosticBundle(metricsService)
   })
 }

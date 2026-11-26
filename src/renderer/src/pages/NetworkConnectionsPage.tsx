@@ -45,7 +45,7 @@ function CopyButton({ label, value }: { label: string; value: string }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(value)
+      await window.electronAPI.copyText(value)
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
     } catch (error) {

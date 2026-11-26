@@ -3,19 +3,19 @@ productName: Sentinel
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
+  - LICENSE
+  - resources/icon.png
+  - resources/tray-icon*.png
 asarUnpack:
   - resources/**
 win:
   executableName: sentinel
   icon: resources/icon.ico
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${name}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -24,24 +24,23 @@ mac:
   category: public.app-category.utilities
   hardenedRuntime: true
   gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.inherit.plist
-  entitlementsLoginHelper: build/entitlements.mac.inherit.plist
   notarize: false
+  target:
+    - dmg
+    - zip
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
 linux:
   icon: resources/icon.png
+  syncDesktopName: true
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: Drippyz1
+  maintainer: Drippyz1 <48750045+Drippyz1@users.noreply.github.com>
   category: Utility
+  artifactName: ${name}-${version}-${arch}.${ext}
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
+artifactName: ${name}-${version}-${arch}.${ext}
 npmRebuild: true
-publish:
-  provider: github
-  owner: Drippyz1
-  repo: sentinel
+publish: null

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ProcessDetails, ProcessInfo } from '../../../../shared/contracts'
-import { formatBytes } from '../../utils/format'
+import { formatBytes, formatPercent } from '../../utils/format'
 
 function formatUptime(seconds: number | null): string {
   if (seconds === null) return 'Unavailable'
@@ -44,7 +44,7 @@ function CopyButton({ label, value }: { label: string; value: string | null }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(copyValue)
+      await window.electronAPI.copyText(copyValue)
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
     } catch (error) {
@@ -174,10 +174,14 @@ export function ProcessDetailsDrawer({
                 <DetailRow label="Process name" value={process.name} />
                 <DetailRow label="PID" value={String(process.pid)} monospace />
                 <DetailRow label="Parent PID" value={value(details?.parentPid)} monospace />
-                <DetailRow label="CPU usage" value={`${process.cpuPercent.toFixed(1)}%`} />
+                <DetailRow label="CPU usage" value={formatPercent(process.cpuPercent)} />
                 <DetailRow
                   label="Memory usage"
-                  value={`${formatBytes(process.memoryBytes)} (${process.memoryPercent.toFixed(1)}%)`}
+                  value={
+                    process.memoryPercent === null
+                      ? formatBytes(process.memoryBytes)
+                      : `${formatBytes(process.memoryBytes)} (${formatPercent(process.memoryPercent)})`
+                  }
                 />
                 <DetailRow label="Threads" value={value(details?.threads)} />
                 <DetailRow label="User" value={value(details?.user)} />

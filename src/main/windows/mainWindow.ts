@@ -2,7 +2,7 @@ import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
-import { configureExternalLinkHandling } from '../ipc/shell'
+import { configureTrustedWindow, trustedWebPreferences } from '../ipcSecurity'
 
 interface MainWindowOptions {
   isQuitting: () => boolean
@@ -16,10 +16,7 @@ export function createMainWindow({ isQuitting, onClosed }: MainWindowOptions): B
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+    webPreferences: trustedWebPreferences()
   })
 
   window.on('ready-to-show', () => {
@@ -37,7 +34,7 @@ export function createMainWindow({ isQuitting, onClosed }: MainWindowOptions): B
   })
 
   window.on('closed', () => onClosed(window))
-  configureExternalLinkHandling(window)
+  configureTrustedWindow(window, 'main')
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void window

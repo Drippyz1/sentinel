@@ -1,119 +1,37 @@
-# Sentinel Release Guide
+# Build and Release
 
-Sentinel uses Electron Builder for local development packages and public release artifacts.
-Build each platform on its native operating system because the app includes the native
-`better-sqlite3` module.
+## Source-First Releases
+
+Sentinel v0.5.0 is a source-first release. Publish the release notes and matching Git tag without attaching desktop installers. Users can start Sentinel from source using the [README instructions](../README.md#build-from-source). Creating a source tag does not trigger binary packaging.
+
+Build on the target OS and architecture; Sentinel uses a native SQLite binding. Use the lockfile (`npm ci`), run `npm run verify`, and record the source revision, Node version, and platform. A fixed source revision and lockfile make the inputs reproducible; signatures, notarization and packaging timestamps prevent byte-for-byte reproducibility.
 
 ## Local Packages
 
-Local packages are developer artifacts. macOS local packages are ad-hoc signed and use
-`build/entitlements.mac.plist`, including disabled library validation so Electron's nested
-frameworks can load under hardened runtime without a Developer ID team.
+| Platform | Command                | Output             |
+| -------- | ---------------------- | ------------------ |
+| macOS    | `npm run dist:mac:dev` | Ad-hoc DMG and ZIP |
+| Windows  | `npm run build:win`    | NSIS installer     |
+| Linux    | `npm run build:linux`  | AppImage and deb   |
 
-```bash
-npm run dist:mac:dev
-npm run build:win
-npm run build:linux
-```
+Output goes to `dist/`. `npm run build:unpack` skips creating the installers. On a prepared Linux host, `npx --no-install electron-builder --linux snap --publish never` can also package the built app as a Snap. The default job does not require Snap tooling.
 
-Gatekeeper is expected to reject unsigned/ad-hoc macOS local packages. They are for local smoke
-testing only and must not be published as public release artifacts.
+The macOS dev configuration uses ad-hoc signing and separate entitlements. Gatekeeper rejection is expected; these packages are not distributable. A Windows self-signed build is for controlled testing only. Do not disable Gatekeeper, SmartScreen, or antivirus, or install an arbitrary root certificate to run Sentinel. Use the source launch instructions instead. `npm run verify:mac -- --launch` checks the locally built app can write a sample to an isolated profile without opening or closing the installed app.
 
-## Public Release Packages
+## Release Candidates
 
-Public release packages use `electron-builder.release.yml`.
+- `npm run dist:mac:release` requires `CSC_LINK` / `CSC_KEY_PASSWORD` or an explicit Developer ID Application identity via `CSC_NAME`. Supply one complete notarization set: `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`; `APPLE_API_KEY` (path to a private file) / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER`; or a local `APPLE_KEYCHAIN_PROFILE` (plus optional `APPLE_KEYCHAIN`). The hosted job can make the file from `APPLE_API_KEY_BASE64` in its temporary directory. It does not use a persistent keychain profile.
+- `npm run dist:win` requires `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` (or generic `CSC_*` equivalents). Public builds cannot opt out of signing. Validate the installer with `Get-AuthenticodeSignature` and launch it on the target host.
+- `npm run dist:linux` produces AppImage and deb. Test installation and launch on a native desktop. Do not work around sandbox setup failures by disabling Electron's sandbox.
 
-```bash
-npm run dist:mac:release
-npm run dist:win
-npm run dist:linux
-```
+Verify macOS candidates with `npm run verify:mac:release -- --app <path-to-Sentinel.app>`: the app and its Electron framework require the same Developer ID team, strict signature verification, a stapled ticket, and Gatekeeper acceptance. Also check that the DMG mounts and the ZIP extracts with a launchable signed app. Use `npm run smoke:desktop` on each native platform before publishing.
 
-`npm run dist` is an alias for the macOS public release build on macOS.
+## Publication
 
-### macOS Requirements
+The [candidate workflow](../.github/workflows/release.yml) is manual-only. When it is present on the default branch, dispatch it against a version tag that includes the workflow and matches `package.json` and `package-lock.json`. Choose one platform; each run targets its x64 and arm64 runners and uploads GitHub **Actions artifacts** with SHA-256 checksums and a revision manifest. macOS and Windows require approved public signing credentials, which are not currently available. It has read-only repository permission and does not create or edit a release. These are intended build targets, not a claim of native compatibility on all targets.
 
-macOS public releases require both Developer ID signing and notarization.
+An authorized reviewer verifies the installers and checksums, and attaches the intended binaries, manifests, and checksums to a draft GitHub Release before publishing it. GitHub-generated source archives and Actions artifacts do not count as downloadable application assets. Check the published release's asset list anonymously before linking it in documentation. Do not move or reuse published tags. If an older release is immutable and lacks assets, leave it in place and use a new approved version for the next publication.
 
-Signing can be supplied by one of:
+There is no active updater. Do not publish auto-update metadata until Sentinel deliberately supports a signed update channel. Packages retain the project's MIT license, Electron's notices, runtime dependencies' notices, and the bundled renderer dependency notice generated by Vite.
 
-- `CSC_LINK` and `CSC_KEY_PASSWORD`
-- `CSC_NAME`
-- a local keychain containing a `Developer ID Application` identity
-
-Notarization can be supplied by one of:
-
-- `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`
-- `APPLE_KEYCHAIN` and `APPLE_KEYCHAIN_PROFILE`
-
-Release macOS entitlements use `build/entitlements.mac.release.plist` and inherited release
-entitlements. Local dev entitlements intentionally differ so ad-hoc packages can launch without
-being mistaken for distributable artifacts.
-
-Electron Builder's in-signing Gatekeeper assessment is disabled because notarization happens later
-in the package flow. `verify:mac:release` performs the Gatekeeper check after the package is signed
-and notarized.
-
-Verify macOS packages with:
-
-```bash
-npm run verify:mac -- --app dist/mac-arm64/Sentinel.app
-npm run verify:mac:release -- --app dist/mac-arm64/Sentinel.app
-npm run verify:mac -- --app dist/mac-arm64/Sentinel.app --launch
-```
-
-`verify:mac:release` requires a real Team ID and a passing Gatekeeper assessment.
-
-### Windows Requirements
-
-Windows public releases require Authenticode signing. Provide either:
-
-- `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`
-- `CSC_LINK` and `CSC_KEY_PASSWORD`
-
-Set `SENTINEL_ALLOW_UNSIGNED_WINDOWS_RELEASE=1` only for internal unsigned test artifacts.
-
-### Linux Requirements
-
-Linux release builds produce AppImage and deb artifacts from `electron-builder.release.yml`.
-The release profile avoids Snap in CI because Snap packaging requires extra host tooling.
-
-## Versioning
-
-Release tags must match `package.json` exactly:
-
-```bash
-git tag v0.4.4
-git push origin v0.4.4
-```
-
-`npm run verify:version` checks that `package.json`, `package-lock.json`, the GitHub tag, and
-the Electron Builder app identity agree before release packaging.
-
-## 0.4.4 Release Flow
-
-Create the release tag from the verified commit that contains the 0.4.4 version bump:
-
-```bash
-git status
-npm run verify
-git add .
-git commit -m "Prepare release 0.4.4"
-git push
-
-git tag v0.4.4
-git push origin v0.4.4
-```
-
-If `v0.4.4` already exists and points at the wrong commit, delete and recreate it intentionally:
-
-```bash
-git tag -d v0.4.4
-git push origin :refs/tags/v0.4.4
-git tag v0.4.4
-git push origin v0.4.4
-```
-
-The release workflow builds the commit referenced by the pushed tag, so do not reuse stale tags or
-upload artifacts produced from an older commit.
+Before enabling the checked-in CodeQL workflow, confirm the repository is not also using CodeQL default setup. GitHub does not accept CodeQL uploads from advanced setup while default setup is enabled.

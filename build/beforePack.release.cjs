@@ -2,5 +2,5 @@
 const { verifyReleaseReadiness } = require('./releaseChecks.cjs')
 
 module.exports = async function beforePackRelease(context) {
-  verifyReleaseReadiness(context.projectDir, context.electronPlatformName)
+  verifyReleaseReadiness(context.packager.projectDir, context.electronPlatformName)
 }

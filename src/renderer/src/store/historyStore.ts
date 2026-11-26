@@ -1,14 +1,11 @@
 import { create } from 'zustand'
 
-// One data point in time for any metric
 export interface DataPoint {
-  timestamp: number // Unix ms — used as the X axis
-  value: number // the metric value — used as the Y axis
+  timestamp: number
+  value: number
 }
 
-// How many data points to keep per metric
-// At one reading per 2 seconds, 60 points = 2 minutes of history
-const MAX_POINTS = 60
+const WINDOW_MS = 120_000
 
 interface HistoryState {
   cpu: DataPoint[]
@@ -22,24 +19,15 @@ interface HistoryState {
 
   pushSnapshot: (snapshot: {
     timestamp: number
-    cpu: number
-    memory: number
-    diskRead: number
-    diskWrite: number
-    networkDown: number
-    networkUp: number
+    cpu: number | null
+    memory: number | null
+    diskRead: number | null
+    diskWrite: number | null
+    networkDown: number | null
+    networkUp: number | null
     gpu: number | null
     battery: number | null
   }) => void
-}
-
-// Helper that appends a new point and trims old ones
-// Written once here so we don't repeat this logic 6 times
-function appendPoint(arr: DataPoint[], value: number, timestamp: number): DataPoint[] {
-  const newPoint: DataPoint = { timestamp, value }
-  const updated = [...arr, newPoint]
-  // If we have more than MAX_POINTS, drop the oldest ones from the front
-  return updated.length > MAX_POINTS ? updated.slice(updated.length - MAX_POINTS) : updated
 }
 
 function appendOptionalPoint(
@@ -47,7 +35,12 @@ function appendOptionalPoint(
   value: number | null,
   timestamp: number
 ): DataPoint[] {
-  return value === null || !Number.isFinite(value) ? arr : appendPoint(arr, value, timestamp)
+  const oldest = timestamp - WINDOW_MS
+  const recent =
+    arr.length && arr[0].timestamp < oldest ? arr.filter((point) => point.timestamp >= oldest) : arr
+  return value === null || !Number.isFinite(value)
+    ? recent
+    : [...recent, { timestamp, value }].slice(-122)
 }
 
 export const useHistoryStore = create<HistoryState>()((set) => ({
@@ -62,12 +55,12 @@ export const useHistoryStore = create<HistoryState>()((set) => ({
 
   pushSnapshot: (snapshot) =>
     set((state) => ({
-      cpu: appendPoint(state.cpu, snapshot.cpu, snapshot.timestamp),
-      memory: appendPoint(state.memory, snapshot.memory, snapshot.timestamp),
-      diskRead: appendPoint(state.diskRead, snapshot.diskRead, snapshot.timestamp),
-      diskWrite: appendPoint(state.diskWrite, snapshot.diskWrite, snapshot.timestamp),
-      networkDown: appendPoint(state.networkDown, snapshot.networkDown, snapshot.timestamp),
-      networkUp: appendPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp),
+      cpu: appendOptionalPoint(state.cpu, snapshot.cpu, snapshot.timestamp),
+      memory: appendOptionalPoint(state.memory, snapshot.memory, snapshot.timestamp),
+      diskRead: appendOptionalPoint(state.diskRead, snapshot.diskRead, snapshot.timestamp),
+      diskWrite: appendOptionalPoint(state.diskWrite, snapshot.diskWrite, snapshot.timestamp),
+      networkDown: appendOptionalPoint(state.networkDown, snapshot.networkDown, snapshot.timestamp),
+      networkUp: appendOptionalPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp),
       gpu: appendOptionalPoint(state.gpu, snapshot.gpu, snapshot.timestamp),
       battery: appendOptionalPoint(state.battery, snapshot.battery, snapshot.timestamp)
     }))

@@ -1,0 +1,40 @@
+name: Platform compatibility
+description: Report a platform-specific installation, hardware or runtime problem.
+labels: [compatibility, 'needs triage']
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Sentinel version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS version, CPU architecture and relevant hardware
+    validations:
+      required: true
+  - type: dropdown
+    id: test-type
+    attributes:
+      label: Test environment
+      options:
+        - Native hardware
+        - Virtual machine
+        - Container
+        - Build or packaging only
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: Affected functionality and steps to reproduce
+      description: Describe what works, what fails and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Remove serial numbers, hostnames, local addresses and private paths before sharing.

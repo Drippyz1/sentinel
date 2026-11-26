@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron'
 import { setThreshold } from '../analysis/anomalyDetector'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { assertTrustedIpcSender, broadcastToTrustedWindows } from '../ipcSecurity'
 import { MetricsService } from '../services/MetricsService'
 import {
   getLaunchAtLoginState,
@@ -11,6 +11,7 @@ import {
   SENSITIVITY_THRESHOLD
 } from '../storage/settings'
 import type { UiSettingsPatch } from '../../shared/contracts'
+import { resolveCollectionIntervals } from '../../shared/utils/collectionPolicy'
 
 interface SettingsIpcOptions {
   metricsService: MetricsService
@@ -29,8 +30,8 @@ export function registerSettingsIpc({
     }
   })
 
-  ipcMain.handle('save-settings', async (event, newSettings: unknown) => {
-    assertTrustedIpcSender(event)
+  ipcMain.handle('save-settings', (event, newSettings: unknown) => {
+    assertTrustedIpcSender(event, 'main')
     if (!isValidAppSettings(newSettings)) {
       const currentSettings = loadSettings()
       return {
@@ -57,7 +58,12 @@ export function registerSettingsIpc({
       result.settings.hideFromDock ? app.dock?.hide() : app.dock?.show()
     }
 
-    await metricsService.restart()
+    const { collectionIntervalsMs, pollIntervalMs, tempUnit } = result.settings
+    metricsService.setPolicy(
+      Math.min(pollIntervalMs, ...Object.values(collectionIntervalsMs)),
+      resolveCollectionIntervals(pollIntervalMs, collectionIntervalsMs)
+    )
+    broadcastToTrustedWindows('temp-unit-changed', tempUnit)
     return result
   })
 

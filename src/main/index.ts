@@ -1,9 +1,17 @@
 import { app, BrowserWindow, Notification } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { setThreshold } from './analysis/anomalyDetector'
-import { invalidateSystemInfoCache } from './collectors/systemInfo'
+import { MetricPoller } from '../monitoring/MetricPoller'
+import { localCollectors } from '../monitoring/collectors'
+import { resolveCollectionIntervals } from '../shared/utils/collectionPolicy'
 import { registerIpcHandlers } from './ipc'
 import { broadcastAlertHistory } from './ipc/alerts'
+import { broadcastLiveMetrics, sendLiveMetrics } from './ipc/metrics'
+import {
+  beginIpcShutdown,
+  broadcastToTrustedWindows,
+  lockDownRendererPermissions
+} from './ipcSecurity'
 import { AppLifecycle } from './lifecycle/appLifecycle'
 import { MiniMonitorController } from './miniMonitor'
 import { MetricsService } from './services/MetricsService'
@@ -12,7 +20,7 @@ import { closeDatabase, getDatabase } from './storage/database'
 import { cleanOldSnapshots, recordSnapshot } from './storage/recorder'
 import { recordAlertHistory } from './storage/alertHistory'
 import { loadSettings, SENSITIVITY_THRESHOLD, updateUiSettings } from './storage/settings'
-import { destroyTray, setTrayCompact, setupTray } from './tray'
+import { destroyTray, hasTray, setTrayCompact, setupTray } from './tray'
 import { createMainWindow } from './windows/mainWindow'
 import type { UiSettingsPatch } from '../shared/contracts'
 
@@ -20,6 +28,7 @@ const APP_ID = 'io.github.drippyz1.sentinel'
 let mainWindow: BrowserWindow | null = null
 let miniMonitor: MiniMonitorController | null = null
 let stopBackgroundTasks: () => Promise<void> = async () => {}
+let latestMetrics: MetricsService | undefined
 
 function openMainWindow(): BrowserWindow {
   const window = createMainWindow({
@@ -45,7 +54,11 @@ function showOrCreateMainWindow(): void {
 const lifecycle = new AppLifecycle({
   createMainWindow: openMainWindow,
   getMainWindow: () => mainWindow,
-  stopBackgroundTasks: () => stopBackgroundTasks(),
+  hasTray,
+  stopBackgroundTasks: () => {
+    beginIpcShutdown()
+    return stopBackgroundTasks()
+  },
   closeResources: () => {
     closeDatabase()
     miniMonitor?.destroy()
@@ -53,13 +66,20 @@ const lifecycle = new AppLifecycle({
     destroyTray()
   }
 })
-lifecycle.register()
 
-app.whenReady().then(() => {
+async function startDesktop(): Promise<void> {
   electronApp.setAppUserModelId(APP_ID)
+  lockDownRendererPermissions()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+    const refresh = () => {
+      if (!loadSettings().ui.dashboardPollingPaused && latestMetrics) {
+        sendLiveMetrics(window, latestMetrics.getLatestSnapshot())
+      }
+    }
+    window.on('show', refresh)
+    window.on('restore', refresh)
   })
 
   const currentSettings = loadSettings()
@@ -68,15 +88,45 @@ app.whenReady().then(() => {
     app.dock?.hide()
   }
 
-  getDatabase()
+  try {
+    getDatabase()
+  } catch (error) {
+    console.error('Local history unavailable:', error)
+  }
 
   let lastNotificationAt = 0
   const monitoringAlertService = new MonitoringAlertService({
-    onTriggered: (alerts) => broadcastAlertHistory(recordAlertHistory(alerts))
+    onTriggered: (alerts) => {
+      try {
+        broadcastAlertHistory(recordAlertHistory(alerts))
+      } catch (error) {
+        console.error('Failed to store monitoring alerts:', error)
+      }
+      if (Notification.isSupported()) {
+        new Notification({
+          title:
+            alerts.length === 1 ? `Sentinel: ${alerts[0].title}` : 'Sentinel: Monitoring Alerts',
+          body: alerts.map((alert) => alert.message).join('\n'),
+          silent: false
+        }).show()
+      }
+    }
   })
-  const metricsService = new MetricsService({
-    getIntervalMs: () => loadSettings().pollIntervalMs,
+  const poller = new MetricPoller(
+    localCollectors,
+    resolveCollectionIntervals(
+      currentSettings.pollIntervalMs,
+      currentSettings.collectionIntervalsMs
+    ),
+    { onError: (group, error) => console.error(`${group} collection failed:`, error) }
+  )
+  const metricsService = new MetricsService(poller, {
+    intervalMs: Math.min(
+      currentSettings.pollIntervalMs,
+      ...Object.values(currentSettings.collectionIntervalsMs)
+    ),
     shouldBroadcast: () => !loadSettings().ui.dashboardPollingPaused,
+    onBroadcast: broadcastLiveMetrics,
     onCollected: (snapshot) => {
       recordSnapshot(snapshot)
       const settings = loadSettings()
@@ -98,7 +148,7 @@ app.whenReady().then(() => {
       }
     }
   })
-  metricsService.start()
+  latestMetrics = metricsService
 
   cleanOldSnapshots(currentSettings.dataRetentionDays)
   const cleanupTimer = setInterval(
@@ -111,11 +161,8 @@ app.whenReady().then(() => {
     },
     60 * 60 * 1000
   )
-  const systemInfoCacheTimer = setInterval(invalidateSystemInfoCache, 60000)
-
   stopBackgroundTasks = async () => {
     clearInterval(cleanupTimer)
-    clearInterval(systemInfoCacheTimer)
     await metricsService.stop()
   }
 
@@ -123,11 +170,9 @@ app.whenReady().then(() => {
     const saved = updateUiSettings(patch)
     if (!saved) return false
 
-    for (const window of BrowserWindow.getAllWindows()) {
-      window.webContents.send('ui-settings-changed', patch)
-    }
+    broadcastToTrustedWindows('ui-settings-changed', patch)
     if (patch.dashboardPollingPaused === false) {
-      metricsService.broadcastLatest(true)
+      metricsService.broadcastLatest()
     }
     return true
   }
@@ -136,9 +181,6 @@ app.whenReady().then(() => {
     saveUiSettings: saveUiSettingsPatch
   })
 
-  openMainWindow()
-  setupTray(() => mainWindow, saveUiSettingsPatch, miniMonitor.show)
-  miniMonitor.restore()
   registerIpcHandlers({
     metricsService,
     saveUiSettingsPatch,
@@ -148,9 +190,24 @@ app.whenReady().then(() => {
     hideMiniMonitor: miniMonitor.hide,
     setMiniMonitorAlwaysOnTop: miniMonitor.setAlwaysOnTop
   })
-})
+  metricsService.start()
+  openMainWindow()
+  setupTray(showOrCreateMainWindow, saveUiSettingsPatch, miniMonitor.show)
+  miniMonitor.restore()
+}
 
-process.on('uncaughtException', (error: NodeJS.ErrnoException) => {
-  if (error.code === 'EIO' || error.message?.includes('write EIO')) return
-  console.error('Uncaught exception:', error)
-})
+if (app.requestSingleInstanceLock()) {
+  lifecycle.register()
+  app.on('second-instance', () => {
+    if (app.isReady() && !lifecycle.isQuitting()) showOrCreateMainWindow()
+  })
+  void app
+    .whenReady()
+    .then(startDesktop)
+    .catch((error) => {
+      console.error('Sentinel could not start:', error)
+      app.quit()
+    })
+} else {
+  app.quit()
+}

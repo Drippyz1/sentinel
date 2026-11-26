@@ -1,29 +1,43 @@
-import { useEffect } from 'react'
-import { HashRouter, Routes, Route } from 'react-router-dom'
-import { useMetricsStatus, useMetricsSubscription } from './hooks/useMetrics'
+import { lazy, useEffect } from 'react'
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { useMetricsSubscription } from './hooks/useMetrics'
 import { AppLayout } from './components/layout/AppLayout'
-import { AlertsPage } from './pages/AlertsPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { ProcessesPage } from './pages/ProcessesPage'
-import { HistoryPage } from './pages/HistoryPage'
-import { NetworkConnectionsPage } from './pages/NetworkConnectionsPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { SystemPage } from './pages/SystemPage'
 import { useUiSettingsStore } from './store/uiSettingsStore'
+
+const AlertsPage = lazy(() =>
+  import('./pages/AlertsPage').then((module) => ({ default: module.AlertsPage }))
+)
+const ProcessesPage = lazy(() =>
+  import('./pages/ProcessesPage').then((module) => ({ default: module.ProcessesPage }))
+)
+const HistoryPage = lazy(() =>
+  import('./pages/HistoryPage').then((module) => ({ default: module.HistoryPage }))
+)
+const NetworkConnectionsPage = lazy(() =>
+  import('./pages/NetworkConnectionsPage').then((module) => ({
+    default: module.NetworkConnectionsPage
+  }))
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage }))
+)
+const SystemPage = lazy(() =>
+  import('./pages/SystemPage').then((module) => ({ default: module.SystemPage }))
+)
 
 function AppContent() {
   const initializeUiSettings = useUiSettingsStore((state) => state.initialize)
   const uiSettingsInitialized = useUiSettingsStore((state) => state.initialized)
-  const pollingPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+  const { pathname } = useLocation()
 
   useEffect(() => {
     void initializeUiSettings()
   }, [initializeUiSettings])
 
-  useMetricsSubscription()
-  const { isLoading, lastUpdated } = useMetricsStatus()
+  useMetricsSubscription(pathname)
 
-  if (!uiSettingsInitialized || (!pollingPaused && isLoading && !lastUpdated)) {
+  if (!uiSettingsInitialized) {
     return (
       <div
         className="h-screen flex items-center justify-center"
@@ -32,7 +46,7 @@ function AppContent() {
         <div className="text-center">
           <div className="text-2xl font-bold mb-2">Sentinel</div>
           <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Reading system metrics...
+            Loading settings...
           </div>
         </div>
       </div>

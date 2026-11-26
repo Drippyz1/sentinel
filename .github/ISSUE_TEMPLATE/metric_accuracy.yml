@@ -1,0 +1,35 @@
+name: Metric accuracy
+description: Report inaccurate readings, units or availability states.
+labels: [monitoring, 'needs triage']
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Sentinel version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS version, CPU architecture and relevant hardware
+    validations:
+      required: true
+  - type: input
+    id: metric
+    attributes:
+      label: Affected metric and configured sampling interval
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: Observed and expected values, including units
+    validations:
+      required: true
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Reference measurement and reproduction steps
+      description: Identify the comparison tool or command, sampling time, and any relevant permissions. Redact private data.
+    validations:
+      required: true

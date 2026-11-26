@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   AreaChart,
   Area,
@@ -15,9 +15,9 @@ import type {
   MonitoringAlertType,
   SnapshotRow
 } from '../../../shared/contracts'
-import { normalizeTemperature } from '../../../shared/utils/temperature'
 import { formatHistoryCsv } from '../../../shared/utils/historyCsv'
-import { formatSpeed, formatTime } from '../utils/format'
+import { selectChartSamples } from '../../../shared/utils/chartSamples'
+import { formatPercent, formatSpeed, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
@@ -82,12 +82,14 @@ const ALERT_METRIC_MAP: Record<MonitoringAlertType, HistoryMetric> = {
   battery: 'battery'
 }
 
-function formatXAxis(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+const tickTime = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+const chartTime = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit'
+})
+const rowTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+const ROWS_PER_PAGE = 90
 
 function formatTemperature(value: number): string {
   return `${value}°C`
@@ -151,60 +153,81 @@ function ChartCard({
   domain = [0, 100],
   alertMarkers = []
 }: ChartCardProps) {
+  const host = useRef<HTMLDivElement>(null)
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    if (!host.current) return
+    const observer = new IntersectionObserver(([entry]) => setNear(entry.isIntersecting), {
+      rootMargin: '220px'
+    })
+    observer.observe(host.current)
+    return () => observer.disconnect()
+  }, [])
+  const samples = useMemo(
+    () =>
+      near
+        ? selectChartSamples(data.map((row) => ({ timestamp: row.timestamp, value: row[dataKey] })))
+        : [],
+    [data, dataKey, near]
+  )
   return (
     <Card title={title}>
-      <ResponsiveContainer width="100%" height={160}>
-        <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis
-            dataKey="timestamp"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            scale="time"
-            tickFormatter={formatXAxis}
-            tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-            tickLine={false}
-            axisLine={false}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            domain={domain}
-            tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v: number) => formatValue(v)}
-            width={55}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: 'var(--text-primary)'
-            }}
-            formatter={(value: unknown) => [formatValue(value as number), title]}
-            labelFormatter={(label: unknown) => new Date(label as number).toLocaleTimeString()}
-          />
-          <Area
-            type="monotone"
-            dataKey={dataKey as string}
-            stroke={color}
-            strokeWidth={1.5}
-            fill={`${color}20`}
-            dot={false}
-            isAnimationActive={false}
-          />
-          {alertMarkers.map((marker) => (
-            <ReferenceLine
-              key={marker.id}
-              x={marker.timestamp}
-              ifOverflow="hidden"
-              shape={<AlertMarkerLine marker={marker} />}
-            />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
+      <div ref={host} style={{ height: 160 }}>
+        {near && (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={samples} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis
+                dataKey="timestamp"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                scale="time"
+                tickFormatter={tickTime.format}
+                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                domain={domain}
+                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: number) => formatValue(v)}
+                width={55}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: 'var(--text-primary)'
+                }}
+                formatter={(value: unknown) => [formatValue(value as number), title]}
+                labelFormatter={(label: unknown) => chartTime.format(label as number)}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={color}
+                strokeWidth={1.5}
+                fill={`${color}20`}
+                dot={false}
+                isAnimationActive={false}
+              />
+              {alertMarkers.map((marker) => (
+                <ReferenceLine
+                  key={marker.id}
+                  x={marker.timestamp}
+                  ifOverflow="hidden"
+                  shape={<AlertMarkerLine marker={marker} />}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </Card>
   )
 }
@@ -252,6 +275,7 @@ function HistoryEmptyState({ title, message }: { title: string; message: string 
 }
 
 export function HistoryPage() {
+  const [page, setPage] = useState(0)
   const [data, setData] = useState<SnapshotRow[]>([])
   const [alertMarkers, setAlertMarkers] = useState<AlertMarker[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -267,42 +291,46 @@ export function HistoryPage() {
   const setShowAlertMarkers = useUiSettingsStore((state) => state.setHistoryAlertMarkers)
   const selectedRange = RANGES.find((range) => range.minutes === historyRangeMinutes) ?? RANGES[1]
 
-  const loadHistory = useCallback(async () => {
-    setIsLoading(true)
-    setLoadError(null)
-    try {
-      const [rows, markers] = await Promise.all([
-        window.electronAPI.getHistoryDownsampled(selectedRange.minutes),
-        window.electronAPI.getAlertMarkers(selectedRange.minutes).catch((error) => {
-          console.error('Failed to load alert markers:', error)
-          return []
-        })
-      ])
-      setData(
-        rows.map((snapshot) => ({
-          ...snapshot,
-          cpu_temperature: normalizeTemperature(snapshot.cpu_temperature),
-          gpu_temperature: normalizeTemperature(snapshot.gpu_temperature)
-        }))
-      )
-      setAlertMarkers(markers)
-      setLastRefreshed(new Date())
-    } catch (err) {
-      console.error('Failed to load history:', err)
-      setLoadError('History could not be loaded. Sentinel will try again automatically.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [selectedRange.minutes])
-
   useEffect(() => {
-    const initialLoad = setTimeout(loadHistory, 0)
-    const interval = setInterval(loadHistory, 30000)
-    return () => {
-      clearTimeout(initialLoad)
-      clearInterval(interval)
+    let cancelled = false
+    async function loadHistory() {
+      if (document.hidden) {
+        timer = setTimeout(() => void loadHistory(), 30000)
+        return
+      }
+      setIsLoading(true)
+      setLoadError(null)
+      try {
+        const [rows, markers] = await Promise.all([
+          window.electronAPI.getHistoryDownsampled(selectedRange.minutes),
+          showAlertMarkers
+            ? window.electronAPI.getAlertMarkers(selectedRange.minutes).catch((error) => {
+                console.error('Failed to load alert markers:', error)
+                return []
+              })
+            : []
+        ])
+        if (cancelled) return
+        setData(rows)
+        setAlertMarkers(markers)
+        setLastRefreshed(new Date())
+      } catch (error) {
+        if (cancelled) return
+        console.error('Failed to load history:', error)
+        setLoadError('History could not be loaded. Sentinel will try again automatically.')
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+          timer = setTimeout(() => void loadHistory(), 30000)
+        }
+      }
     }
-  }, [loadHistory])
+    let timer = setTimeout(() => void loadHistory(), 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [selectedRange.minutes, showAlertMarkers])
 
   function exportCsv() {
     const csv = formatHistoryCsv(data)
@@ -361,12 +389,17 @@ export function HistoryPage() {
   }, [data, visibleAlertMarkers])
   const hasGpuData = data.some((snapshot) => snapshot.gpu_usage !== null)
   const hasBatteryData = data.some((snapshot) => snapshot.battery !== null)
+  const pages = Math.max(1, Math.ceil(data.length / ROWS_PER_PAGE))
+  const currentPage = Math.min(page, pages - 1)
   const hasCpuTemperatureData = data.some((snapshot) => snapshot.cpu_temperature !== null)
   const hasGpuTemperatureData = data.some((snapshot) => snapshot.gpu_temperature !== null)
-  const maxNetDown = Math.max(...data.map((d) => d.net_down), 1)
-  const maxNetUp = Math.max(...data.map((d) => d.net_up), 1)
-  const maxDiskRead = Math.max(...data.map((d) => d.disk_read), 1)
-  const maxDiskWrite = Math.max(...data.map((d) => d.disk_write), 1)
+  const hasLegacyDiskActivity = data.some(
+    (row) => row.disk_read_legacy_ops !== null || row.disk_write_legacy_ops !== null
+  )
+  const maxNetDown = Math.max(...data.map((d) => d.net_down ?? 0), 1)
+  const maxNetUp = Math.max(...data.map((d) => d.net_up ?? 0), 1)
+  const maxDiskRead = Math.max(...data.map((d) => d.disk_read ?? 0), 1)
+  const maxDiskWrite = Math.max(...data.map((d) => d.disk_write ?? 0), 1)
   const maxCpuTemperature = Math.max(
     ...data.flatMap((snapshot) =>
       snapshot.cpu_temperature === null ? [] : [snapshot.cpu_temperature]
@@ -390,6 +423,11 @@ export function HistoryPage() {
           {lastRefreshed && (
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Refreshed {formatTime(lastRefreshed)}
+            </p>
+          )}
+          {visibility.disk && hasLegacyDiskActivity && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Older disk activity is available in CSV as operations per second.
             </p>
           )}
         </div>
@@ -417,7 +455,10 @@ export function HistoryPage() {
                 <button
                   key={range.minutes}
                   type="button"
-                  onClick={() => setHistoryRangeMinutes(range.minutes)}
+                  onClick={() => {
+                    setPage(0)
+                    setHistoryRangeMinutes(range.minutes)
+                  }}
                   className="min-h-10 flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:flex-none"
                   style={{
                     backgroundColor:
@@ -550,115 +591,133 @@ export function HistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((snapshot) => {
-                  const rowAlerts = tableAlertMarkers.get(snapshot.timestamp) ?? []
-                  const alertTitle = rowAlerts
-                    .map(
-                      (marker) =>
-                        `${marker.title}: ${marker.metricValue.toFixed(1)}% (threshold ${marker.threshold}%)`
-                    )
-                    .join('\n')
+                {data
+                  .slice(currentPage * ROWS_PER_PAGE, (currentPage + 1) * ROWS_PER_PAGE)
+                  .map((snapshot) => {
+                    const rowAlerts = tableAlertMarkers.get(snapshot.timestamp) ?? []
+                    const alertTitle = rowAlerts
+                      .map(
+                        (marker) =>
+                          `${marker.title}: ${marker.metricValue.toFixed(1)}% (threshold ${marker.threshold}%)`
+                      )
+                      .join('\n')
 
-                  return (
-                    <tr
-                      key={snapshot.timestamp}
-                      className="transition-colors"
-                      style={{ backgroundColor: 'transparent' }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.backgroundColor = 'transparent'
-                      }}
-                    >
-                      <HistoryTableCell
-                        value={new Date(snapshot.timestamp).toLocaleString()}
-                        align="left"
-                      />
-                      {showAlertMarkers && (
-                        <td
-                          className="px-3 py-2.5 text-center"
-                          title={alertTitle || undefined}
-                          aria-label={
-                            rowAlerts.length > 0
-                              ? `${rowAlerts.length} alert${rowAlerts.length === 1 ? '' : 's'}`
-                              : 'No alerts'
-                          }
-                        >
-                          {rowAlerts.length > 0 ? (
-                            <span
-                              className="font-semibold"
-                              style={{
-                                color: rowAlerts.some((marker) => marker.severity === 'critical')
-                                  ? 'var(--accent-red)'
-                                  : 'var(--accent-amber)'
-                              }}
-                            >
-                              Alert
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)' }}>—</span>
-                          )}
-                        </td>
-                      )}
-                      {visibility.cpu && (
-                        <>
-                          <HistoryTableCell value={`${snapshot.cpu_usage}%`} />
-                          {hasCpuTemperatureData && (
-                            <HistoryTableCell
-                              value={
-                                snapshot.cpu_temperature === null
-                                  ? '—'
-                                  : formatTemperature(snapshot.cpu_temperature)
-                              }
-                            />
-                          )}
-                        </>
-                      )}
-                      {visibility.memory && (
-                        <HistoryTableCell value={`${snapshot.memory_usage}%`} />
-                      )}
-                      {visibility.network && (
-                        <>
-                          <HistoryTableCell value={formatSpeed(snapshot.net_down)} />
-                          <HistoryTableCell value={formatSpeed(snapshot.net_up)} />
-                        </>
-                      )}
-                      {visibility.disk && (
-                        <>
-                          <HistoryTableCell value={formatSpeed(snapshot.disk_read)} />
-                          <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
-                        </>
-                      )}
-                      {visibility.gpu && (
-                        <>
-                          {hasGpuData && (
-                            <HistoryTableCell
-                              value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
-                            />
-                          )}
-                          {hasGpuTemperatureData && (
-                            <HistoryTableCell
-                              value={
-                                snapshot.gpu_temperature === null
-                                  ? '—'
-                                  : formatTemperature(snapshot.gpu_temperature)
-                              }
-                            />
-                          )}
-                        </>
-                      )}
-                      {visibility.battery && hasBatteryData && (
-                        <HistoryTableCell
-                          value={snapshot.battery === null ? '—' : `${snapshot.battery}%`}
-                        />
-                      )}
-                    </tr>
-                  )
-                })}
+                    return (
+                      <tr
+                        key={snapshot.timestamp}
+                        className="transition-colors hover:bg-[var(--bg-card-hover)]"
+                      >
+                        <HistoryTableCell value={rowTime.format(snapshot.timestamp)} align="left" />
+                        {showAlertMarkers && (
+                          <td
+                            className="px-3 py-2.5 text-center"
+                            title={alertTitle || undefined}
+                            aria-label={
+                              rowAlerts.length > 0
+                                ? `${rowAlerts.length} alert${rowAlerts.length === 1 ? '' : 's'}`
+                                : 'No alerts'
+                            }
+                          >
+                            {rowAlerts.length > 0 ? (
+                              <span
+                                className="font-semibold"
+                                style={{
+                                  color: rowAlerts.some((marker) => marker.severity === 'critical')
+                                    ? 'var(--accent-red)'
+                                    : 'var(--accent-amber)'
+                                }}
+                              >
+                                Alert
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </td>
+                        )}
+                        {visibility.cpu && (
+                          <>
+                            <HistoryTableCell value={formatPercent(snapshot.cpu_usage)} />
+                            {hasCpuTemperatureData && (
+                              <HistoryTableCell
+                                value={
+                                  snapshot.cpu_temperature === null
+                                    ? '—'
+                                    : formatTemperature(snapshot.cpu_temperature)
+                                }
+                              />
+                            )}
+                          </>
+                        )}
+                        {visibility.memory && (
+                          <HistoryTableCell value={formatPercent(snapshot.memory_usage)} />
+                        )}
+                        {visibility.network && (
+                          <>
+                            <HistoryTableCell value={formatSpeed(snapshot.net_down)} />
+                            <HistoryTableCell value={formatSpeed(snapshot.net_up)} />
+                          </>
+                        )}
+                        {visibility.disk && (
+                          <>
+                            <HistoryTableCell value={formatSpeed(snapshot.disk_read)} />
+                            <HistoryTableCell value={formatSpeed(snapshot.disk_write)} />
+                          </>
+                        )}
+                        {visibility.gpu && (
+                          <>
+                            {hasGpuData && (
+                              <HistoryTableCell
+                                value={snapshot.gpu_usage === null ? '—' : `${snapshot.gpu_usage}%`}
+                              />
+                            )}
+                            {hasGpuTemperatureData && (
+                              <HistoryTableCell
+                                value={
+                                  snapshot.gpu_temperature === null
+                                    ? '—'
+                                    : formatTemperature(snapshot.gpu_temperature)
+                                }
+                              />
+                            )}
+                          </>
+                        )}
+                        {visibility.battery && hasBatteryData && (
+                          <HistoryTableCell
+                            value={snapshot.battery === null ? '—' : `${snapshot.battery}%`}
+                          />
+                        )}
+                      </tr>
+                    )
+                  })}
               </tbody>
             </table>
           </div>
+          {pages > 1 && (
+            <nav
+              aria-label="History pages"
+              className="flex flex-wrap items-center justify-end gap-3 px-3 py-2 text-xs"
+            >
+              <button
+                type="button"
+                disabled={currentPage === 0}
+                onClick={() => setPage(currentPage - 1)}
+                className="min-h-8 px-2 disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span aria-live="polite">
+                Page {currentPage + 1} of {pages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage + 1 === pages}
+                onClick={() => setPage(currentPage + 1)}
+                className="min-h-8 px-2 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </nav>
+          )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

@@ -6,6 +6,7 @@ import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
 import { TrendIndicator } from '../ui/TrendIndicator'
+import { MetricMessage } from './MetricMessage'
 import {
   DASHBOARD_CHART_HEIGHT,
   isCompactDashboard,
@@ -17,10 +18,8 @@ export function MemoryWidget({ density }: DashboardWidgetProps) {
   const history = useHistoryStore((state) => state.memory)
   if (!memory) {
     return (
-      <Card title="Memory" subtitle="Collecting metrics" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Reading memory data...
-        </p>
+      <Card title="Memory" density={density}>
+        <MetricMessage group="memory" name="memory data" />
       </Card>
     )
   }
@@ -68,7 +67,7 @@ export function MemoryWidget({ density }: DashboardWidgetProps) {
         </div>
       )}
 
-      {!compact && memory.swapTotalBytes > 0 && (
+      {!compact && memory.swapUsagePercent !== null && (
         <div className="mt-4">
           <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>
             Swap — {formatPercent(memory.swapUsagePercent)}
