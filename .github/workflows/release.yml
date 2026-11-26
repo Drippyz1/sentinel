@@ -85,7 +85,7 @@ jobs:
           CANDIDATE_PLATFORM: ${{ inputs.platform }}
           CANDIDATE_ARCH: ${{ matrix.arch }}
         run: node scripts/release/stage-candidate.cjs "$CANDIDATE_PLATFORM" "$CANDIDATE_ARCH"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sentinel-${{ inputs.platform }}-${{ matrix.arch }}-${{ github.ref_name }}
           path: dist/release-candidate/
