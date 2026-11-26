@@ -4,10 +4,19 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 2
+    allow:
+      - dependency-type: all
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
     groups:
+      runtime-updates:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
       development-updates:
         dependency-type: development
         update-types:
@@ -17,6 +26,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      workflow-updates:
+        patterns:
+          - '*'
