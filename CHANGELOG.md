@@ -2,7 +2,7 @@
 
 All notable changes to Sentinel are documented in this file.
 
-## 0.5.0 (pending publication)
+## [0.5.0] - 2026-11-26
 
 ### Monitoring and Desktop
 
