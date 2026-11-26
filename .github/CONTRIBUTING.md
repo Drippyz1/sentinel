@@ -1,73 +1,13 @@
 # Contributing to Sentinel
 
-Thank you for your interest in contributing to Sentinel.
+Check [existing issues](https://github.com/Drippyz1/sentinel/issues) first. For a large change, discuss the problem and proposed scope before implementing it. For vulnerabilities, follow the [security policy](SECURITY.md) instead of opening a public issue.
 
-## Before You Start
+## Development
 
-Please check existing issues before creating a new one.
+Follow the [source setup](../README.md#build-from-source). Run `npm run format:check` and `npm run verify` before sending a pull request. Run `npm run smoke:desktop` for changes to collection, storage, IPC, or window behavior; it uses a temporary profile. Report the OS and CPU architecture, and distinguish native desktop tests from container and build-only checks.
 
-If you plan to work on a larger feature, open an issue first so the approach can be discussed before development begins.
+Add tests for behavior changes. Collectors should return a missing state rather than an invented value, and persistence changes should preserve existing databases and settings. The [monitoring architecture](../docs/core-monitoring.md) describes these boundaries.
 
-## Reporting Bugs
+## Reporting a Problem
 
-When reporting a bug, please include:
-
-* Operating system
-* Sentinel version
-* Steps to reproduce
-* Expected behavior
-* Actual behavior
-* Screenshots if applicable
-
-## Feature Requests
-
-Feature requests should include:
-
-* The problem being solved
-* Proposed solution
-* Alternative solutions considered
-* Additional context
-
-## Development Setup
-
-Clone the repository:
-
-```bash
-git clone https://github.com/Drippyz1/sentinel.git
-cd sentinel
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Run development mode:
-
-```bash
-npm run dev
-```
-
-## Pull Requests
-
-Before submitting a pull request:
-
-* Ensure the project builds successfully
-* Run linting
-* Run type checking
-* Keep changes focused on a single purpose
-* Update documentation when necessary
-
-## Code Style
-
-* Use TypeScript whenever possible
-* Follow existing project conventions
-* Prefer readable code over clever code
-* Keep components focused and maintainable
-
-## Questions
-
-If you're unsure about a change, open an issue or discussion before beginning work.
-
-We appreciate every contribution to Sentinel.
+Include the Sentinel version, OS and architecture, steps to reproduce, expected and observed behavior, and comparison commands when reporting an incorrect metric. Before posting screenshots, logs, or diagnostic exports, remove personal identifiers, local addresses, file paths, and secrets.

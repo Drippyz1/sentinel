@@ -1,6 +1,7 @@
 import si from 'systeminformation'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { cachedProbe } from '../../monitoring/probe'
 import type {
   NetworkConnection,
   NetworkConnectionProtocol,
@@ -19,7 +20,7 @@ const COLLECTION_TIMEOUT_MS = 10_000
 const execFileAsync = promisify(execFile)
 
 function normalizedText(value: string | undefined): string | null {
-  const normalized = value?.trim()
+  const normalized = typeof value === 'string' ? value.trim() : ''
   return normalized ? normalized : null
 }
 
@@ -133,23 +134,24 @@ async function getMacOsNetworkConnections(): Promise<NetworkConnection[]> {
   return connections
 }
 
-export async function getNetworkConnections(): Promise<NetworkConnectionsResult> {
-  const collectedAt = Date.now()
+export function getNetworkConnections(): Promise<NetworkConnectionsResult> {
+  return withTimeout(readNetworkConnections(), COLLECTION_TIMEOUT_MS + 500)
+}
+
+const readNetworkConnections = cachedProbe(async (): Promise<NetworkConnectionsResult> => {
   if (!SUPPORTED_PLATFORMS.has(process.platform)) {
     return {
       connections: [],
       supported: false,
       limitation: `Network connection details are not supported on ${process.platform}.`,
-      collectedAt
+      collectedAt: Date.now()
     }
   }
 
   const connections =
     process.platform === 'darwin'
       ? await getMacOsNetworkConnections()
-      : (await withTimeout(si.networkConnections(), COLLECTION_TIMEOUT_MS)).reduce<
-          NetworkConnection[]
-        >((result, connection) => {
+      : (await si.networkConnections()).reduce<NetworkConnection[]>((result, connection) => {
           const protocol = normalizedProtocol(connection.protocol)
           if (!protocol) return result
 
@@ -170,6 +172,6 @@ export async function getNetworkConnections(): Promise<NetworkConnectionsResult>
     connections,
     supported: true,
     limitation: null,
-    collectedAt
+    collectedAt: Date.now()
   }
-}
+}, 1000)

@@ -4,6 +4,7 @@ import { formatSpeed } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { MiniChart } from '../ui/MiniChart'
+import { MetricMessage } from './MetricMessage'
 import {
   DASHBOARD_CHART_HEIGHT,
   isCompactDashboard,
@@ -16,10 +17,8 @@ export function NetworkWidget({ density }: DashboardWidgetProps) {
   const upHistory = useHistoryStore((state) => state.networkUp)
   if (!network) {
     return (
-      <Card title="Network" subtitle="Collecting metrics" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Reading network data...
-        </p>
+      <Card title="Network" density={density}>
+        <MetricMessage group="network" name="network data" />
       </Card>
     )
   }

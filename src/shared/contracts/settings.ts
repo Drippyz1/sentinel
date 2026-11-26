@@ -1,4 +1,6 @@
-export type HistoryView = 'chart' | 'table'
+import type { MetricGroup } from './metrics'
+
+type HistoryView = 'chart' | 'table'
 export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
 export type ProcessDensity = 'compact' | 'comfortable'
 export type DashboardDensity = 'compact' | 'comfortable' | 'detailed'
@@ -15,7 +17,7 @@ export const DASHBOARD_WIDGET_KEYS = [
 ] as const
 export type DashboardWidget = (typeof DASHBOARD_WIDGET_KEYS)[number]
 
-export type HistoryMetricVisibility = Record<HistoryMetric, boolean>
+type HistoryMetricVisibility = Record<HistoryMetric, boolean>
 export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
 
 export interface MiniMonitorPosition {
@@ -53,6 +55,31 @@ export interface UiSettings {
   systemView: SystemView
 }
 
+export const DEFAULT_UI_SETTINGS: UiSettings = {
+  dashboardPollingPaused: false,
+  dashboardDensity: 'comfortable',
+  miniMonitorVisible: false,
+  miniMonitorAlwaysOnTop: true,
+  miniMonitorPosition: null,
+  dashboardWidgets: {
+    cpu: true,
+    memory: true,
+    gpu: true,
+    disk: true,
+    network: true,
+    battery: true,
+    anomalies: true
+  },
+  dashboardWidgetOrder: [...DASHBOARD_WIDGET_KEYS],
+  historyView: 'chart',
+  historyMetrics: { cpu: true, memory: true, network: true, disk: true, gpu: true, battery: true },
+  historyRangeMinutes: 60,
+  historyAlertMarkers: true,
+  processDensity: 'comfortable',
+  processQuickFilter: 'all',
+  systemView: 'advanced'
+}
+
 export type UiSettingsPatch = Partial<Omit<UiSettings, 'dashboardWidgets' | 'historyMetrics'>> & {
   dashboardWidgets?: Partial<DashboardWidgetVisibility>
   historyMetrics?: Partial<HistoryMetricVisibility>
@@ -63,6 +90,7 @@ export interface AppSettings {
   launchAtLogin: boolean
   hideFromDock: boolean
   pollIntervalMs: number
+  collectionIntervalsMs: CollectionOverrides
   tempUnit: 'C' | 'F'
   dataRetentionDays: number
   anomalySensitivity: 'sensitive' | 'balanced' | 'conservative'
@@ -77,3 +105,4 @@ export interface SettingsSaveResult {
   launchAtLoginError: boolean
   isPackaged: boolean
 }
+export type CollectionOverrides = Partial<Record<MetricGroup, number>>

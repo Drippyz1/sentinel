@@ -1,6 +1,5 @@
 import { useState } from 'react'
 
-// A single labeled metric row — used inside cards
 interface StatRowProps {
   label: string
   value: string
@@ -21,7 +20,7 @@ export function StatRow({ label, value, accent = 'blue', copyable = false }: Sta
 
   async function copyValue() {
     try {
-      await navigator.clipboard.writeText(value)
+      await window.electronAPI.copyText(value)
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
     } catch (error) {

@@ -30,9 +30,9 @@ Intentionally excluded:
 - Authentication tokens, cookies, credentials, and secrets
 - Environment variables
 
-Sentinel replaces recognized user-home paths with [home]. Hardware names, hostname,
-local IP addresses, volume labels, startup application names, and configured settings
-may still identify your device or local network.
+Diagnostic reports omit hostnames, local IP addresses, and disk labels or mount paths.
+Hardware names, startup application names, and configured settings may still identify
+your device. Standalone system reports include more machine details.
 
 Review every file in this archive before sharing it publicly.
 `
@@ -46,6 +46,13 @@ export async function createDiagnosticBundle(
 ): Promise<DiagnosticBundleExport> {
   const generatedAt = new Date()
   const report = sanitizeForExport(await createSystemReport(metricsService))
+  report.system.hostname = '[redacted]'
+  report.network = report.network.map((entry) => ({ ...entry, localIpAddress: null }))
+  report.storage = report.storage.map((drive, index) => ({
+    ...drive,
+    name: `Volume ${index + 1}`,
+    mount: drive.isPrimary ? '[system volume]' : '[mounted volume]'
+  }))
   await yieldToMainLoop()
 
   const history = getDownsampled(DIAGNOSTIC_HISTORY_MINUTES)

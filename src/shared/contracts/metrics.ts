@@ -4,7 +4,8 @@ export interface CpuMetrics {
   speedGHz: number
   cores: number
   usagePercent: number
-  perCoreUsage: number[]
+  perCoreUsage: Array<number | null>
+  /** Degrees Celsius; null when the OS does not provide a reading. */
   temperature: number | null
 }
 
@@ -13,12 +14,12 @@ export interface MemoryMetrics {
   usedBytes: number
   freeBytes: number
   activeBytes: number
-  inactiveBytes: number
-  cachedBytes: number
-  swapTotalBytes: number
-  swapUsedBytes: number
+  inactiveBytes: number | null
+  cachedBytes: number | null
+  swapTotalBytes: number | null
+  swapUsedBytes: number | null
   usagePercent: number
-  swapUsagePercent: number
+  swapUsagePercent: number | null
 }
 
 export interface DiskMetrics {
@@ -41,22 +42,22 @@ export interface DiskDrive {
 }
 
 export interface DiskIO {
-  readBytesPerSec: number
-  writeBytesPerSec: number
+  readBytesPerSec: number | null
+  writeBytesPerSec: number | null
 }
 
 export interface NetworkMetrics {
   interfaces: NetworkInterface[]
-  totalDownloadBytesPerSec: number
-  totalUploadBytesPerSec: number
+  totalDownloadBytesPerSec: number | null
+  totalUploadBytesPerSec: number | null
 }
 
 export interface NetworkInterface {
   name: string
-  downloadBytesPerSec: number
-  uploadBytesPerSec: number
-  totalDownloaded: number
-  totalUploaded: number
+  downloadBytesPerSec: number | null
+  uploadBytesPerSec: number | null
+  totalDownloaded: number | null
+  totalUploaded: number | null
   ipAddress: string
   isActive: boolean
 }
@@ -64,11 +65,11 @@ export interface NetworkInterface {
 export interface GpuController {
   name: string
   vendor: string
-  vramBytes: number
-  vramUsedBytes: number
-  vramFreeBytes: number
-  vramUsagePercent: number
-  utilizationPercent: number
+  vramBytes: number | null
+  vramUsedBytes: number | null
+  vramFreeBytes: number | null
+  vramUsagePercent: number | null
+  utilizationPercent: number | null
   temperatureCelsius: number | null
   powerDrawWatts: number | null
   powerLimitWatts: number | null
@@ -94,14 +95,17 @@ export interface BatteryMetrics {
   model: string | null
 }
 
-export interface ProcessInfo {
+export interface ProcessIdentity {
   pid: number
   name: string
-  cpuPercent: number
-  memoryBytes: number
-  memoryPercent: number
-  status: string
   started: string
+}
+
+export interface ProcessInfo extends ProcessIdentity {
+  cpuPercent: number | null
+  memoryBytes: number | null
+  memoryPercent: number | null
+  status: string
 }
 
 export interface ProcessDetails extends ProcessInfo {
@@ -111,7 +115,7 @@ export interface ProcessDetails extends ProcessInfo {
   path: string | null
   commandLine: string | null
   uptimeSeconds: number | null
-  architecture: string
+  architecture: string | null
   platform: string
 }
 
@@ -140,14 +144,87 @@ export interface AnomalyReport {
   isWarmedUp: boolean
 }
 
-export interface MetricsSnapshot {
-  timestamp: number
-  cpu: CpuMetrics
+export const METRIC_GROUPS = [
+  'cpu',
+  'cpuTemperature',
+  'memory',
+  'diskCapacity',
+  'diskIo',
+  'network',
+  'gpu',
+  'battery',
+  'processes'
+] as const
+
+export type MetricGroup = (typeof METRIC_GROUPS)[number]
+
+export interface MetricGroupValues {
+  cpu: Omit<CpuMetrics, 'temperature'>
+  cpuTemperature: number
   memory: MemoryMetrics
-  disk: DiskMetrics
+  diskCapacity: DiskDrive[]
+  diskIo: DiskIO
   network: NetworkMetrics
   gpu: GpuMetrics
   battery: BatteryMetrics
   processes: ProcessMetrics
+}
+
+export type MetricUnavailableReason = 'not-supported' | 'not-detected' | 'no-data' | 'warming-up'
+export type MetricCapability = 'unknown' | 'supported' | 'not-supported' | 'not-detected'
+export type MetricCollectionResult<T> =
+  | { state: 'ok'; value: T }
+  | { state: 'unavailable'; reason: MetricUnavailableReason }
+
+export interface MetricStatus {
+  state: 'pending' | 'ok' | 'unavailable' | 'error'
+  reason: MetricUnavailableReason | 'collection-failed' | 'timed-out' | null
+  /** UNIX epoch milliseconds at observation completion; null before the first attempt. */
+  sampledAt: number | null
+  revision: number
+}
+
+export interface DeviceCapabilities {
+  platform: string
+  architecture: string
+  metrics: Record<MetricGroup, MetricCapability>
+}
+
+export interface MetricsSnapshot {
+  /** UNIX epoch milliseconds when the desktop frame was published. */
+  timestamp: number
+  sequence: number
+  statuses: Record<MetricGroup, MetricStatus>
+  capabilities: DeviceCapabilities
+  updatedGroups: MetricGroup[]
+  cpu: CpuMetrics | null
+  cpuTemperature: number | null
+  memory: MemoryMetrics | null
+  disk: DiskMetrics
+  network: NetworkMetrics | null
+  gpu: GpuMetrics | null
+  battery: BatteryMetrics | null
+  processes: ProcessMetrics | null
   anomalyReport: AnomalyReport
 }
+
+export type MetricsView = 'dashboard' | 'processes' | 'system' | 'tray' | 'mini' | 'status'
+
+export type LiveMetricsFrame = Pick<
+  MetricsSnapshot,
+  'timestamp' | 'sequence' | 'statuses' | 'capabilities'
+> &
+  Partial<
+    Pick<
+      MetricsSnapshot,
+      | 'cpu'
+      | 'cpuTemperature'
+      | 'memory'
+      | 'disk'
+      | 'network'
+      | 'gpu'
+      | 'battery'
+      | 'processes'
+      | 'anomalyReport'
+    >
+  > & { view: MetricsView }

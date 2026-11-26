@@ -1,6 +1,6 @@
 import type { SnapshotRow } from '../contracts'
 
-export const HISTORY_CSV_HEADER = [
+const HISTORY_CSV_HEADER = [
   'timestamp',
   'cpu_usage',
   'memory_usage',
@@ -15,7 +15,9 @@ export const HISTORY_CSV_HEADER = [
   'gpu_usage',
   'cpu_temperature',
   'gpu_temperature',
-  'battery'
+  'battery',
+  'disk_read_legacy_ops_per_sec',
+  'disk_write_legacy_ops_per_sec'
 ] as const
 
 export function formatHistoryCsv(data: SnapshotRow[]): string {
@@ -35,7 +37,9 @@ export function formatHistoryCsv(data: SnapshotRow[]): string {
       snapshot.gpu_usage ?? '',
       snapshot.cpu_temperature ?? '',
       snapshot.gpu_temperature ?? '',
-      snapshot.battery ?? ''
+      snapshot.battery ?? '',
+      snapshot.disk_read_legacy_ops ?? '',
+      snapshot.disk_write_legacy_ops ?? ''
     ].join(',')
   )
 

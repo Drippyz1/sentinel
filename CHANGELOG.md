@@ -2,6 +2,33 @@
 
 All notable changes to Sentinel are documented in this file.
 
+## 0.5.0 (pending publication)
+
+### Monitoring and Desktop
+
+- Collect nine configurable metric groups independently. Timed-out probes cannot overlap themselves, failures back off, and groups retain their own timestamps and availability.
+- Record fresh CPU temperatures even if utilization is unavailable. Preserve nullable history, existing preferences and alerts.
+- Show estimated reclaimable APFS storage separately from immediately free storage. Record disk throughput in bytes/s and keep legacy operations/s in separate CSV columns. Correct rate handling after counter resets and display resident process memory rather than virtual address space.
+- Reduce work in History and avoid sending live frames to hidden windows or process data to unrelated views. Paused startup still displays an initial reading and background recording continues.
+- Preserve settings, alert records, and existing SQLite history through transactional schema updates. Missing readings remain empty instead of becoming zero.
+
+### Safety and Distribution
+
+- Make third-party macOS LaunchAgent and LaunchDaemon inventory read-only. Show plist configuration, not running state; Sentinel's own Launch at Login setting is unchanged.
+- Require native confirmation and recheck process identity before terminating. Restrict renderer permissions and IPC, and remove direct device identifiers from diagnostic ZIPs.
+- Prepare a source-first release with separate local packages and manually dispatched binary candidates. Public macOS and Windows signing requirements remain in force.
+- Add regression tests, isolated desktop checks, a reproducible benchmark, GitHub issue forms, CodeQL and Dependabot configuration.
+- Native Apple Silicon desktop and ad-hoc packaging were verified. Linux ARM64 checks ran in a container; native Linux, Windows, and Intel macOS desktops are not yet verified.
+
+## [0.4.4] - 2026-07-03
+
+- Updated the version and tag documentation. Verified the locally packaged macOS app's version and launch.
+
+## [0.4.3] - 2026-07-03
+
+- Separated ad-hoc macOS development signing from public signing and notarization.
+- Improved disk reporting and dashboard stability across platforms.
+
 ## [0.4.0] - 2026-06-15
 
 ### Added
@@ -30,6 +57,18 @@ All notable changes to Sentinel are documented in this file.
 - Corrected Mini Monitor restoration and shutdown lifecycle behavior.
 - Constrained tray popover sizing and separated tray state from the main application window.
 - Improved macOS Launch at Login failures and unsupported thermal sensor messaging.
+
+## [0.3.1] - 2026-06-14
+
+- Corrected tray sizing and position and tightened tray quit handling.
+
+## [0.3.0] - 2026-06-14
+
+- Added configurable alerts, dashboard customization, thermal history on supported systems, and JSON/TXT system exports.
+
+## [0.2.1] - 2026-06-13
+
+- Improved saved UI preferences, pause behavior, CSV exports, packaging metadata, and development checks.
 
 ## [0.2.0] - 2026-06-13
 
@@ -65,5 +104,10 @@ All notable changes to Sentinel are documented in this file.
 - Initial public release.
 
 [0.4.0]: https://github.com/Drippyz1/sentinel/compare/v0.3.1...v0.4.0
+[0.4.4]: https://github.com/Drippyz1/sentinel/releases/tag/v0.4.4
+[0.4.3]: https://github.com/Drippyz1/sentinel/releases/tag/v0.4.3
+[0.3.1]: https://github.com/Drippyz1/sentinel/releases/tag/v0.3.1
+[0.3.0]: https://github.com/Drippyz1/sentinel/releases/tag/v0.3.0
+[0.2.1]: https://github.com/Drippyz1/sentinel/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Drippyz1/sentinel/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Drippyz1/sentinel/releases/tag/v0.1.0

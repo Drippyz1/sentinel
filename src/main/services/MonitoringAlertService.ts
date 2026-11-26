@@ -1,5 +1,5 @@
-import { Notification } from 'electron'
 import type {
+  MetricGroup,
   MetricsSnapshot,
   MonitoringAlerts,
   MonitoringAlertRule,
@@ -8,7 +8,7 @@ import type {
 } from '../../shared/contracts'
 
 const SUSTAINED_THRESHOLD_MS = 10_000
-const MAX_SAMPLE_GAP_MS = 30_000
+const MAX_SAMPLE_GAP_MS = 45_000
 
 type AlertKey = 'cpu' | 'memory' | 'disk' | 'battery'
 
@@ -20,6 +20,7 @@ interface AlertState {
 
 interface AlertReading {
   key: AlertKey
+  group: MetricGroup
   label: string
   value: number | null
   rule: MonitoringAlertRule
@@ -49,7 +50,9 @@ export class MonitoringAlertService {
     const sustainedAlerts: AlertReading[] = []
 
     for (const reading of readings) {
+      if (!snapshot.updatedGroups.includes(reading.group)) continue
       const state = this.states[reading.key]
+      const observedAt = snapshot.statuses[reading.group].sampledAt ?? now
 
       if (!reading.rule.enabled || reading.value === null || !reading.isExceeded) {
         state.exceededSince = null
@@ -60,41 +63,22 @@ export class MonitoringAlertService {
 
       const thresholdChanged = state.thresholdPercent !== reading.rule.thresholdPercent
       const sampleGapTooLong =
-        state.lastObservedAt !== null && now - state.lastObservedAt > MAX_SAMPLE_GAP_MS
+        state.lastObservedAt !== null &&
+        (observedAt < state.lastObservedAt || observedAt - state.lastObservedAt > MAX_SAMPLE_GAP_MS)
       if (state.exceededSince === null || thresholdChanged || sampleGapTooLong) {
-        state.exceededSince = now
+        state.exceededSince = observedAt
       }
-      state.lastObservedAt = now
+      state.lastObservedAt = observedAt
       state.thresholdPercent = reading.rule.thresholdPercent
 
-      if (now - state.exceededSince >= SUSTAINED_THRESHOLD_MS) {
+      if (observedAt - state.exceededSince >= SUSTAINED_THRESHOLD_MS) {
         sustainedAlerts.push(reading)
       }
     }
 
     const cooldownMs = settings.cooldownMinutes * 60_000
-    if (
-      sustainedAlerts.length === 0 ||
-      now - this.lastNotificationAt < cooldownMs ||
-      !Notification.isSupported()
-    ) {
-      return
-    }
-
-    try {
-      new Notification({
-        title:
-          sustainedAlerts.length === 1
-            ? `Sentinel — ${sustainedAlerts[0].label} Alert`
-            : 'Sentinel — Monitoring Alerts',
-        body: sustainedAlerts.map((alert) => alert.message).join('\n'),
-        silent: false
-      }).show()
-      this.lastNotificationAt = now
-    } catch (error) {
-      console.error('Failed to show monitoring alert notification:', error)
-      return
-    }
+    if (sustainedAlerts.length === 0 || now - this.lastNotificationAt < cooldownMs) return
+    this.lastNotificationAt = now
 
     try {
       this.options.onTriggered?.(
@@ -132,27 +116,32 @@ export class MonitoringAlertService {
       snapshot.disk.drives.length > 0
         ? Math.max(...snapshot.disk.drives.map((drive) => drive.usagePercent))
         : null
-    const batteryCharge = snapshot.battery.hasBattery ? snapshot.battery.chargePercent : null
+    const batteryCharge = snapshot.battery?.hasBattery ? snapshot.battery.chargePercent : null
+    const cpuUsage = snapshot.cpu?.usagePercent ?? null
+    const memoryUsage = snapshot.memory?.usagePercent ?? null
 
     return [
       {
         key: 'cpu',
+        group: 'cpu',
         label: 'CPU Usage',
-        value: snapshot.cpu.usagePercent,
+        value: cpuUsage,
         rule: settings.cpu,
-        isExceeded: snapshot.cpu.usagePercent >= settings.cpu.thresholdPercent,
-        message: `CPU usage is ${Math.round(snapshot.cpu.usagePercent)}% (threshold ${settings.cpu.thresholdPercent}%).`
+        isExceeded: cpuUsage !== null && cpuUsage >= settings.cpu.thresholdPercent,
+        message: `CPU usage is ${Math.round(cpuUsage ?? 0)}% (threshold ${settings.cpu.thresholdPercent}%).`
       },
       {
         key: 'memory',
+        group: 'memory',
         label: 'Memory Usage',
-        value: snapshot.memory.usagePercent,
+        value: memoryUsage,
         rule: settings.memory,
-        isExceeded: snapshot.memory.usagePercent >= settings.memory.thresholdPercent,
-        message: `Memory usage is ${Math.round(snapshot.memory.usagePercent)}% (threshold ${settings.memory.thresholdPercent}%).`
+        isExceeded: memoryUsage !== null && memoryUsage >= settings.memory.thresholdPercent,
+        message: `Memory usage is ${Math.round(memoryUsage ?? 0)}% (threshold ${settings.memory.thresholdPercent}%).`
       },
       {
         key: 'disk',
+        group: 'diskCapacity',
         label: 'Disk Usage',
         value: diskUsage,
         rule: settings.disk,
@@ -161,12 +150,13 @@ export class MonitoringAlertService {
       },
       {
         key: 'battery',
+        group: 'battery',
         label: 'Low Battery',
         value: batteryCharge,
         rule: settings.battery,
         isExceeded:
           batteryCharge !== null &&
-          !snapshot.battery.isCharging &&
+          !snapshot.battery?.isCharging &&
           batteryCharge <= settings.battery.thresholdPercent,
         message: `Battery charge is ${Math.round(batteryCharge ?? 0)}% (threshold ${settings.battery.thresholdPercent}%).`
       }

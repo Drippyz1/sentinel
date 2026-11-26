@@ -10,7 +10,6 @@ import { getHistoryMetadata } from '../storage/queries'
 import { loadSettings } from '../storage/settings'
 import type { SystemReport, SystemReportExport, SystemReportFormat } from '../../shared/contracts'
 import { normalizeTemperature } from '../../shared/utils/temperature'
-import { sanitizePrivateText } from './privacy'
 
 export async function createSystemReportExport(
   metricsService: MetricsService,
@@ -36,15 +35,14 @@ export async function createSystemReport(metricsService: MetricsService): Promis
   const settings = loadSettings()
   const history = getHistoryMetadata()
   const generatedAt = new Date()
-  const startupItems = startup.items.map(({ name, type, description, enabled }) => ({
-    name,
-    type,
-    description,
-    enabled
-  }))
 
   return {
     generatedAt: generatedAt.toISOString(),
+    monitoring: {
+      timestamp: snapshot.timestamp,
+      statuses: snapshot.statuses,
+      capabilities: snapshot.capabilities
+    },
     system: {
       hostname: systemInfo.hostname,
       platform: systemInfo.platform,
@@ -54,20 +52,20 @@ export async function createSystemReport(metricsService: MetricsService): Promis
       uptimeSeconds: Math.floor(uptime())
     },
     cpu: {
-      manufacturer: snapshot.cpu.manufacturer,
-      brand: snapshot.cpu.brand,
+      manufacturer: snapshot.cpu?.manufacturer ?? 'Unknown',
+      brand: systemInfo.cpuBrand,
       cores: systemInfo.cpuCores,
       threads: systemInfo.cpuThreads,
-      usagePercent: snapshot.cpu.usagePercent,
-      temperatureCelsius: normalizeTemperature(snapshot.cpu.temperature)
+      usagePercent: snapshot.cpu?.usagePercent ?? null,
+      temperatureCelsius: normalizeTemperature(snapshot.cpuTemperature)
     },
     memory: {
-      totalBytes: snapshot.memory.totalBytes,
-      usedBytes: snapshot.memory.usedBytes,
-      freeBytes: snapshot.memory.freeBytes,
-      usagePercent: snapshot.memory.usagePercent
+      totalBytes: systemInfo.totalMemory,
+      usedBytes: snapshot.memory?.usedBytes ?? null,
+      freeBytes: snapshot.memory?.freeBytes ?? null,
+      usagePercent: snapshot.memory?.usagePercent ?? null
     },
-    gpu: snapshot.gpu.controllers.map((controller) => ({
+    gpu: (snapshot.gpu?.controllers ?? []).map((controller) => ({
       model: controller.name,
       vendor: controller.vendor,
       utilizationPercent: finiteOrNull(controller.utilizationPercent),
@@ -85,7 +83,7 @@ export async function createSystemReport(metricsService: MetricsService): Promis
       availableIncludesPurgeable: drive.availableIncludesPurgeable,
       isPrimary: drive.isPrimary
     })),
-    network: snapshot.network.interfaces.map((networkInterface) => ({
+    network: (snapshot.network?.interfaces ?? []).map((networkInterface) => ({
       name: networkInterface.name,
       localIpAddress: networkInterface.ipAddress === 'N/A' ? null : networkInterface.ipAddress,
       active: networkInterface.isActive,
@@ -93,15 +91,14 @@ export async function createSystemReport(metricsService: MetricsService): Promis
       uploadBytesPerSecond: networkInterface.uploadBytesPerSec
     })),
     battery: {
-      present: snapshot.battery.hasBattery,
-      charging: snapshot.battery.isCharging,
-      percent: snapshot.battery.hasBattery ? snapshot.battery.chargePercent : null,
-      timeRemainingMinutes: snapshot.battery.timeRemainingMins
+      present:
+        snapshot.battery?.hasBattery ??
+        (snapshot.statuses.battery.reason === 'not-detected' ? false : null),
+      charging: snapshot.battery?.isCharging ?? null,
+      percent: snapshot.battery?.chargePercent ?? null,
+      timeRemainingMinutes: snapshot.battery?.timeRemainingMins ?? null
     },
-    startupApplications: {
-      enabled: startupItems.filter((item) => item.enabled).map(toStartupReportItem),
-      disabled: startupItems.filter((item) => !item.enabled).map(toStartupReportItem)
-    },
+    startupApplications: startup,
     sentinel: {
       appVersion: app.getVersion(),
       settingsVersion: settings.settingsVersion,
@@ -145,18 +142,6 @@ function sanitizeMountPoint(mount: string): string {
   return mount === home || mount.startsWith(`${home}${sep}`) ? '[user volume]' : mount
 }
 
-function toStartupReportItem(item: { name: string; type: string; description: string }): {
-  name: string
-  type: string
-  description: string
-} {
-  return {
-    name: item.name,
-    type: item.type,
-    description: sanitizePrivateText(item.description)
-  }
-}
-
 function toIsoTimestamp(timestamp: number | null): string | null {
   return timestamp === null ? null : new Date(timestamp).toISOString()
 }
@@ -180,8 +165,11 @@ function formatBytes(bytes: number | null): string {
   if (bytes === null) return 'Unavailable'
   if (bytes === 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+  const index = Math.max(
+    0,
+    Math.min(Math.floor(Math.log(bytes) / Math.log(1000)), units.length - 1)
+  )
+  return `${(bytes / Math.pow(1000, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
 function formatDuration(seconds: number): string {
@@ -213,14 +201,14 @@ function formatTextReport(report: SystemReport): string {
     `Brand: ${report.cpu.brand}`,
     `Cores: ${report.cpu.cores}`,
     `Threads: ${report.cpu.threads}`,
-    `Current Usage: ${report.cpu.usagePercent}%`,
+    `Current Usage: ${formatOptional(report.cpu.usagePercent, '%')}`,
     `Temperature: ${formatOptional(report.cpu.temperatureCelsius, '°C')}`,
     '',
     '=== Memory ===',
     `Total: ${formatBytes(report.memory.totalBytes)}`,
     `Used: ${formatBytes(report.memory.usedBytes)}`,
     `Free: ${formatBytes(report.memory.freeBytes)}`,
-    `Usage: ${report.memory.usagePercent}%`,
+    `Usage: ${formatOptional(report.memory.usagePercent, '%')}`,
     '',
     '=== GPU ==='
   ]
@@ -273,8 +261,8 @@ function formatTextReport(report: SystemReport): string {
         `${networkInterface.name}`,
         `  Local IP: ${networkInterface.localIpAddress ?? 'Unavailable'}`,
         `  Active: ${networkInterface.active ? 'Yes' : 'No'}`,
-        `  Download: ${formatBytes(networkInterface.downloadBytesPerSecond)}/s`,
-        `  Upload: ${formatBytes(networkInterface.uploadBytesPerSecond)}/s`
+        `  Download: ${formatRate(networkInterface.downloadBytesPerSecond)}`,
+        `  Upload: ${formatRate(networkInterface.uploadBytesPerSecond)}`
       )
     })
   }
@@ -282,16 +270,16 @@ function formatTextReport(report: SystemReport): string {
   lines.push(
     '',
     '=== Battery ===',
-    `Present: ${report.battery.present ? 'Yes' : 'No'}`,
-    `Charging: ${report.battery.charging ? 'Yes' : 'No'}`,
+    `Present: ${formatBoolean(report.battery.present)}`,
+    `Charging: ${formatBoolean(report.battery.charging)}`,
     `Percent: ${formatOptional(report.battery.percent, '%')}`,
     `Time Remaining: ${formatOptional(report.battery.timeRemainingMinutes, ' minutes')}`,
     '',
-    '=== Startup Applications ===',
-    `Enabled (${report.startupApplications.enabled.length}):`,
-    ...formatStartupItems(report.startupApplications.enabled),
-    `Disabled (${report.startupApplications.disabled.length}):`,
-    ...formatStartupItems(report.startupApplications.disabled),
+    '=== Startup Inventory ===',
+    report.startupApplications.limitation,
+    ...report.startupApplications.items.map(
+      (item) => `  - ${item.name} [${item.type}]: ${item.configuration}`
+    ),
     '',
     '=== Sentinel ===',
     `App Version: ${report.sentinel.appVersion}`,
@@ -309,12 +297,14 @@ function formatTextReport(report: SystemReport): string {
   return `${lines.join('\n')}\n`
 }
 
-function formatStartupItems(items: SystemReport['startupApplications']['enabled']): string[] {
-  return items.length === 0
-    ? ['  None']
-    : items.map((item) => `  - ${item.name} [${item.type}] — ${item.description}`)
-}
-
 function isApfsStorageType(type: string): boolean {
   return type.trim().toLowerCase() === 'apfs'
+}
+
+function formatBoolean(value: boolean | null): string {
+  return value === null ? 'Unavailable' : value ? 'Yes' : 'No'
+}
+
+function formatRate(value: number | null): string {
+  return value === null ? 'Unavailable' : `${formatBytes(value)}/s`
 }

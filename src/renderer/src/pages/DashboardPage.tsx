@@ -5,7 +5,7 @@ import type {
   DashboardWidget,
   DashboardWidgetVisibility
 } from '../../../shared/contracts'
-import { DASHBOARD_WIDGET_KEYS } from '../../../shared/contracts'
+import { DASHBOARD_WIDGET_KEYS, DEFAULT_UI_SETTINGS } from '../../../shared/contracts'
 import { CpuWidget } from '../components/widgets/CpuWidget'
 import { MemoryWidget } from '../components/widgets/MemoryWidget'
 import { DiskWidget } from '../components/widgets/DiskWidget'
@@ -18,11 +18,7 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 import type { DashboardWidgetProps } from '../components/widgets/dashboardDensity'
 import { useMetricsStatus } from '../hooks/useMetrics'
-import {
-  DEFAULT_DASHBOARD_WIDGET_ORDER,
-  DEFAULT_DASHBOARD_WIDGETS,
-  useUiSettingsStore
-} from '../store/uiSettingsStore'
+import { useUiSettingsStore } from '../store/uiSettingsStore'
 import { formatTime } from '../utils/format'
 
 const DASHBOARD_WIDGET_METADATA: Record<DashboardWidget, { label: string; description: string }> = {
@@ -34,6 +30,11 @@ const DASHBOARD_WIDGET_METADATA: Record<DashboardWidget, { label: string; descri
   battery: { label: 'Battery', description: 'Charge and power status' },
   anomalies: { label: 'Anomalies', description: 'Unusual metric activity' }
 }
+
+const {
+  dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
+  dashboardWidgetOrder: DEFAULT_DASHBOARD_WIDGET_ORDER
+} = DEFAULT_UI_SETTINGS
 
 const DASHBOARD_WIDGET_COMPONENTS: Record<DashboardWidget, ComponentType<DashboardWidgetProps>> = {
   cpu: CpuWidget,

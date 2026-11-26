@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import type { ThermalLevel, ThermalMetrics } from '../../shared/contracts'
+import { cachedProbe } from '../../monitoring/probe'
 
 const execFileAsync = promisify(execFile)
 
@@ -12,15 +13,24 @@ const DESCRIPTIONS: Record<ThermalLevel, string> = {
   unknown: 'Thermal data requires elevated permissions on this Mac'
 }
 
-export async function getThermalMetrics(): Promise<ThermalMetrics> {
+export const getThermalMetrics = cachedProbe(async (): Promise<ThermalMetrics> => {
+  if (process.platform !== 'darwin') {
+    return {
+      level: 'unknown',
+      isThrottling: false,
+      cpuSpeedLimit: null,
+      schedulerLimit: null,
+      diskSpeedLimit: null,
+      description: 'Thermal pressure is not supported on this platform.',
+      source: 'none',
+      requiresSudo: false
+    }
+  }
   const method1 = await tryPowermetricsSafe()
   if (method1) return method1
 
   const method2 = await tryIOKit()
   if (method2) return method2
-
-  const method3 = await tryCpuFrequencyProxy()
-  if (method3) return method3
 
   return {
     level: 'unknown',
@@ -32,7 +42,7 @@ export async function getThermalMetrics(): Promise<ThermalMetrics> {
     source: 'none',
     requiresSudo: true
   }
-}
+}, 3000)
 
 async function runCommand(command: string, args: string[], timeout: number): Promise<string> {
   const { stdout } = await execFileAsync(command, args, {
@@ -46,7 +56,7 @@ async function runCommand(command: string, args: string[], timeout: number): Pro
 async function tryPowermetricsSafe(): Promise<ThermalMetrics | null> {
   try {
     const output = await runCommand(
-      'powermetrics',
+      '/usr/bin/powermetrics',
       ['-n', '1', '-i', '50', '--samplers', 'smc'],
       2000
     )
@@ -86,7 +96,7 @@ async function tryPowermetricsSafe(): Promise<ThermalMetrics | null> {
 async function tryIOKit(): Promise<ThermalMetrics | null> {
   try {
     const output = await runCommand(
-      'ioreg',
+      '/usr/sbin/ioreg',
       ['-r', '-c', 'IOPlatformExpertDevice', '-d', '3'],
       2000
     )
@@ -115,33 +125,6 @@ async function tryIOKit(): Promise<ThermalMetrics | null> {
       diskSpeedLimit: null,
       description: DESCRIPTIONS[level],
       source: 'ioreg',
-      requiresSudo: false
-    }
-  } catch {
-    return null
-  }
-}
-
-async function tryCpuFrequencyProxy(): Promise<ThermalMetrics | null> {
-  try {
-    const output = (
-      await runCommand('sysctl', ['-n', 'hw.cpufrequency', 'hw.cpufrequency_max'], 1000)
-    ).trim()
-    const lines = output.split('\n').map((line) => parseInt(line.trim()))
-    if (lines.length < 2 || isNaN(lines[0]) || isNaN(lines[1])) return null
-
-    const ratio = lines[0] / lines[1]
-    const level: ThermalLevel =
-      ratio >= 0.95 ? 'nominal' : ratio >= 0.75 ? 'moderate' : ratio >= 0.5 ? 'heavy' : 'trapping'
-
-    return {
-      level,
-      isThrottling: level !== 'nominal',
-      cpuSpeedLimit: Math.round(ratio * 100),
-      schedulerLimit: null,
-      diskSpeedLimit: null,
-      description: DESCRIPTIONS[level],
-      source: 'cpu-frequency',
       requiresSudo: false
     }
   } catch {

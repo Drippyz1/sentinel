@@ -1,5 +1,4 @@
 import { useId, useMemo } from 'react'
-import { Area, AreaChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { DataPoint } from '../../store/historyStore'
 
 interface MiniChartProps {
@@ -13,48 +12,8 @@ interface MiniChartProps {
   height?: number
 }
 
-interface ChartSummary {
-  latest: number
-  min: number
-  max: number
-  average: number
-}
-
-function SummaryTooltip({
-  active,
-  summary,
-  formatValue
-}: {
-  active?: boolean
-  summary: ChartSummary | null
-  formatValue: (value: number) => string
-}) {
-  if (!active || !summary) return null
-
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-xs shadow-xl"
-      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
-    >
-      {[
-        ['Latest', summary.latest],
-        ['Min', summary.min],
-        ['Max', summary.max],
-        ['Average', summary.average]
-      ].map(([label, value]) => (
-        <div key={label} className="flex min-w-32 items-center justify-between gap-4">
-          <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-          <span
-            className="font-mono font-medium tabular-nums"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {formatValue(value as number)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
+const WIDTH = 320
+const INSET = 4
 
 export function MiniChart({
   data,
@@ -62,97 +21,107 @@ export function MiniChart({
   ariaLabel,
   label = 'Last 2 minutes',
   status,
-  formatValue = (value) => `${value}`,
+  formatValue = String,
   domain = [0, 100],
   height = 74
 }: MiniChartProps) {
-  const gradientId = `mini-chart-gradient-${useId().replace(/:/g, '')}`
-  const chartData = useMemo(
-    () => data.map((point) => ({ t: point.timestamp, v: point.value })),
-    [data]
-  )
-  const summary = useMemo<ChartSummary | null>(() => {
-    if (data.length === 0) return null
-
-    const values = data.map((point) => point.value)
+  const id = useId()
+  const [min, max] = domain
+  const plot = useMemo(() => {
+    if (data.length < 2) return null
+    const first = data[0]
+    const last = data[data.length - 1]
+    const elapsed = Math.max(1, last.timestamp - first.timestamp)
+    const scale = Math.max(1, max - min)
+    const points = data.map(({ timestamp, value }) => [
+      INSET + ((timestamp - first.timestamp) / elapsed) * (WIDTH - INSET * 2),
+      height - INSET - ((Math.min(max, Math.max(min, value)) - min) / scale) * (height - INSET * 2)
+    ])
+    const line = points
+      .map(([x, y], index) => `${index ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`)
+      .join(' ')
+    const lowerEdge = height - INSET
+    const values = data.map(({ value }) => value)
     return {
-      latest: values[values.length - 1],
-      min: Math.min(...values),
-      max: Math.max(...values),
-      average: values.reduce((total, value) => total + value, 0) / values.length
+      line,
+      fill: `${line} L${points[points.length - 1][0]} ${lowerEdge} L${points[0][0]} ${lowerEdge} Z`,
+      last: points[points.length - 1],
+      stats: [
+        ['Latest', last.value],
+        ['Min', Math.min(...values)],
+        ['Max', Math.max(...values)],
+        ['Average', values.reduce((sum, value) => sum + value, 0) / values.length]
+      ] as const
     }
-  }, [data])
-  const latestPoint = chartData[chartData.length - 1]
-
-  if (chartData.length < 2) return null
+  }, [data, height, min, max])
 
   return (
     <div
       role="img"
       aria-label={ariaLabel}
-      className="min-w-0 overflow-hidden rounded-lg border px-2.5 pt-2 pb-1"
+      aria-describedby={plot ? `${id}-summary` : undefined}
+      tabIndex={plot ? 0 : undefined}
+      className="group relative min-w-0 rounded-lg border px-2.5 pt-2 pb-1 focus-visible:outline"
       style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border)' }}
     >
-      <div className="mb-0.5 flex min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="mb-0.5 flex min-w-0 flex-wrap items-center justify-between gap-x-2">
+        <span
+          className="text-[10px] font-semibold uppercase"
+          style={{ color: 'var(--text-muted)' }}
+        >
           <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
             style={{ backgroundColor: color }}
-            aria-hidden="true"
           />
-          <span
-            className="truncate text-[10px] font-semibold tracking-wide uppercase"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            {label}
-          </span>
-        </div>
+          {label}
+        </span>
         {status && (
-          <span
-            className="shrink-0 truncate text-[10px] font-medium"
-            style={{ color: 'var(--text-secondary)' }}
-          >
+          <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
             {status}
           </span>
         )}
       </div>
-
-      <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={chartData} margin={{ top: 6, right: 5, left: 3, bottom: 1 }}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} hide />
-          <YAxis domain={domain} hide />
-          <Tooltip
-            content={(props) => (
-              <SummaryTooltip active={props.active} summary={summary} formatValue={formatValue} />
-            )}
-            cursor={{ stroke: color, strokeWidth: 1, strokeDasharray: '3 3' }}
-          />
-          <Area
-            type="monotone"
-            dataKey="v"
-            stroke={color}
-            strokeWidth={2}
-            fill={`url(#${gradientId})`}
-            dot={false}
-            activeDot={{ r: 3, fill: color, stroke: 'var(--bg-card)', strokeWidth: 2 }}
-            isAnimationActive={false}
-          />
-          <ReferenceDot
-            x={latestPoint.t}
-            y={latestPoint.v}
-            r={3.5}
-            fill={color}
-            stroke="var(--bg-card)"
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${WIDTH} ${height}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        {plot && (
+          <>
+            <defs>
+              <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <path d={plot.fill} fill={`url(#${id})`} />
+            <path
+              d={plot.line}
+              fill="none"
+              stroke={color}
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle cx={plot.last[0]} cy={plot.last[1]} r={3.5} fill={color} />
+          </>
+        )}
+      </svg>
+      {plot && (
+        <dl
+          id={`${id}-summary`}
+          className="pointer-events-none absolute right-2 top-7 z-10 hidden w-32 rounded-lg border p-2 text-xs shadow-xl group-hover:block group-focus:block"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
+        >
+          {plot.stats.map(([name, value]) => (
+            <div key={name} className="flex flex-wrap justify-between gap-x-2">
+              <dt style={{ color: 'var(--text-muted)' }}>{name}</dt>
+              <dd className="font-mono tabular-nums">{formatValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
   )
 }

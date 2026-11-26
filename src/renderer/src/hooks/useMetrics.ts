@@ -1,26 +1,38 @@
 import { useEffect } from 'react'
 import { useMetricsStore } from '../store/metricsStore'
 
-export function useMetricsSubscription() {
+export function useMetricsSubscription(view?: string) {
   const applySnapshot = useMetricsStore((state) => state.applySnapshot)
   const setMetricsError = useMetricsStore((state) => state.setMetricsError)
 
   useEffect(() => {
+    let cancelled = false
     const stopListening = window.electronAPI.onMetricsUpdated(applySnapshot)
 
     void window.electronAPI
       .getLatestMetrics()
-      .then(applySnapshot)
+      .then((snapshot) => {
+        if (!cancelled) applySnapshot(snapshot)
+      })
       .catch((error) => {
-        setMetricsError(error instanceof Error ? error.message : 'Failed to fetch metrics')
+        if (!cancelled && !useMetricsStore.getState().lastUpdated) {
+          setMetricsError(error instanceof Error ? error.message : 'Failed to fetch metrics')
+        }
       })
 
-    return stopListening
-  }, [applySnapshot, setMetricsError])
+    return () => {
+      cancelled = true
+      stopListening()
+    }
+  }, [applySnapshot, setMetricsError, view])
 }
 
 export function useCpuMetrics() {
   return useMetricsStore((state) => state.cpu)
+}
+
+export function useCpuTemperature() {
+  return useMetricsStore((state) => state.cpuTemperature)
 }
 
 export function useMemoryMetrics() {

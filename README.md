@@ -1,236 +1,63 @@
-<p align="center">
-  <img src="docs/images/icon.svg" width="140" alt="Sentinel Logo">
-</p>
+<p align="center"><img src="docs/images/icon.svg" width="96" alt="Sentinel logo"></p>
 
-<h1 align="center">Sentinel</h1>
+# Sentinel
 
-<p align="center">
-  Local-first desktop system monitor built with Electron, React, and TypeScript.
-</p>
+Sentinel is a free, MIT-licensed desktop system monitor. It shows what your computer is doing now and keeps a local history. It does not require an account, a server, or telemetry.
 
----
+![Sentinel dashboard on macOS](docs/images/dashboard.png)
 
-Sentinel is a desktop system monitoring app that provides a clean local dashboard for monitoring system performance, running processes, hardware information, startup applications, and overall system health.
+## Download and Compatibility
 
-> Sentinel is currently in active development.
+Sentinel is distributed as source code. No public installers are provided. See [GitHub Releases](https://github.com/Drippyz1/sentinel/releases) for published versions and [build from source](#build-from-source) for installation instructions. GitHub's generated source archives are not executable applications.
 
-## Download
+| Platform | Package targets                         | Validation                                                          |
+| -------- | --------------------------------------- | ------------------------------------------------------------------- |
+| macOS    | DMG or ZIP (arm64, x64)                 | Apple Silicon desktop and local package tested; Intel unverified    |
+| Windows  | NSIS installer (x64, arm64)             | Native desktop and installer validation pending                     |
+| Linux    | AppImage or Debian package (x64, arm64) | ARM64 container packaging tested; native desktop validation pending |
 
-Prebuilt packages are available from the [latest GitHub release](https://github.com/Drippyz1/sentinel/releases/latest).
+Publicly trusted macOS and Windows installers are not currently available. Local macOS packages are ad-hoc signed and intended for development, not public distribution. The app does not install updates automatically. See the [release guide](docs/release.md) for packaging requirements.
 
 ## Features
 
-### Monitoring Dashboard
+- **Dashboard:** CPU load and temperature, memory and swap, disk capacity and activity, network throughput, GPU, and battery. Reorder widgets, change density, or pause live updates without interrupting recording.
+- **Processes and connections:** Inspect and filter running processes and TCP/UDP connections. Terminate a process with native confirmation where your OS permits it.
+- **System:** Inspect hardware and OS information, export reports, and view thermal information and read-only LaunchAgent and LaunchDaemon configuration on macOS. Sentinel's own Launch at Login setting is separate.
+- **History and alerts:** Keep local metric and alert history, review chart markers and tables, export CSV, and configure thresholds, notifications, polling, and retention.
+- **Desktop:** Use the tray popover or the floating Mini Monitor for a compact view.
 
-* Real-time CPU usage
-* Memory monitoring
-* Disk usage tracking
-* Network activity monitoring
-* GPU statistics
-* Battery information
-* Pause and resume live dashboard updates
-* Customizable, reorderable dashboard widgets
-* Compact, comfortable, and detailed dashboard density modes
-* Recent-trend mini charts for key metrics
-* Historical metric charts and tables
-* CSV history export
-* Local anomaly detection and system notifications
+Sensors, process details, and battery data depend on the hardware, OS, and user permissions. Windows disk throughput is not currently collected. Sentinel does not request elevation or install privileged helpers. macOS `Available` estimates reclaimable APFS space when supported; `Free now` is immediately free. See [monitoring architecture](docs/core-monitoring.md) for units, data sources, and limitations.
 
-### Network Connections
+![Sentinel History with seeded example data](docs/images/history.png)
 
-* View active TCP and UDP connections
-* Inspect local and remote addresses, ports, connection state, process, and PID when available
-* Search by process, endpoint, port, or state
-* Filter by protocol and connection state
-* Group connections by process
-* Copy local endpoints, remote endpoints, or complete connection details
-* Manual refresh with no additional background polling
+## Build from Source
 
-### Process Management
+Use Node.js 24 and npm (local verification used Node.js 24.22.2 and npm 11.19.1). Build packages on the target OS and architecture because SQLite uses a native binding. If a prebuilt binding is unavailable, install that platform's native build toolchain.
 
-* View running processes
-* Search processes
-* Sort by CPU, memory, PID, and name
-* Quick filters and compact/comfortable table density
-* Process Details drawer with path, command line, parent PID, user, start time, and uptime
-* Process termination with confirmation prompts
-
-### System Information
-
-* Hardware information
-* Operating system details
-* Thermal monitoring
-* Startup application management
-* Machine specifications
-* Simple and advanced system views
-* JSON and human-readable TXT system report exports
-* Privacy-filtered diagnostic ZIP bundles for bug reports and troubleshooting
-
-### Alerts and History
-
-* Configurable CPU, memory, disk, and low-battery alerts
-* Native notifications with cooldown protection
-* Persistent alert history with unread state
-* Alert analytics for recent activity, type, and severity
-* Historical alert markers on related metric charts
-
-### Desktop Experience
-
-* Compact tray popover with essential live metrics and monitoring controls
-* Floating Mini Monitor with optional always-on-top behavior
-* Persistent Mini Monitor visibility and position
-
-### Local Preferences
-
-* Persistent dashboard, history, process, and system view preferences
-* Configurable polling interval, temperature unit, retention, and anomaly sensitivity
-
-### Privacy
-
-* Metrics, network connections, history, alerts, and settings stay on the local device
-* Sentinel does not resolve remote addresses through external DNS services
-* Diagnostic exports remove recognized private paths, serial numbers, credentials, and secrets
-* Reports and diagnostic bundles should still be reviewed before public sharing because hostnames,
-  local IP addresses, volume labels, startup application names, and settings may identify a device
-  or local network
-
-### Platform Limitations
-
-* On some Apple Silicon Macs, macOS does not expose CPU or GPU temperature sensors without
-  elevated permissions. Sentinel reports these readings as unavailable and does not request
-  elevated permissions or install privileged helpers.
-* Process names, PIDs, and some network connections may be hidden when the operating system does
-  not expose them to the current user. Sentinel does not request administrator privileges.
-
-## Screenshots
-
-<p align="center">
-  <img src="docs/images/dashboard.png" width="48%" alt="Dashboard">
-  <img src="docs/images/processes.png" width="48%" alt="Process Explorer">
-</p>
-
-<p align="center">
-  <img src="docs/images/system.png" width="48%" alt="System Information">
-  <img src="docs/images/settings.png" width="48%" alt="Settings">
-</p>
-
-<p align="center">
-  <img src="docs/images/history.png" width="72%" alt="History charts and controls">
-</p>
-
-## Tech Stack
-
-* Electron
-* React
-* TypeScript
-* Tailwind CSS
-* Zustand
-* Recharts
-* better-sqlite3
-* systeminformation
-
-## Installation
-
-### Prerequisites
-
-* Node.js 20+
-* npm 10+
-
-### Clone the Repository
-
-```bash
+```sh
 git clone https://github.com/Drippyz1/sentinel.git
 cd sentinel
-```
-
-### Install Dependencies
-
-```bash
 npm ci
+npm run build
+npm start -- --skipBuild
 ```
 
-## Development
+Run `npm run verify` for lint, regression tests, TypeScript, build, and release metadata. After the build, `npm run smoke:desktop` opens an isolated test profile, leaving your history and settings alone. Use `npm run dist:mac:dev`, `npm run build:win`, or `npm run build:linux` to create local packages in `dist/`. See the [release guide](docs/release.md) for artifact verification and release requirements.
 
-Start the development environment:
+## Privacy and Support
 
-```bash
-npm run dev
-```
+Settings, history, alerts, and hardware readings remain in the local application profile. Sentinel does not look up remote endpoints through external DNS. Diagnostic ZIPs omit direct identifiers such as hostnames, IP addresses, and volume labels; app names, hardware details, and settings can still identify a device. Review all exports before sharing.
 
-## Quality Checks
+Report bugs or request features on [GitHub Issues](https://github.com/Drippyz1/sentinel/issues). Read the [contribution guide](.github/CONTRIBUTING.md) and use the [security policy](.github/SECURITY.md) for private reports.
 
-### Type Checking
+## Development and Roadmap
 
-```bash
-npm run typecheck
-```
+Sentinel Desktop is the current application. Native Windows and Linux verification, performance budgets, and distribution remain priorities. A lightweight Sentinel Agent and optional self-hosted Sentinel Hub are planned; their implementation technologies and architecture remain under evaluation. Remote monitoring is not currently available.
 
-### Linting
-
-```bash
-npm run lint
-```
-
-### Formatting
-
-```bash
-npm run format
-```
-
-## Building
-
-### Windows
-
-```bash
-npm run build:win
-```
-
-### macOS
-
-```bash
-npm run build:mac
-```
-
-### Linux
-
-```bash
-npm run build:linux
-```
-
-Platform packages are written to `dist/`. Build each target on its native operating system because Sentinel includes the native `better-sqlite3` module.
-
-Use `npm run dist:mac:dev` for local macOS smoke-test packages. Public release builds use
-the guarded `dist:*` scripts and require signing/notarization credentials where the platform
-expects them. See [docs/release.md](docs/release.md) for exact release steps.
-
-> Startup item management and detailed thermal information currently use macOS system services. Other monitoring features use cross-platform collectors where supported by the host.
-
-## Roadmap
-
-### Near-Term Goals
-
-* [ ] Add demo GIFs
-* [ ] Improve cross-platform startup item support
-* [ ] Expand automated testing
-
-### Long-Term Goals
-
-* [ ] Plugin architecture
-* [ ] Broader automatic update coverage
-* [ ] First stable release
-
-## Contributing
-
-Contributions are welcome.
-
-Please read [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request.
-
-Bug reports, feature requests, documentation improvements, and code contributions are appreciated.
-
-## Project Status
-
-Sentinel is currently an early-stage project and should be considered experimental. Features, APIs, and internal architecture may change between releases.
+- [Milestones](https://github.com/Drippyz1/sentinel/milestones)
+- [Community discussions](https://github.com/Drippyz1/sentinel/discussions)
+- [Verification methods and platform limitations](docs/verification.md)
 
 ## License
 
-Distributed under the MIT License.
+[MIT](LICENSE). Electron and bundled dependencies carry their own notices.

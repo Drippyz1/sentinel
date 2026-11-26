@@ -6,6 +6,7 @@ import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
+import { MetricMessage } from './MetricMessage'
 import {
   DASHBOARD_CHART_HEIGHT,
   isCompactDashboard,
@@ -20,9 +21,7 @@ export function GpuWidget({ density }: DashboardWidgetProps) {
   if (!gpu || !gpu.hasGpu) {
     return (
       <Card title="GPU" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          No GPU detected.
-        </p>
+        <MetricMessage group="gpu" name="GPU data" notDetected="No GPU detected." />
       </Card>
     )
   }
@@ -34,17 +33,21 @@ export function GpuWidget({ density }: DashboardWidgetProps) {
     <Card title="GPU" subtitle={controller.name} density={density}>
       <div className="flex items-end gap-2 mb-3">
         <span
-          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
+          className={`${controller.utilizationPercent === null ? 'text-lg' : compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
           style={{ color: 'var(--text-primary)' }}
         >
-          {controller.utilizationPercent}
+          {controller.utilizationPercent ?? 'Unavailable'}
         </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
-          %
-        </span>
+        {controller.utilizationPercent !== null && (
+          <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
+            %
+          </span>
+        )}
       </div>
 
-      {!compact && <UsageBar percent={controller.utilizationPercent} />}
+      {!compact && controller.utilizationPercent !== null && (
+        <UsageBar percent={controller.utilizationPercent} />
+      )}
 
       <div
         className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
@@ -93,12 +96,14 @@ export function GpuWidget({ density }: DashboardWidgetProps) {
         </div>
       )}
 
-      {!compact && controller.vramBytes > 0 && (
+      {!compact && controller.vramBytes !== null && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-            VRAM — {controller.vramUsagePercent}%
+            VRAM{controller.vramUsagePercent === null ? '' : ` — ${controller.vramUsagePercent}%`}
           </p>
-          <UsageBar percent={controller.vramUsagePercent} accent="purple" />
+          {controller.vramUsagePercent !== null && (
+            <UsageBar percent={controller.vramUsagePercent} accent="purple" />
+          )}
           <div className="mt-2 space-y-1">
             <StatRow label="Used" value={formatBytes(controller.vramUsedBytes)} accent="purple" />
             <StatRow label="Free" value={formatBytes(controller.vramFreeBytes)} accent="green" />

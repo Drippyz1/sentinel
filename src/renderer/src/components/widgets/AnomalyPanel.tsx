@@ -87,7 +87,6 @@ export function AnomalyPanel({ density }: DashboardWidgetProps) {
   }
   const compact = isCompactDashboard(density)
 
-  // Still warming up — show progress
   if (!report.isWarmedUp) {
     const progress = Math.round((report.samplesCount / 60) * 100)
     return (
@@ -118,7 +117,6 @@ export function AnomalyPanel({ density }: DashboardWidgetProps) {
     )
   }
 
-  // Warmed up, no anomalies
   if (!report.hasAnomalies) {
     return (
       <Card title="Anomaly Detection" density={density}>
@@ -135,7 +133,6 @@ export function AnomalyPanel({ density }: DashboardWidgetProps) {
     )
   }
 
-  // Active anomalies
   return (
     <Card
       title="Anomaly Detection"

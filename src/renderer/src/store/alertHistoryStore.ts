@@ -5,6 +5,7 @@ interface AlertHistoryState {
   alerts: AlertHistoryEntry[]
   analytics: AlertAnalytics | null
   initialized: boolean
+  loadFailed: boolean
   initialize: () => Promise<void>
   markAllRead: () => Promise<void>
   clear: () => Promise<void>
@@ -18,6 +19,7 @@ export const useAlertHistoryStore = create<AlertHistoryState>()((set, get) => ({
   alerts: [],
   analytics: null,
   initialized: false,
+  loadFailed: false,
 
   initialize: async () => {
     if (get().initialized) return
@@ -36,7 +38,7 @@ export const useAlertHistoryStore = create<AlertHistoryState>()((set, get) => ({
       .then(([alerts, analytics]) => set({ alerts, analytics, initialized: true }))
       .catch((error) => {
         console.error('Failed to load alert history:', error)
-        set({ initialized: true })
+        set({ initialized: true, loadFailed: true })
       })
     await initialization
   },

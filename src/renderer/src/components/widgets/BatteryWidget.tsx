@@ -4,6 +4,7 @@ import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
+import { MetricMessage } from './MetricMessage'
 import { getTrendDirection } from '../../utils/trend'
 import {
   DASHBOARD_CHART_HEIGHT,
@@ -28,22 +29,10 @@ export function BatteryWidget({ density }: DashboardWidgetProps) {
   const battery = useBatteryMetrics()
   const history = useHistoryStore((state) => state.battery)
 
-  if (!battery) {
+  if (!battery?.hasBattery) {
     return (
       <Card title="Battery" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Loading...
-        </p>
-      </Card>
-    )
-  }
-
-  if (!battery.hasBattery) {
-    return (
-      <Card title="Battery" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          No battery.
-        </p>
+        <MetricMessage group="battery" name="battery data" notDetected="No battery detected." />
       </Card>
     )
   }

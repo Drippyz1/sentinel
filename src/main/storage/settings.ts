@@ -9,44 +9,16 @@ import type {
   UiSettings,
   UiSettingsPatch
 } from '../../shared/contracts'
-import { DASHBOARD_WIDGET_KEYS } from '../../shared/contracts'
+import { DASHBOARD_WIDGET_KEYS, DEFAULT_UI_SETTINGS, METRIC_GROUPS } from '../../shared/contracts'
+import {
+  isCollectionInterval,
+  normalizeCollectionOverrides
+} from '../../shared/utils/collectionPolicy'
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
   sensitive: 2.0,
   balanced: 2.5,
   conservative: 3.0
-}
-
-const DEFAULT_UI_SETTINGS: UiSettings = {
-  dashboardPollingPaused: false,
-  dashboardDensity: 'comfortable',
-  miniMonitorVisible: false,
-  miniMonitorAlwaysOnTop: true,
-  miniMonitorPosition: null,
-  dashboardWidgets: {
-    cpu: true,
-    memory: true,
-    gpu: true,
-    disk: true,
-    network: true,
-    battery: true,
-    anomalies: true
-  },
-  dashboardWidgetOrder: [...DASHBOARD_WIDGET_KEYS],
-  historyView: 'chart',
-  historyMetrics: {
-    cpu: true,
-    memory: true,
-    network: true,
-    disk: true,
-    gpu: true,
-    battery: true
-  },
-  historyRangeMinutes: 60,
-  historyAlertMarkers: true,
-  processDensity: 'comfortable',
-  processQuickFilter: 'all',
-  systemView: 'advanced'
 }
 
 const DEFAULT_MONITORING_ALERTS: MonitoringAlerts = {
@@ -62,6 +34,7 @@ const DEFAULTS: AppSettings = {
   launchAtLogin: false,
   hideFromDock: false,
   pollIntervalMs: 2000,
+  collectionIntervalsMs: {},
   tempUnit: 'C',
   dataRetentionDays: 7,
   anomalySensitivity: 'balanced',
@@ -79,13 +52,17 @@ function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
 
+let cachedSettings: AppSettings | undefined
+
 export function loadSettings(): AppSettings {
+  if (cachedSettings) return cachedSettings
   try {
     const raw = readFileSync(settingsPath(), 'utf8')
-    return normalizeSettings(JSON.parse(raw))
+    cachedSettings = normalizeSettings(JSON.parse(raw))
   } catch {
-    return normalizeSettings({})
+    cachedSettings = normalizeSettings({})
   }
+  return cachedSettings
 }
 
 export function saveSettings(settings: AppSettings): SettingsSaveResult {
@@ -139,6 +116,11 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
     typeof value.launchAtLogin === 'boolean' &&
     typeof value.hideFromDock === 'boolean' &&
     isOneOf(value.pollIntervalMs, POLL_INTERVALS) &&
+    isRecord(value.collectionIntervalsMs) &&
+    Object.entries(value.collectionIntervalsMs).every(
+      ([group, interval]) =>
+        METRIC_GROUPS.some((known) => known === group) && isCollectionInterval(interval)
+    ) &&
     isOneOf(value.tempUnit, ['C', 'F']) &&
     isOneOf(value.dataRetentionDays, RETENTION_DAYS) &&
     isOneOf(value.anomalySensitivity, ['sensitive', 'balanced', 'conservative']) &&
@@ -286,6 +268,7 @@ function writeSettings(settings: AppSettings): boolean {
 
     writeFileSync(temporary, JSON.stringify(normalized, null, 2), 'utf8')
     renameSync(temporary, destination)
+    cachedSettings = normalized
     return true
   } catch (err) {
     console.error('Failed to save settings:', err)
@@ -303,10 +286,7 @@ function applyLaunchAtLogin(requestedState: boolean): {
   }
 
   try {
-    app.setLoginItemSettings({
-      openAtLogin: requestedState,
-      openAsHidden: true
-    })
+    app.setLoginItemSettings({ openAtLogin: requestedState })
   } catch {
     return { actualState: getLaunchAtLoginState(), denied: true }
   }
@@ -414,6 +394,7 @@ function normalizeSettings(value: unknown): AppSettings {
     pollIntervalMs: POLL_INTERVALS.some((interval) => interval === numberOr(raw.pollIntervalMs, -1))
       ? numberOr(raw.pollIntervalMs, DEFAULTS.pollIntervalMs)
       : DEFAULTS.pollIntervalMs,
+    collectionIntervalsMs: normalizeCollectionOverrides(raw.collectionIntervalsMs),
     tempUnit: isOneOf(raw.tempUnit, ['C', 'F']) ? raw.tempUnit : DEFAULTS.tempUnit,
     dataRetentionDays: RETENTION_DAYS.some((days) => days === numberOr(raw.dataRetentionDays, -1))
       ? numberOr(raw.dataRetentionDays, DEFAULTS.dataRetentionDays)

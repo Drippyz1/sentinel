@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  AppSettings,
   DashboardWidget,
   DashboardWidgetVisibility,
   DashboardDensity,
@@ -10,9 +11,10 @@ import type {
   UiSettings,
   UiSettingsPatch
 } from '../../../shared/contracts'
-import { DASHBOARD_WIDGET_KEYS } from '../../../shared/contracts'
+import { DEFAULT_UI_SETTINGS } from '../../../shared/contracts'
 
 interface UiSettingsState extends UiSettings {
+  tempUnit: AppSettings['tempUnit']
   initialized: boolean
   initialize: () => Promise<void>
   setDashboardPollingPaused: (paused: boolean) => void
@@ -27,41 +29,6 @@ interface UiSettingsState extends UiSettings {
   setProcessDensity: (density: ProcessDensity) => void
   setProcessQuickFilter: (filter: ProcessQuickFilter) => void
   setSystemView: (view: SystemView) => void
-}
-
-export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetVisibility = {
-  cpu: true,
-  memory: true,
-  gpu: true,
-  disk: true,
-  network: true,
-  battery: true,
-  anomalies: true
-}
-export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidget[] = [...DASHBOARD_WIDGET_KEYS]
-
-const DEFAULT_UI_SETTINGS: UiSettings = {
-  dashboardPollingPaused: false,
-  dashboardDensity: 'comfortable',
-  miniMonitorVisible: false,
-  miniMonitorAlwaysOnTop: true,
-  miniMonitorPosition: null,
-  dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
-  dashboardWidgetOrder: DEFAULT_DASHBOARD_WIDGET_ORDER,
-  historyView: 'chart',
-  historyMetrics: {
-    cpu: true,
-    memory: true,
-    network: true,
-    disk: true,
-    gpu: true,
-    battery: true
-  },
-  historyRangeMinutes: 60,
-  historyAlertMarkers: true,
-  processDensity: 'comfortable',
-  processQuickFilter: 'all',
-  systemView: 'advanced'
 }
 
 let initialization: Promise<void> | null = null
@@ -91,6 +58,7 @@ function persist(patch: UiSettingsPatch): void {
 export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
   ...DEFAULT_UI_SETTINGS,
   initialized: false,
+  tempUnit: 'C',
 
   initialize: async () => {
     if (get().initialized) return
@@ -99,11 +67,12 @@ export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
         stopListening = window.electronAPI.onUiSettingsChanged((patch) => {
           set((state) => mergePatch(state, patch))
         })
+        window.electronAPI.onTempUnitChanged((tempUnit) => set({ tempUnit }))
       }
       initialization = window.electronAPI
         .getSettings()
         .then((settings) => {
-          set({ ...settings.ui, initialized: true })
+          set({ ...settings.ui, tempUnit: settings.tempUnit, initialized: true })
         })
         .catch((error) => {
           console.error('Failed to load UI settings:', error)

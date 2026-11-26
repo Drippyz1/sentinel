@@ -1,9 +1,12 @@
 import type { UiSettings } from './settings'
+import type { MetricsSnapshot } from './metrics'
+import type { StartupMetrics } from './system'
 
 export type SystemReportFormat = 'json' | 'txt'
 
 export interface SystemReport {
   generatedAt: string
+  monitoring: Pick<MetricsSnapshot, 'timestamp' | 'statuses' | 'capabilities'>
   system: {
     hostname: string
     platform: string
@@ -17,14 +20,14 @@ export interface SystemReport {
     brand: string
     cores: number
     threads: number
-    usagePercent: number
+    usagePercent: number | null
     temperatureCelsius: number | null
   }
   memory: {
-    totalBytes: number
-    usedBytes: number
-    freeBytes: number
-    usagePercent: number
+    totalBytes: number | null
+    usedBytes: number | null
+    freeBytes: number | null
+    usagePercent: number | null
   }
   gpu: {
     model: string
@@ -48,27 +51,16 @@ export interface SystemReport {
     name: string
     localIpAddress: string | null
     active: boolean
-    downloadBytesPerSecond: number
-    uploadBytesPerSecond: number
+    downloadBytesPerSecond: number | null
+    uploadBytesPerSecond: number | null
   }[]
   battery: {
-    present: boolean
-    charging: boolean
+    present: boolean | null
+    charging: boolean | null
     percent: number | null
     timeRemainingMinutes: number | null
   }
-  startupApplications: {
-    enabled: {
-      name: string
-      type: string
-      description: string
-    }[]
-    disabled: {
-      name: string
-      type: string
-      description: string
-    }[]
-  }
+  startupApplications: StartupMetrics
   sentinel: {
     appVersion: string
     settingsVersion: number

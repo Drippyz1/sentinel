@@ -1,12 +1,13 @@
 import { useDiskMetrics } from '../../hooks/useMetrics'
-import { useMetricsStatus } from '../../hooks/useMetrics'
 import { useHistoryStore } from '../../store/historyStore'
+import type { DiskIO } from '../../../../shared/contracts'
 import { selectPrimaryDrive } from '../../../../shared/utils/disk'
 import { formatSpeed, formatBytes, formatPercent } from '../../utils/format'
 import { Card } from '../ui/Card'
 import { StatRow } from '../ui/StatRow'
 import { UsageBar } from '../ui/UsageBar'
 import { MiniChart } from '../ui/MiniChart'
+import { MetricMessage } from './MetricMessage'
 import {
   DASHBOARD_CHART_HEIGHT,
   isCompactDashboard,
@@ -15,32 +16,14 @@ import {
 
 export function DiskWidget({ density }: DashboardWidgetProps) {
   const disk = useDiskMetrics()
-  const { error, isLoading } = useMetricsStatus()
-  const readHistory = useHistoryStore((state) => state.diskRead)
-  const writeHistory = useHistoryStore((state) => state.diskWrite)
   const compact = isCompactDashboard(density)
 
-  if (!disk) {
-    return (
-      <Card
-        title="Disk"
-        subtitle={isLoading ? 'Collecting metrics' : 'Unavailable'}
-        density={density}
-      >
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          {error ?? (isLoading ? 'Reading storage data...' : 'Storage data unavailable')}
-        </p>
-      </Card>
-    )
-  }
-
-  const primaryDrive = selectPrimaryDrive(disk.drives)
+  const primaryDrive = selectPrimaryDrive(disk?.drives)
   if (!primaryDrive) {
     return (
-      <Card title="Disk" subtitle="No mounted storage" density={density}>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          No mounted storage information available
-        </p>
+      <Card title="Disk" density={density}>
+        <MetricMessage group="diskCapacity" name="storage capacity" />
+        <DiskActivity io={disk?.io} density={density} />
       </Card>
     )
   }
@@ -74,33 +57,7 @@ export function DiskWidget({ density }: DashboardWidgetProps) {
 
       {!compact && <UsageBar percent={primaryDrive.usagePercent} />}
 
-      <div
-        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
-        style={{ borderTop: '1px solid var(--border)' }}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <MiniChart
-            data={readHistory}
-            color="#22c55e"
-            label={compact ? 'Read · 2 min' : 'Read · Last 2 min'}
-            status={formatSpeed(disk.io.readBytesPerSec)}
-            ariaLabel="Recent disk read activity trend"
-            formatValue={formatSpeed}
-            domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
-            height={DASHBOARD_CHART_HEIGHT[density]}
-          />
-          <MiniChart
-            data={writeHistory}
-            color="#f59e0b"
-            label={compact ? 'Write · 2 min' : 'Write · Last 2 min'}
-            status={formatSpeed(disk.io.writeBytesPerSec)}
-            ariaLabel="Recent disk write activity trend"
-            formatValue={formatSpeed}
-            domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
-            height={DASHBOARD_CHART_HEIGHT[density]}
-          />
-        </div>
-      </div>
+      <DiskActivity io={disk?.io} density={density} />
 
       {!compact && (
         <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
@@ -117,14 +74,52 @@ export function DiskWidget({ density }: DashboardWidgetProps) {
           />
           <StatRow label="Used" value={formatBytes(primaryDrive.usedBytes)} accent="blue" />
           <StatRow label="Total" value={formatBytes(primaryDrive.totalBytes)} accent="blue" />
-          {availabilityMayExcludePurgeable && (
-            <p className="pt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Available data may exclude purgeable macOS storage.
-            </p>
-          )}
         </div>
       )}
+      {availabilityMayExcludePurgeable && (
+        <p className="pt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Available data may exclude purgeable macOS storage.
+        </p>
+      )}
     </Card>
+  )
+}
+
+function DiskActivity({ io, density }: DashboardWidgetProps & { io?: DiskIO }) {
+  const readHistory = useHistoryStore((state) => state.diskRead)
+  const writeHistory = useHistoryStore((state) => state.diskWrite)
+  const compact = isCompactDashboard(density)
+  return (
+    <div
+      className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
+      style={{ borderTop: '1px solid var(--border)' }}
+    >
+      {io?.readBytesPerSec == null && io?.writeBytesPerSec == null && (
+        <MetricMessage group="diskIo" name="disk activity" />
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <MiniChart
+          data={readHistory}
+          color="#22c55e"
+          label={compact ? 'Read · 2 min' : 'Read · Last 2 min'}
+          status={formatSpeed(io?.readBytesPerSec ?? null)}
+          ariaLabel="Recent disk read activity trend"
+          formatValue={formatSpeed}
+          domain={[0, Math.max(...readHistory.map((p) => p.value), 1)]}
+          height={DASHBOARD_CHART_HEIGHT[density]}
+        />
+        <MiniChart
+          data={writeHistory}
+          color="#f59e0b"
+          label={compact ? 'Write · 2 min' : 'Write · Last 2 min'}
+          status={formatSpeed(io?.writeBytesPerSec ?? null)}
+          ariaLabel="Recent disk write activity trend"
+          formatValue={formatSpeed}
+          domain={[0, Math.max(...writeHistory.map((p) => p.value), 1)]}
+          height={DASHBOARD_CHART_HEIGHT[density]}
+        />
+      </div>
+    </div>
   )
 }
 

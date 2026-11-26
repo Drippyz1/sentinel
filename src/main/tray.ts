@@ -6,7 +6,6 @@ import { createTrayWindow, setTrayWindowCompact } from './windows/trayWindow'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null
-let getMainWindow: () => BrowserWindow | null = () => null
 
 const TRAY_ICON_BASE64 = `iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAABSSURBVDiNY/z48eN/BgYGBgYkwMTAwMDAwIAqzoCmGZ8GJg4GBgYGRnQNjAwMDAwM6BoYcGlgwqWBCV0DI7oGRnQNjFgMYGJgYGBgwGYAABEnBhCIG9GaAAAAAElFTkSuQmCC`
 
@@ -20,13 +19,8 @@ function createTrayIcon(): Electron.NativeImage {
   return nativeImage.createFromDataURL(`data:image/png;base64,${TRAY_ICON_BASE64}`)
 }
 
-export function showMainWindow(): void {
-  const mainWindow = getMainWindow()
-  if (!mainWindow || mainWindow.isDestroyed()) return
-
-  mainWindow.show()
-  mainWindow.focus()
-  trayWindow?.hide()
+export function hasTray(): boolean {
+  return tray !== null && !tray.isDestroyed()
 }
 
 function positionTrayWindow(): void {
@@ -65,19 +59,27 @@ function positionTrayWindow(): void {
 }
 
 export function setupTray(
-  mainWindowProvider: () => BrowserWindow | null,
+  showMainWindow: () => void,
   saveUiSettings: (patch: UiSettingsPatch) => boolean,
   showMiniMonitor: () => void
 ) {
-  getMainWindow = mainWindowProvider
   const icon = createTrayIcon()
   tray = new Tray(icon)
   tray.setToolTip('Sentinel')
 
-  trayWindow = createTrayWindow()
-
   tray.on('click', () => {
-    if (!trayWindow) return
+    if (!trayWindow || trayWindow.isDestroyed()) {
+      const window = createTrayWindow()
+      trayWindow = window
+      window.once('ready-to-show', () => {
+        if (trayWindow !== window || window.isDestroyed()) return
+        positionTrayWindow()
+        window.showInactive()
+      })
+      return
+    }
+
+    if (trayWindow.webContents.isLoading()) return
 
     if (trayWindow.isVisible()) {
       trayWindow.hide()
@@ -94,7 +96,10 @@ export function setupTray(
       Menu.buildFromTemplate([
         {
           label: 'Open Sentinel',
-          click: showMainWindow
+          click: () => {
+            showMainWindow()
+            trayWindow?.hide()
+          }
         },
         {
           label: paused ? 'Resume Live Updates' : 'Pause Live Updates',
@@ -125,5 +130,4 @@ export function destroyTray() {
   tray = null
   if (trayWindow && !trayWindow.isDestroyed()) trayWindow.destroy()
   trayWindow = null
-  getMainWindow = () => null
 }

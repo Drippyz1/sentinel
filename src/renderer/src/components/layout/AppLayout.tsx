@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { CommandPalette } from '../commandPalette/CommandPalette'
 import { Sidebar } from './Sidebar'
-import { useMetricsStatus } from '../../hooks/useMetrics'
+import { useMetricsStore } from '../../store/metricsStore'
 import { formatTime } from '../../utils/format'
 
+function UpdatedTime() {
+  const lastUpdated = useMetricsStore((state) => state.lastUpdated)
+  return lastUpdated ? (
+    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+      Updated {formatTime(lastUpdated)}
+    </span>
+  ) : null
+}
+
 export function AppLayout() {
-  const { lastUpdated } = useMetricsStatus()
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const isMac = navigator.userAgent.toUpperCase().includes('MAC')
   const closeCommandPalette = useCallback(() => setCommandPaletteOpen(false), [])
@@ -25,12 +33,10 @@ export function AppLayout() {
 
   return (
     <div className="h-screen flex overflow-hidden" style={{ backgroundColor: 'var(--bg-base)' }}>
-      <CommandPalette open={commandPaletteOpen} onClose={closeCommandPalette} />
+      {commandPaletteOpen && <CommandPalette open onClose={closeCommandPalette} />}
       <Sidebar />
 
-      {/* Main content area */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Top bar */}
         <header
           className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}
@@ -49,16 +55,19 @@ export function AppLayout() {
             <span className="hidden sm:inline">Commands</span>
             <kbd className="text-[10px] font-semibold">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
-          {lastUpdated && (
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Updated {formatTime(lastUpdated)}
-            </span>
-          )}
+          <UpdatedTime />
         </header>
 
-        {/* Page content — Outlet renders the current page */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-5 xl:p-6">
-          <Outlet />
+          <Suspense
+            fallback={
+              <p className="text-sm" role="status">
+                Loading view...
+              </p>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

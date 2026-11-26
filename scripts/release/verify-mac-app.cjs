@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/explicit-function-return-type, @typescript-eslint/no-require-imports */
-const { existsSync } = require('fs')
-const { join, resolve } = require('path')
-const { execFileSync, spawnSync } = require('child_process')
+const { existsSync, mkdtempSync, mkdirSync, rmSync } = require('node:fs')
+const { tmpdir } = require('node:os')
+const { join, resolve } = require('node:path')
+const { execFileSync, spawn, spawnSync } = require('node:child_process')
+const { DatabaseSync } = require('node:sqlite')
+const { setTimeout: wait } = require('node:timers/promises')
 
 const args = process.argv.slice(2)
 const strictRelease = args.includes('--strict-release')
@@ -26,7 +29,7 @@ const electronFramework = join(
   'Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework'
 )
 
-try {
+async function verify() {
   console.log(`Verifying ${appPath}`)
   const appDetails = printSigningDetails(appPath, 'App bundle')
   const mainDetails = printSigningDetails(mainExecutable, 'Main executable')
@@ -35,19 +38,32 @@ try {
   verifyCodesign(appPath)
 
   if (strictRelease) {
-    requireTeamIdentifier(appDetails, 'app bundle')
-    requireTeamIdentifier(mainDetails, 'main executable')
-    requireTeamIdentifier(frameworkDetails, 'Electron Framework')
+    for (const [details, label] of [
+      [appDetails, 'app bundle'],
+      [mainDetails, 'main executable'],
+      [frameworkDetails, 'Electron Framework']
+    ]) {
+      if (
+        !/^[A-Z0-9]{10}$/.test(details.TeamIdentifier ?? '') ||
+        details.TeamIdentifier !== appDetails.TeamIdentifier ||
+        !details.Authority?.startsWith('Developer ID Application: ')
+      ) {
+        throw new Error(`Expected a matching Developer ID Application signature on ${label}.`)
+      }
+    }
+    execFileSync('/usr/bin/xcrun', ['stapler', 'validate', appPath], { stdio: 'inherit' })
   }
 
   verifyGatekeeper(appPath, strictRelease)
 
-  if (launch) verifyLaunch(appPath)
+  if (launch) await verifyLaunch(mainExecutable)
   console.log('macOS package verification complete.')
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exit(1)
 }
+
+verify().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
+})
 
 function getArgValue(name) {
   const index = args.indexOf(name)
@@ -56,15 +72,14 @@ function getArgValue(name) {
 
 function findDefaultApp() {
   const candidates = [
-    'dist/mac-arm64/Sentinel.app',
-    'dist/mac/Sentinel.app',
+    process.arch === 'arm64' ? 'dist/mac-arm64/Sentinel.app' : 'dist/mac/Sentinel.app',
     'dist/mac-universal/Sentinel.app'
   ]
   return candidates.find((candidate) => existsSync(candidate)) ?? null
 }
 
 function printSigningDetails(target, label) {
-  const result = spawnSync('codesign', ['-dv', '--verbose=4', target], {
+  const result = spawnSync('/usr/bin/codesign', ['-dv', '--verbose=4', target], {
     encoding: 'utf8'
   })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
@@ -81,25 +96,28 @@ function printSigningDetails(target, label) {
 }
 
 function parseCodesignDetails(output) {
-  return Object.fromEntries(
-    output
-      .split(/\r?\n/)
-      .map((line) => line.match(/^([^=]+)=(.*)$/))
-      .filter(Boolean)
-      .map((match) => [match[1], match[2]])
-  )
+  const details = Object.create(null)
+  for (const line of output.split(/\r?\n/)) {
+    const field = line.match(/^(Identifier|TeamIdentifier|Signature|Authority)=(.+)$/)
+    if (field) details[field[1]] ??= field[2]
+  }
+  return details
 }
 
 function verifyCodesign(target) {
-  execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=4', target], {
+  execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', target], {
     stdio: 'inherit'
   })
 }
 
 function verifyGatekeeper(target, required) {
-  const result = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', target], {
-    encoding: 'utf8'
-  })
+  const result = spawnSync(
+    '/usr/sbin/spctl',
+    ['--assess', '--type', 'execute', '--verbose=4', target],
+    {
+      encoding: 'utf8'
+    }
+  )
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
 
   if (result.status === 0) {
@@ -114,43 +132,54 @@ function verifyGatekeeper(target, required) {
   console.warn(output || 'Gatekeeper assessment rejected this dev/ad-hoc build.')
 }
 
-function requireTeamIdentifier(details, label) {
-  if (!details.TeamIdentifier || details.TeamIdentifier === 'not set') {
-    throw new Error(`Strict release verification failed: ${label} has no TeamIdentifier.`)
+async function verifyLaunch(executablePath) {
+  const home = mkdtempSync(join(tmpdir(), 'sentinel-package-'))
+  const profile = join(home, 'profile')
+  const database = join(profile, 'sentinel.db')
+  mkdirSync(profile, { mode: 0o700 })
+  const child = spawn(executablePath, [`--user-data-dir=${profile}`], {
+    env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', HOME: home, CFFIXED_USER_HOME: home },
+    stdio: 'inherit'
+  })
+  let stopped = false
+  let spawnError
+  const closed = new Promise((done) => {
+    child.once('error', (error) => {
+      spawnError = error
+    })
+    child.once('close', () => {
+      stopped = true
+      done()
+    })
+  })
+  try {
+    const deadline = Date.now() + 20_000
+    while (!stopped && Date.now() < deadline) {
+      if (existsSync(database)) {
+        const reader = new DatabaseSync(database, { readOnly: true })
+        try {
+          if (reader.prepare('SELECT 1 FROM metric_snapshots LIMIT 1').get()) {
+            console.log('Packaged app recorded a metric in an isolated profile.')
+            return
+          }
+        } catch {
+          // The child may still be initializing the database schema.
+        } finally {
+          reader.close()
+        }
+      }
+      await wait(250)
+    }
+    throw spawnError ?? new Error('Packaged app did not record a metric within 20 seconds.')
+  } finally {
+    if (!stopped) child.kill('SIGTERM')
+    const abort = new AbortController()
+    await Promise.race([closed, wait(2_000, undefined, { signal: abort.signal })])
+    abort.abort()
+    if (!stopped) {
+      child.kill('SIGKILL')
+      await closed
+    }
+    rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
   }
-}
-
-function verifyLaunch(target) {
-  execFileSync('open', [target], { stdio: 'ignore' })
-
-  const executablePath = join(target, 'Contents/MacOS/Sentinel')
-  const pids = waitForProcess(executablePath)
-  if (pids.length === 0) {
-    throw new Error('Packaged app did not appear to launch a Sentinel process.')
-  }
-
-  spawnSync('osascript', ['-e', 'tell application "Sentinel" to quit'], { stdio: 'ignore' })
-  console.log('Packaged app launched successfully.')
-}
-
-function waitForProcess(executablePath) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const pids = findProcessIds(executablePath)
-    if (pids.length > 0) return pids
-    spawnSync('sleep', ['1'])
-  }
-
-  return []
-}
-
-function findProcessIds(executablePath) {
-  const result = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
-  if (result.status !== 0) return []
-
-  return result.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.includes(executablePath))
-    .map((line) => line.match(/^(\d+)/)?.[1])
-    .filter(Boolean)
 }

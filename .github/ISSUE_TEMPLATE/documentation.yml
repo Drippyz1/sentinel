@@ -1,0 +1,20 @@
+name: Documentation
+description: Report incorrect, missing or unclear documentation.
+labels: [documentation, 'needs triage']
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Affected page or section
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is incorrect or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement

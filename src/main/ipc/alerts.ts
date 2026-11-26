@@ -1,5 +1,9 @@
-import { BrowserWindow, ipcMain } from 'electron'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { ipcMain } from 'electron'
+import {
+  assertTrustedIpcSender,
+  broadcastToTrustedWindows,
+  isValidHistoryRange
+} from '../ipcSecurity'
 import {
   clearAlertHistory,
   getAlertAnalytics,
@@ -8,16 +12,11 @@ import {
   markAllAlertHistoryRead
 } from '../storage/alertHistory'
 import type { AlertAnalytics, AlertHistoryEntry } from '../../shared/contracts'
-import { isValidHistoryRange } from '../ipcSecurity'
 
 export function broadcastAlertHistory(alerts: AlertHistoryEntry[]): void {
   const analytics: AlertAnalytics = getAlertAnalytics()
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send('alert-history-updated', alerts)
-      window.webContents.send('alert-analytics-updated', analytics)
-    }
-  }
+  broadcastToTrustedWindows('alert-history-updated', alerts)
+  broadcastToTrustedWindows('alert-analytics-updated', analytics)
 }
 
 export function registerAlertIpc(): void {
@@ -38,14 +37,14 @@ export function registerAlertIpc(): void {
   })
 
   ipcMain.handle('mark-all-alerts-read', (event) => {
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'main')
     const alerts = markAllAlertHistoryRead()
     broadcastAlertHistory(alerts)
     return alerts
   })
 
   ipcMain.handle('clear-alert-history', (event) => {
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'main')
     const alerts = clearAlertHistory()
     broadcastAlertHistory(alerts)
     return alerts

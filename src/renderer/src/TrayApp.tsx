@@ -18,7 +18,7 @@ import { formatBytes, formatPercent, formatSpeed, formatTime } from './utils/for
 interface MetricRowProps {
   label: string
   value: string
-  percent: number
+  percent: number | null
   accent?: 'blue' | 'green' | 'amber' | 'red' | 'purple'
   detail?: string
   compact: boolean
@@ -32,7 +32,9 @@ function MetricRow({ label, value, percent, accent, detail, compact }: MetricRow
           {label}
         </span>
         <div className="min-w-0 flex-1">
-          {!compact && <UsageBar percent={percent} accent={accent} height={3} />}
+          {!compact && percent !== null && (
+            <UsageBar percent={percent} accent={accent} height={3} />
+          )}
         </div>
         <span
           className="w-20 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
@@ -143,14 +145,14 @@ function TrayContent() {
         <MetricRow
           label="CPU"
           value={cpu ? formatPercent(cpu.usagePercent, 0) : '—'}
-          percent={cpu?.usagePercent ?? 0}
+          percent={cpu?.usagePercent ?? null}
           detail={cpu ? `${cpu.speedGHz} GHz · ${cpu.cores} cores` : undefined}
           compact={compact}
         />
         <MetricRow
           label="Mem"
           value={memory ? formatPercent(memory.usagePercent, 0) : '—'}
-          percent={memory?.usagePercent ?? 0}
+          percent={memory?.usagePercent ?? null}
           accent="purple"
           detail={
             memory
@@ -163,7 +165,7 @@ function TrayContent() {
           <MetricRow
             label="GPU"
             value={gpuController ? formatPercent(gpuController.utilizationPercent, 0) : '—'}
-            percent={gpuController?.utilizationPercent ?? 0}
+            percent={gpuController?.utilizationPercent ?? null}
             accent="purple"
             detail={gpuController?.name ?? 'Unavailable'}
             compact={compact}
@@ -172,7 +174,7 @@ function TrayContent() {
         <MetricRow
           label="Disk"
           value={primaryDrive ? formatBytes(primaryDrive.availableBytes) : '—'}
-          percent={primaryDrive?.usagePercent ?? 0}
+          percent={primaryDrive?.usagePercent ?? null}
           detail={
             disk && primaryDrive
               ? `${formatPercent(primaryDrive.usagePercent, 0)} used · Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`

@@ -1,15 +1,12 @@
-// How many recent readings to use when calculating "normal"
-// 900 readings at 2 seconds each = 30 minutes of history
-const WINDOW_SIZE = 900
+import type { Anomaly, AnomalyReport, AnomalySeverity } from '../../shared/contracts'
 
-// Mutable threshold — updated at runtime via setThreshold()
+const WINDOW_SIZE = 900
 let THRESHOLD = 2.5
 
 export function setThreshold(value: number) {
   THRESHOLD = value
 }
 
-// Minimum readings needed before we start flagging anomalies
 const MIN_SAMPLES = 60
 
 class CircularBuffer {
@@ -29,24 +26,21 @@ class CircularBuffer {
     this.count = Math.min(this.count + 1, this.size)
   }
 
-  getValues(): number[] {
-    if (this.count < this.size) return this.buffer.slice(0, this.count)
-    return [...this.buffer.slice(this.head), ...this.buffer.slice(0, this.head)]
+  statistics(): { mean: number; deviation: number } {
+    // Welford's update avoids allocating per-metric window copies and unstable squared sums.
+    let mean = 0
+    let m2 = 0
+    for (let i = 0; i < this.count; i++) {
+      const delta = this.buffer[i] - mean
+      mean += delta / (i + 1)
+      m2 += delta * (this.buffer[i] - mean)
+    }
+    return { mean, deviation: Math.sqrt(Math.max(0, m2) / this.count) }
   }
 
   get length(): number {
     return this.count
   }
-}
-
-function mean(values: number[]): number {
-  if (values.length === 0) return 0
-  return values.reduce((sum, v) => sum + v, 0) / values.length
-}
-
-function stdDev(values: number[], avg: number): number {
-  if (values.length === 0) return 0
-  return Math.sqrt(mean(values.map((v) => Math.pow(v - avg, 2))))
 }
 
 function getSeverity(zScore: number): AnomalySeverity {
@@ -60,8 +54,6 @@ class MetricDetector {
   private buffer: CircularBuffer
   private name: string
 
-  // Exposed as a getter so checkForAnomalies can read
-  // the sample count without bracket-notation hacks
   get sampleCount(): number {
     return this.buffer.length
   }
@@ -71,16 +63,14 @@ class MetricDetector {
     this.buffer = new CircularBuffer(WINDOW_SIZE)
   }
 
-  check(value: number): Anomaly | null {
-    // Sanitize — NaN/Infinity poison mean() via reduce forever
-    const safe = typeof value === 'number' && isFinite(value) ? value : 0
+  check(value: number | null): Anomaly | null {
+    if (value === null || !Number.isFinite(value)) return null
+    const safe = value
     this.buffer.push(safe)
 
     if (this.buffer.length < MIN_SAMPLES) return null
 
-    const values = this.buffer.getValues()
-    const avg = mean(values)
-    const std = stdDev(values, avg)
+    const { mean: avg, deviation: std } = this.buffer.statistics()
 
     if (std < 0.5) return null
 
@@ -129,12 +119,12 @@ const detectors: Record<string, MetricDetector> = {
 }
 
 export function checkForAnomalies(metrics: {
-  cpu: number
-  memory: number
-  diskRead: number
-  diskWrite: number
-  netDown: number
-  netUp: number
+  cpu: number | null
+  memory: number | null
+  diskRead: number | null
+  diskWrite: number | null
+  netDown: number | null
+  netUp: number | null
   gpu: number | null
 }): AnomalyReport {
   const anomalies: Anomaly[] = []
@@ -146,7 +136,7 @@ export function checkForAnomalies(metrics: {
     { key: 'disk_write', value: metrics.diskWrite },
     { key: 'net_down', value: metrics.netDown },
     { key: 'net_up', value: metrics.netUp },
-    { key: 'gpu', value: metrics.gpu ?? 0 }
+    { key: 'gpu', value: metrics.gpu }
   ]
 
   for (const { key, value } of checks) {
@@ -154,7 +144,6 @@ export function checkForAnomalies(metrics: {
     if (anomaly) anomalies.push(anomaly)
   }
 
-  // Use the getter — never bracket-notation on a private field
   const samplesCount = detectors['cpu'].sampleCount
   const isWarmedUp = samplesCount >= MIN_SAMPLES
 
@@ -165,4 +154,3 @@ export function checkForAnomalies(metrics: {
     isWarmedUp
   }
 }
-import type { Anomaly, AnomalyReport, AnomalySeverity } from '../../shared/contracts'

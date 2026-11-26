@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { AppSettings, MonitoringAlertRule, MonitoringAlerts } from '../../../shared/contracts'
+import { METRIC_GROUPS, type MetricGroup } from '../../../shared/contracts'
+import {
+  COLLECTION_INTERVALS,
+  resolveCollectionIntervals
+} from '../../../shared/utils/collectionPolicy'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -7,6 +12,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   launchAtLogin: false,
   hideFromDock: false,
   pollIntervalMs: 2000,
+  collectionIntervalsMs: {},
   tempUnit: 'C',
   dataRetentionDays: 7,
   anomalySensitivity: 'balanced',
@@ -51,7 +57,17 @@ const DEFAULT_SETTINGS: AppSettings = {
   }
 }
 
-// ── Reusable primitives ────────────────────────────────────────────────────
+const GROUP_LABELS: Record<MetricGroup, string> = {
+  cpu: 'CPU usage',
+  cpuTemperature: 'CPU temperature',
+  memory: 'Memory',
+  diskCapacity: 'Disk capacity',
+  diskIo: 'Disk activity',
+  network: 'Network traffic',
+  gpu: 'GPU',
+  battery: 'Battery',
+  processes: 'Processes'
+}
 
 function Section({
   title,
@@ -193,8 +209,6 @@ function AlertSettingRow({
   )
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────
-
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
@@ -266,6 +280,13 @@ export function SettingsPage() {
       ...settings.monitoringAlerts,
       [alert]: rule
     })
+  }
+
+  function updateCollectionInterval(group: MetricGroup, value: number) {
+    const overrides = { ...settings.collectionIntervalsMs }
+    if (value === 0) delete overrides[group]
+    else overrides[group] = value
+    void update('collectionIntervalsMs', overrides)
   }
 
   if (loading) {
@@ -358,7 +379,7 @@ export function SettingsPage() {
 
       {/* ── Monitoring ───────────────────────────── */}
       <Section title="Monitoring">
-        <Row label="Poll interval" description="How often hardware metrics are refreshed">
+        <Row label="Poll interval" description="Default cadence for live counters">
           <Select
             ariaLabel="Poll interval"
             value={settings.pollIntervalMs}
@@ -371,6 +392,30 @@ export function SettingsPage() {
             ]}
           />
         </Row>
+        <details>
+          <summary className="cursor-pointer px-4 py-3.5 text-sm font-medium">
+            Collection intervals
+          </summary>
+          {METRIC_GROUPS.map((group) => (
+            <Row key={group} label={GROUP_LABELS[group]}>
+              <Select
+                ariaLabel={`${GROUP_LABELS[group]} interval`}
+                value={settings.collectionIntervalsMs[group] ?? 0}
+                onChange={(value) => updateCollectionInterval(group, value)}
+                options={[
+                  {
+                    label: `Default (${resolveCollectionIntervals(settings.pollIntervalMs)[group] / 1000}s)`,
+                    value: 0
+                  },
+                  ...COLLECTION_INTERVALS.map((ms) => ({
+                    label: `${ms / 1000} seconds`,
+                    value: ms
+                  }))
+                ]}
+              />
+            </Row>
+          ))}
+        </details>
         <Row label="Temperature unit" description="Unit used across all thermal readings">
           <Select
             ariaLabel="Temperature unit"

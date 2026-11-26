@@ -1,17 +1,19 @@
-import { useState, useMemo } from 'react'
-import type { ProcessDetails, ProcessInfo } from '../../../shared/contracts'
+import { useState, useMemo, useRef } from 'react'
+import type { ProcessDetails, ProcessIdentity, ProcessInfo } from '../../../shared/contracts'
 import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
-import { formatBytes, formatTime } from '../utils/format'
+import { formatBytes, formatPercent, formatTime } from '../utils/format'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
 import { ProcessDetailsDrawer } from '../components/processes/ProcessDetailsDrawer'
+import { MetricMessage } from '../components/widgets/MetricMessage'
 
 type SortKey = 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
 type SortDir = 'asc' | 'desc'
 
-function cpuColor(pct: number): string {
+function cpuColor(pct: number | null): string {
+  if (pct === null) return 'var(--text-muted)'
   if (pct >= 20) return 'var(--accent-red)'
   if (pct >= 5) return 'var(--accent-amber)'
   return 'var(--accent-green)'
@@ -47,71 +49,6 @@ function ColHeader({
   )
 }
 
-// ── Kill confirmation dialog ───────────────────────────────────────────────
-
-function KillDialog({
-  name,
-  pid,
-  onConfirm,
-  onCancel
-}: {
-  name: string
-  pid: number
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      onClick={onCancel}
-    >
-      <div
-        className="rounded-xl p-5 w-80 shadow-xl"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Kill process?
-        </h3>
-        <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          This will send SIGKILL to <span style={{ color: 'var(--text-primary)' }}>{name}</span>{' '}
-          (PID {pid}). Any unsaved work in that process will be lost.
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--bg-base)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)'
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--accent-red)',
-              color: 'white',
-              border: 'none'
-            }}
-          >
-            Kill Process
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Main page ──────────────────────────────────────────────────────────────
-
 export function ProcessesPage() {
   const processes = useProcessMetrics()
   const processesUpdatedAt = useProcessMetricsStatus()
@@ -127,21 +64,24 @@ export function ProcessesPage() {
   const [processDetails, setProcessDetails] = useState<ProcessDetails | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [killing, setKilling] = useState<{ pid: number; name: string } | null>(null)
   const [killError, setKillError] = useState<string | null>(null)
+  const killPending = useRef(false)
+  const detailsRequest = useRef(0)
 
   const filtered = useMemo(() => {
     if (!processes) return []
+    const query = search.toLowerCase()
     return processes.list
       .filter((process) => {
-        if (quickFilter === 'cpu') return process.cpuPercent >= 5
-        if (quickFilter === 'memory') return process.memoryPercent >= 1
+        if (quickFilter === 'cpu') return (process.cpuPercent ?? 0) >= 5
+        if (quickFilter === 'memory') return (process.memoryPercent ?? 0) >= 1
         return true
       })
-      .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => p.name.toLowerCase().includes(query))
       .sort((a, b) => {
         const aVal = a[sortKey]
         const bVal = b[sortKey]
+        if (aVal === null || bVal === null) return Number(aVal === null) - Number(bVal === null)
         if (typeof aVal === 'string' && typeof bVal === 'string') {
           return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
         }
@@ -156,15 +96,15 @@ export function ProcessesPage() {
       return { cpuPid: null, memoryPid: null }
     }
 
-    let topCpu = processes.list[0]
-    let topMemory = processes.list[0]
+    let topCpu: ProcessInfo | undefined
+    let topMemory: ProcessInfo | undefined
 
-    for (const process of processes.list.slice(1)) {
-      if (process.cpuPercent > topCpu.cpuPercent) topCpu = process
-      if (process.memoryBytes > topMemory.memoryBytes) topMemory = process
+    for (const process of processes.list) {
+      if ((process.cpuPercent ?? -1) > (topCpu?.cpuPercent ?? -1)) topCpu = process
+      if ((process.memoryBytes ?? -1) > (topMemory?.memoryBytes ?? -1)) topMemory = process
     }
 
-    return { cpuPid: topCpu.pid, memoryPid: topMemory.pid }
+    return { cpuPid: topCpu?.pid ?? null, memoryPid: topMemory?.pid ?? null }
   }, [processes])
 
   function handleSort(key: SortKey) {
@@ -176,52 +116,49 @@ export function ProcessesPage() {
     }
   }
 
-  async function handleKillConfirm() {
-    if (!killing) return
+  async function terminateProcess(identity: ProcessIdentity) {
+    if (killPending.current) return
+    killPending.current = true
+    setKillError(null)
     try {
-      const result = await window.electronAPI.killProcess(killing.pid)
+      const result = await window.electronAPI.killProcess(identity)
+      if (result.cancelled) return
       if (!result.success) {
         setKillError(result.error ?? 'Failed to kill process')
-      } else if (selectedProcess?.pid === killing.pid) {
+      } else if (selectedProcess?.pid === identity.pid) {
         setSelectedProcess(null)
       }
     } catch {
       setKillError('Failed to kill process')
     } finally {
-      setKilling(null)
+      killPending.current = false
     }
   }
 
   async function openProcessDetails(process: ProcessInfo) {
+    const request = ++detailsRequest.current
     setSelectedProcess(process)
     setProcessDetails(null)
     setDetailsError(null)
     setDetailsLoading(true)
     try {
       const details = await window.electronAPI.getProcessDetails(process.pid)
-      if (details) {
+      if (request !== detailsRequest.current) return
+      if (details?.name === process.name && details.started === process.started) {
         setProcessDetails(details)
       } else {
         setDetailsError('Detailed information is unavailable for this process.')
       }
     } catch {
-      setDetailsError('Detailed information could not be loaded.')
+      if (request === detailsRequest.current)
+        setDetailsError('Detailed information could not be loaded.')
     } finally {
-      setDetailsLoading(false)
+      if (request === detailsRequest.current) setDetailsLoading(false)
     }
   }
 
   return (
     <div>
-      {killing && (
-        <KillDialog
-          name={killing.name}
-          pid={killing.pid}
-          onConfirm={handleKillConfirm}
-          onCancel={() => setKilling(null)}
-        />
-      )}
-
       {selectedProcess && (
         <ProcessDetailsDrawer
           process={selectedProcess}
@@ -229,7 +166,7 @@ export function ProcessesPage() {
           loading={detailsLoading}
           error={detailsError}
           onClose={() => setSelectedProcess(null)}
-          onKill={() => setKilling({ pid: selectedProcess.pid, name: selectedProcess.name })}
+          onKill={() => void terminateProcess(selectedProcess)}
         />
       )}
 
@@ -267,6 +204,7 @@ export function ProcessesPage() {
         </div>
       </div>
 
+      {!processes && <MetricMessage group="processes" name="process data" />}
       <Card>
         <div className="relative mb-4">
           <label
@@ -431,7 +369,7 @@ export function ProcessesPage() {
                     className="text-sm font-mono"
                     style={{ color: cpuColor(process.cpuPercent) }}
                   >
-                    {process.cpuPercent.toFixed(1)}%
+                    {formatPercent(process.cpuPercent)}
                   </span>
                   <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
                     {formatBytes(process.memoryBytes)}
@@ -440,11 +378,10 @@ export function ProcessesPage() {
                     {process.pid}
                   </span>
 
-                  {/* Kill button — only visible on hover */}
                   <button
                     onClick={(event) => {
                       event.stopPropagation()
-                      setKilling({ pid: process.pid, name: process.name })
+                      void terminateProcess(process)
                     }}
                     onKeyDown={(event) => event.stopPropagation()}
                     title={`Kill ${process.name}`}
@@ -468,9 +405,9 @@ export function ProcessesPage() {
               )
             })}
 
-            {filtered.length === 0 && (
+            {processes && filtered.length === 0 && (
               <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
-                {processes ? 'No processes match these filters.' : 'Loading...'}
+                No processes match these filters.
               </p>
             )}
           </div>

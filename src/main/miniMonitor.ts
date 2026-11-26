@@ -10,6 +10,7 @@ interface MiniMonitorControllerOptions {
 export class MiniMonitorController {
   private window: BrowserWindow | null = null
   private positionSaveTimer: ReturnType<typeof setTimeout> | null = null
+  private disposeTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(private readonly options: MiniMonitorControllerOptions) {}
 
@@ -18,13 +19,21 @@ export class MiniMonitorController {
   }
 
   show = (): void => {
+    clearTimeout(this.disposeTimer)
     const window = this.getOrCreateWindow()
     if (!window.isVisible()) window.showInactive()
     this.options.saveUiSettings({ miniMonitorVisible: true })
   }
 
   hide = (): void => {
-    if (this.window && !this.window.isDestroyed()) this.window.hide()
+    const window = this.window
+    if (window && !window.isDestroyed()) {
+      window.hide()
+      clearTimeout(this.disposeTimer)
+      this.disposeTimer = setTimeout(() => {
+        if (!window.isDestroyed() && !window.isVisible()) window.destroy()
+      }, 2000)
+    }
     this.options.saveUiSettings({ miniMonitorVisible: false })
   }
 
@@ -38,6 +47,7 @@ export class MiniMonitorController {
   }
 
   destroy(): void {
+    clearTimeout(this.disposeTimer)
     if (this.positionSaveTimer) clearTimeout(this.positionSaveTimer)
     this.positionSaveTimer = null
     if (this.window && !this.window.isDestroyed()) this.window.destroy()

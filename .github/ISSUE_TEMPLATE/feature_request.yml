@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest a specific improvement to Sentinel.
+labels: [enhancement, 'needs triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Explain what you want to accomplish and what is missing today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and affected platforms
+      description: Include relevant workflows, platforms and alternatives if known.

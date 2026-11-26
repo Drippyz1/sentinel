@@ -27,7 +27,7 @@ export function registerIpcHandlers(options: RegisterIpcOptions): void {
   registerNetworkConnectionsIpc()
   registerHistoryIpc()
   registerSettingsIpc(options)
-  registerProcessIpc(options.metricsService)
+  registerProcessIpc()
   registerSystemIpc(options.metricsService)
   registerShellIpc(options)
 }

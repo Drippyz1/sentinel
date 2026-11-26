@@ -11,12 +11,8 @@ import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
-import { useCpuMetrics, useGpuMetrics } from '../hooks/useMetrics'
+import { useCpuTemperature, useGpuMetrics } from '../hooks/useMetrics'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400)
@@ -302,10 +298,6 @@ function downloadExport(content: BlobPart, mimeType: string, filename: string): 
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-// ─────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────
-
 function TemperatureUnavailableNote() {
   return (
     <div
@@ -422,144 +414,69 @@ function ThermalCard({
 function StartupCard({
   startup,
   loadingStartup,
-  onRefresh
+  startupError
 }: {
   startup: StartupMetrics | null
   loadingStartup: boolean
-  onRefresh: () => void
+  startupError: boolean
 }) {
   return (
-    <Card
-      title="Startup Items"
-      subtitle={
-        startup ? `${startup.enabledCount} enabled of ${startup.totalCount} total` : undefined
-      }
-    >
-      {loadingStartup && (
-        <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
-          Scanning startup items...
+    <Card title="Startup Items" subtitle={startup ? `${startup.items.length} items` : undefined}>
+      {loadingStartup && <p role="status">Scanning startup items...</p>}
+      {!loadingStartup && startupError && <p role="alert">Startup items could not be read.</p>}
+      {startup && (
+        <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          {startup.limitation}
         </p>
       )}
-
-      {!loadingStartup && startup && startup.items.length === 0 && (
-        <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
-          No startup items found
-        </p>
-      )}
-
+      {!loadingStartup && startup && startup.items.length === 0 && <p>No items found.</p>}
       {startup && startup.items.length > 0 && (
-        <div className="overflow-auto" style={{ maxHeight: '360px' }}>
-          {/* Table header */}
-          <div
-            className="grid min-w-[560px] gap-4 px-2 pb-2 mb-1 text-xs font-semibold uppercase tracking-wider"
-            style={{
-              gridTemplateColumns: '1fr 110px 80px 80px',
-              borderBottom: '1px solid var(--border)',
-              color: 'var(--text-muted)'
-            }}
-          >
-            <span>Name</span>
-            <span>Type</span>
-            <span>Status</span>
-            <span>Action</span>
-          </div>
-
-          {/* Table rows */}
-          {startup.items.map((item, i) => (
-            <div
-              key={i}
-              className="grid min-w-[560px] gap-4 px-2 py-2 rounded-lg items-center transition-colors"
-              style={{ gridTemplateColumns: '1fr 110px 80px 80px' }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--bg-card-hover)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
-              }}
-            >
-              {/* Name + description */}
-              <div className="min-w-0">
-                <p
-                  className="text-sm font-medium truncate"
-                  style={{ color: 'var(--text-primary)' }}
-                  title={item.name}
+        <div className="max-h-[360px] overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr style={{ color: 'var(--text-muted)' }}>
+                <th className="px-2 pb-2">Name</th>
+                <th className="px-2 pb-2">Type</th>
+                <th className="px-2 pb-2">Plist configuration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {startup.items.map((item, index) => (
+                <tr
+                  key={`${item.type}:${item.name}:${index}`}
+                  className="hover:bg-[var(--bg-card-hover)]"
                 >
-                  {item.name}
-                </p>
-                <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                  {item.description}
-                </p>
-              </div>
-
-              {/* Type */}
-              <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                {item.type}
-              </span>
-
-              {/* Status */}
-              <span
-                className="text-xs font-medium"
-                style={{
-                  color: item.enabled ? 'var(--accent-green)' : 'var(--text-muted)'
-                }}
-              >
-                {item.enabled ? 'Enabled' : 'Disabled'}
-              </span>
-
-              {/* Action button
-                  Only shown when all three conditions are met:
-                  1. It's a LaunchAgent (not a Daemon or LoginItem)
-                  2. It's in the user's own folder (not system-level)
-                  3. The plist file passed the editability check */}
-              {item.type === 'LaunchAgent' && item.path.includes('/Users/') && item.editable ? (
-                <button
-                  onClick={async () => {
-                    const success = await window.electronAPI.toggleStartupItem(
-                      item.path,
-                      !item.enabled
-                    )
-                    if (success) onRefresh()
-                  }}
-                  className="min-h-8 text-xs px-2.5 py-1.5 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: item.enabled
-                      ? 'rgba(239, 68, 68, 0.1)'
-                      : 'rgba(34, 197, 94, 0.1)',
-                    color: item.enabled ? 'var(--accent-red)' : 'var(--accent-green)',
-                    border: `1px solid ${
-                      item.enabled ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)'
-                    }`,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {item.enabled ? 'Disable' : 'Enable'}
-                </button>
-              ) : (
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {item.type === 'LoginItem' ? 'Login item' : 'System'}
-                </span>
-              )}
-            </div>
-          ))}
+                  <td className="break-all px-2 py-2">{item.name}</td>
+                  <td className="px-2 py-2">{item.type}</td>
+                  <td className="px-2 py-2">
+                    {item.configuration === 'disabled'
+                      ? 'Disabled'
+                      : item.configuration === 'not-disabled'
+                        ? 'Not disabled'
+                        : 'Unknown'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </Card>
   )
 }
 
-// ─────────────────────────────────────────────
-// Main page
-// ─────────────────────────────────────────────
-
 export function SystemPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const cpu = useCpuMetrics()
+  const cpuTemperature = useCpuTemperature()
   const gpu = useGpuMetrics()
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [thermal, setThermal] = useState<ThermalMetrics | null>(null)
   const [startup, setStartup] = useState<StartupMetrics | null>(null)
   const [loadingStartup, setLoadingStartup] = useState(false)
+  const [startupError, setStartupError] = useState(false)
+  const [systemInfoError, setSystemInfoError] = useState(false)
+  const [thermalError, setThermalError] = useState(false)
   const view = useUiSettingsStore((state) => state.systemView)
   const setView = useUiSettingsStore((state) => state.setSystemView)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -570,8 +487,7 @@ export function SystemPage() {
   const [isExportingBundle, setIsExportingBundle] = useState(false)
   const [bundleError, setBundleError] = useState<string | null>(null)
   const temperaturesUnavailable =
-    cpu !== null &&
-    cpu.temperature === null &&
+    cpuTemperature === null &&
     (gpu === null ||
       !gpu.hasGpu ||
       gpu.controllers.every((controller) => controller.temperatureCelsius === null))
@@ -588,42 +504,53 @@ export function SystemPage() {
 
   const refreshStartup = useCallback(() => {
     setLoadingStartup(true)
+    setStartupError(false)
     window.electronAPI
       .getStartupMetrics()
       .then(setStartup)
-      .catch((error) => console.error('Failed to load startup items:', error))
+      .catch(() => setStartupError(true))
       .finally(() => setLoadingStartup(false))
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     const refreshThermal = async () => {
       try {
         const metrics = await window.electronAPI.getThermalMetrics()
+        if (cancelled) return
         setThermal(metrics)
+        setThermalError(false)
         setLastRefreshed(new Date())
-      } catch (error) {
-        console.error('Failed to load thermal metrics:', error)
+      } catch {
+        if (cancelled) return
+        setThermal(null)
+        setThermalError(true)
+      } finally {
+        if (!cancelled) thermalTimer = setTimeout(() => void refreshThermal(), 10000)
       }
     }
 
-    // Static machine info — fetch once, it never changes during a session
     void window.electronAPI
       .getSystemInfo()
-      .then(setSystemInfo)
-      .catch((error) => console.error('Failed to load system information:', error))
-
-    // Thermal — fetch now then poll every 10 seconds
-    void refreshThermal()
-    const thermalInterval = setInterval(() => void refreshThermal(), 10000)
-
-    // Startup items — heavier scan, fetch separately
-    const startupLoad = setTimeout(refreshStartup, 0)
+      .then((info) => {
+        if (!cancelled) setSystemInfo(info)
+      })
+      .catch(() => {
+        if (!cancelled) setSystemInfoError(true)
+      })
+    let thermalTimer = setTimeout(() => void refreshThermal(), 0)
 
     return () => {
-      clearTimeout(startupLoad)
-      clearInterval(thermalInterval)
+      cancelled = true
+      clearTimeout(thermalTimer)
     }
-  }, [refreshStartup])
+  }, [])
+
+  useEffect(() => {
+    if (view !== 'advanced') return
+    const startupLoad = setTimeout(refreshStartup, 0)
+    return () => clearTimeout(startupLoad)
+  }, [view, refreshStartup])
 
   async function exportReport(format: SystemReportFormat) {
     setExportingFormat(format)
@@ -773,7 +700,7 @@ export function SystemPage() {
         ) : (
           <Card title="Machine">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              Loading...
+              {systemInfoError ? 'Machine information unavailable.' : 'Loading...'}
             </p>
           </Card>
         )}
@@ -804,7 +731,7 @@ export function SystemPage() {
         ) : (
           <Card title="Hardware">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              Loading...
+              {systemInfoError ? 'Hardware information unavailable.' : 'Loading...'}
             </p>
           </Card>
         )}
@@ -823,7 +750,7 @@ export function SystemPage() {
       ) : (
         <Card title="Thermal Pressure" className="mb-4">
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Loading thermal data...
+            {thermalError ? 'Thermal data could not be read.' : 'Loading thermal data...'}
           </p>
         </Card>
       )}
@@ -832,12 +759,12 @@ export function SystemPage() {
         <>
           <SectionHeading
             title="Startup"
-            description="Items configured to launch automatically with your system or user session."
+            description="Third-party launch configuration, not current execution state."
           />
           <StartupCard
             startup={startup}
             loadingStartup={loadingStartup}
-            onRefresh={refreshStartup}
+            startupError={startupError}
           />
         </>
       )}
