@@ -1,35 +1,39 @@
 import si from 'systeminformation'
-import { cpus, type CpuInfo } from 'node:os'
+import { cpus, loadavg, type CpuInfo } from 'node:os'
 import type { MetricCollectionResult, MetricGroupValues } from '../../shared/contracts'
 import { normalizeTemperature } from '../../shared/utils/temperature'
 import { cachedProbe, observed, unavailable } from '../probe'
+import { usableInterval } from '../counterRates'
 
 export const getCpuInventory = cachedProbe(() => si.cpu())
 
 function counters(cores: CpuInfo[]) {
-  return cores.map(({ times }) => ({
-    idle: times.idle,
-    total: times.user + times.nice + times.sys + times.idle + times.irq
-  }))
+  return cores.map(({ times }) => [times.idle, times.user, times.nice, times.sys, times.irq])
 }
 
-let previous = counters(cpus())
+let previous = { counters: counters(cpus()), monotonic: performance.now(), wall: Date.now() }
+
+export function clearCpuBaselines(): void {
+  previous = { counters: [], monotonic: performance.now(), wall: Date.now() }
+}
 
 export async function getCpuMetrics(): Promise<MetricCollectionResult<MetricGroupValues['cpu']>> {
   const current = counters(cpus())
+  const monotonic = performance.now()
+  const wall = Date.now()
   const deltas =
-    current.length === previous.length
-      ? current.map(({ total, idle }, index) => {
-          const elapsed = total - previous[index].total
-          const idleDelta = idle - previous[index].idle
-          return elapsed > 0 && idleDelta >= 0 && idleDelta <= elapsed
-            ? { total: elapsed, busy: elapsed - idleDelta }
-            : null
+    current.length === previous.counters.length &&
+    usableInterval(monotonic - previous.monotonic, wall - previous.wall)
+      ? current.map((values, index) => {
+          const change = values.map((value, n) => value - previous.counters[index][n])
+          if (change.some((value) => !Number.isFinite(value) || value < 0)) return null
+          const total = change.reduce((sum, value) => sum + value, 0)
+          return total > 0 ? { total, busy: total - change[0] } : null
         })
       : []
-  previous = current
+  previous = { counters: current, monotonic, wall }
   if (!current.length) return unavailable('no-data')
-  if (!deltas.length || deltas.some((entry) => entry === null)) return unavailable('warming-up')
+  if (!deltas.some(Boolean)) return unavailable('warming-up')
   const staticInfo = await getCpuInventory()
   let busy = 0
   let elapsed = 0
@@ -43,8 +47,10 @@ export async function getCpuMetrics(): Promise<MetricCollectionResult<MetricGrou
     manufacturer: staticInfo.manufacturer,
     brand: staticInfo.brand,
     speedGHz: staticInfo.speed,
-    cores: staticInfo.cores,
-    usagePercent: Math.round((busy / elapsed) * 100),
+    cores: current.length,
+    physicalCores: staticInfo.physicalCores > 0 ? staticInfo.physicalCores : null,
+    ...(process.platform !== 'win32' && { loadAverage: loadavg() }),
+    usagePercent: deltas.every(Boolean) ? Math.round((busy / elapsed) * 100) : null,
     perCoreUsage: deltas.map((entry) => entry && Math.round((entry.busy / entry.total) * 100))
   })
 }

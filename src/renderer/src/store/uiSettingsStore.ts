@@ -7,19 +7,29 @@ import type {
   HistoryMetric,
   ProcessDensity,
   ProcessQuickFilter,
+  SettingsPersistenceIssue,
   SystemView,
   UiSettings,
-  UiSettingsPatch
+  UiSettingsPatch,
+  UiSettingsSnapshot
 } from '../../../shared/contracts'
 import { DEFAULT_UI_SETTINGS } from '../../../shared/contracts'
+import { createUiSettingsTransactions, type UiSaveState } from './uiSettingsTransactions'
+import { useHistoryStore } from './historyStore'
 
 interface UiSettingsState extends UiSettings {
   tempUnit: AppSettings['tempUnit']
   initialized: boolean
+  persistenceIssue: SettingsPersistenceIssue | null
+  loadFailed: boolean
+  saveState: UiSaveState
+  miniOpenFailed: boolean
   initialize: () => Promise<void>
+  retrySave: () => void
+  savePreferences: (patch: UiSettingsPatch, retryable?: boolean) => void
   setDashboardPollingPaused: (paused: boolean) => void
   setDashboardDensity: (density: DashboardDensity) => void
-  setDashboardWidgets: (widgets: DashboardWidgetVisibility) => void
+  setDashboardWidgets: (widgets: Partial<DashboardWidgetVisibility>) => void
   setDashboardWidgetOrder: (order: DashboardWidget[]) => void
   setDashboardPreferences: (widgets: DashboardWidgetVisibility, order: DashboardWidget[]) => void
   setHistoryView: (view: UiSettings['historyView']) => void
@@ -31,116 +41,95 @@ interface UiSettingsState extends UiSettings {
   setSystemView: (view: SystemView) => void
 }
 
-let initialization: Promise<void> | null = null
-let stopListening: (() => void) | null = null
+let initialization: Promise<void> | undefined
+let listening = false
+let revision = -1
 
-function mergePatch(state: UiSettingsState, patch: UiSettingsPatch): Partial<UiSettingsState> {
-  return {
-    ...patch,
-    dashboardWidgets: patch.dashboardWidgets
-      ? { ...state.dashboardWidgets, ...patch.dashboardWidgets }
-      : state.dashboardWidgets,
-    historyMetrics: patch.historyMetrics
-      ? { ...state.historyMetrics, ...patch.historyMetrics }
-      : state.historyMetrics
-  }
-}
+export const useUiSettingsStore = create<UiSettingsState>()((set, get) => {
+  const transactions = createUiSettingsTransactions({
+    save: (patch) => window.electronAPI.saveUiSettings(patch),
+    revision: () => revision,
+    onStatus: (saveState) => set({ saveState })
+  })
 
-function persist(patch: UiSettingsPatch): void {
-  void window.electronAPI
-    .saveUiSettings(patch)
-    .then((saved) => {
-      if (!saved) console.error('Failed to save UI settings')
+  function accept(snapshot: UiSettingsSnapshot): void {
+    if (snapshot.revision <= revision) return
+    revision = snapshot.revision
+    if (get().dashboardPollingPaused !== snapshot.ui.dashboardPollingPaused)
+      useHistoryStore.getState().interrupt()
+    set({
+      ...snapshot.ui,
+      tempUnit: snapshot.tempUnit,
+      persistenceIssue: snapshot.persistenceIssue,
+      initialized: true,
+      loadFailed: false
     })
-    .catch((error) => console.error('Failed to save UI settings:', error))
-}
-
-export const useUiSettingsStore = create<UiSettingsState>()((set, get) => ({
-  ...DEFAULT_UI_SETTINGS,
-  initialized: false,
-  tempUnit: 'C',
-
-  initialize: async () => {
-    if (get().initialized) return
-    if (!initialization) {
-      if (!stopListening) {
-        stopListening = window.electronAPI.onUiSettingsChanged((patch) => {
-          set((state) => mergePatch(state, patch))
-        })
-        window.electronAPI.onTempUnitChanged((tempUnit) => set({ tempUnit }))
-      }
-      initialization = window.electronAPI
-        .getSettings()
-        .then((settings) => {
-          set({ ...settings.ui, tempUnit: settings.tempUnit, initialized: true })
-        })
-        .catch((error) => {
-          console.error('Failed to load UI settings:', error)
-          set({ initialized: true })
-        })
-    }
-    await initialization
-  },
-
-  setDashboardPollingPaused: (paused) => {
-    set({ dashboardPollingPaused: paused })
-    persist({ dashboardPollingPaused: paused })
-  },
-
-  setDashboardDensity: (dashboardDensity) => {
-    set({ dashboardDensity })
-    persist({ dashboardDensity })
-  },
-
-  setDashboardWidgets: (widgets) => {
-    set({ dashboardWidgets: widgets })
-    persist({ dashboardWidgets: widgets })
-  },
-
-  setDashboardWidgetOrder: (dashboardWidgetOrder) => {
-    set({ dashboardWidgetOrder })
-    persist({ dashboardWidgetOrder })
-  },
-
-  setDashboardPreferences: (dashboardWidgets, dashboardWidgetOrder) => {
-    set({ dashboardWidgets, dashboardWidgetOrder })
-    persist({ dashboardWidgets, dashboardWidgetOrder })
-  },
-
-  setHistoryView: (view) => {
-    set({ historyView: view })
-    persist({ historyView: view })
-  },
-
-  setHistoryMetricVisible: (metric, visible) => {
-    set((state) => ({
-      historyMetrics: { ...state.historyMetrics, [metric]: visible }
-    }))
-    persist({ historyMetrics: { [metric]: visible } })
-  },
-
-  setHistoryRangeMinutes: (minutes) => {
-    set({ historyRangeMinutes: minutes })
-    persist({ historyRangeMinutes: minutes })
-  },
-
-  setHistoryAlertMarkers: (historyAlertMarkers) => {
-    set({ historyAlertMarkers })
-    persist({ historyAlertMarkers })
-  },
-
-  setProcessDensity: (density) => {
-    set({ processDensity: density })
-    persist({ processDensity: density })
-  },
-
-  setProcessQuickFilter: (filter) => {
-    set({ processQuickFilter: filter })
-    persist({ processQuickFilter: filter })
-  },
-
-  setSystemView: (view) => {
-    set({ systemView: view })
-    persist({ systemView: view })
+    transactions.onRevision()
   }
-}))
+
+  function submit(patch: UiSettingsPatch, retryable = true): void {
+    if (get().loadFailed || get().persistenceIssue || !get().initialized) return
+    transactions.submit(patch, retryable)
+  }
+
+  return {
+    ...DEFAULT_UI_SETTINGS,
+    initialized: false,
+    tempUnit: 'C',
+    persistenceIssue: null,
+    loadFailed: false,
+    saveState: { saving: false, failed: false, canRetry: false },
+    miniOpenFailed: false,
+    retrySave: transactions.retry,
+    savePreferences: submit,
+
+    initialize: async () => {
+      if (get().initialized && !get().loadFailed) return
+      if (!listening) {
+        window.electronAPI.onUiSettingsChanged(accept)
+        listening = true
+      }
+      if (!initialization) {
+        initialization = window.electronAPI
+          .getUiSettings()
+          .then(accept)
+          .catch(() => {
+            if (revision < 0) set({ initialized: true, loadFailed: true })
+          })
+          .finally(() => {
+            initialization = undefined
+          })
+      }
+      await initialization
+    },
+
+    setDashboardPollingPaused: (dashboardPollingPaused) => submit({ dashboardPollingPaused }),
+    setDashboardDensity: (dashboardDensity) => submit({ dashboardDensity }),
+    setDashboardWidgets: (dashboardWidgets) =>
+      submit({ dashboardWidgets, dashboardLayout: { ...get().dashboardLayout, preset: 'custom' } }),
+    setDashboardWidgetOrder: (dashboardWidgetOrder) =>
+      submit({
+        dashboardWidgetOrder,
+        dashboardLayout: { ...get().dashboardLayout, preset: 'custom' }
+      }),
+    setDashboardPreferences: (dashboardWidgets, dashboardWidgetOrder) =>
+      submit({ dashboardWidgets, dashboardWidgetOrder }),
+    setHistoryView: (historyView) => submit({ historyView }),
+    setHistoryMetricVisible: (metric, visible) => submit({ historyMetrics: { [metric]: visible } }),
+    setHistoryRangeMinutes: (historyRangeMinutes) => submit({ historyRangeMinutes }),
+    setHistoryAlertMarkers: (historyAlertMarkers) => submit({ historyAlertMarkers }),
+    setProcessDensity: (processDensity) => submit({ processDensity }),
+    setProcessQuickFilter: (processQuickFilter) => submit({ processQuickFilter }),
+    setSystemView: (systemView) => submit({ systemView })
+  }
+})
+
+export async function showMiniMonitorWithFeedback(): Promise<void> {
+  let shown = false
+  try {
+    shown = await window.electronAPI.showMiniMonitor()
+  } catch {
+    // The error indicator also covers a rejected invoke.
+  }
+  useUiSettingsStore.setState({ miniOpenFailed: !shown })
+}

@@ -1,6 +1,35 @@
+import { HISTORY_BUCKET_MS } from '../contracts/history'
+
 interface ChartSample {
   timestamp: number
   value: number | null
+}
+
+// Reduce valid values first; restore every gap between retained observations in one pass.
+export function projectHistoryChart(samples: ChartSample[], bucketCount = 120): ChartSample[] {
+  const isObserved = (sample: ChartSample) => sample.value !== null && Number.isFinite(sample.value)
+  const observations = samples.filter(isObserved)
+  if (!observations.length) return []
+
+  const selected = selectChartSamples(observations, bucketCount)
+  const result: ChartSample[] = []
+  let next = 0
+  let previous: ChartSample | undefined
+  let gap: number | undefined
+  for (const sample of samples) {
+    if (previous && sample.timestamp - previous.timestamp > HISTORY_BUCKET_MS) {
+      gap ??= previous.timestamp + HISTORY_BUCKET_MS
+    }
+    previous = sample
+    if (!isObserved(sample)) gap ??= sample.timestamp
+    if (sample !== selected[next]) continue
+    if (gap !== undefined) result.push({ timestamp: gap, value: null })
+    result.push(sample)
+    gap = undefined
+    next++
+  }
+  if (gap !== undefined && previous) result.push({ timestamp: previous.timestamp, value: null })
+  return result
 }
 
 // This is view-only decimation. Keep endpoints, bucket extrema, and a gap indicator.

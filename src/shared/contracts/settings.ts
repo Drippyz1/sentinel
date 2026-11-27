@@ -1,4 +1,16 @@
 import type { MetricGroup } from './metrics'
+import {
+  type DashboardWidget,
+  DEFAULT_APPEARANCE,
+  DEFAULT_DASHBOARD_LAYOUT,
+  DEFAULT_MINI_PRESENTATION,
+  DEFAULT_TRAY_PRESENTATION,
+  type Appearance,
+  type DashboardLayout,
+  type MiniPresentation,
+  type TrayPresentation,
+  type AppearanceProfile
+} from './personalization'
 
 type HistoryView = 'chart' | 'table'
 export type HistoryMetric = 'cpu' | 'memory' | 'network' | 'disk' | 'gpu' | 'battery'
@@ -6,16 +18,7 @@ export type ProcessDensity = 'compact' | 'comfortable'
 export type DashboardDensity = 'compact' | 'comfortable' | 'detailed'
 export type ProcessQuickFilter = 'all' | 'cpu' | 'memory'
 export type SystemView = 'simple' | 'advanced'
-export const DASHBOARD_WIDGET_KEYS = [
-  'cpu',
-  'memory',
-  'gpu',
-  'disk',
-  'network',
-  'battery',
-  'anomalies'
-] as const
-export type DashboardWidget = (typeof DASHBOARD_WIDGET_KEYS)[number]
+export { DASHBOARD_WIDGET_KEYS, type DashboardWidget } from './personalization'
 
 type HistoryMetricVisibility = Record<HistoryMetric, boolean>
 export type DashboardWidgetVisibility = Record<DashboardWidget, boolean>
@@ -39,6 +42,11 @@ export interface MonitoringAlerts {
 }
 
 export interface UiSettings {
+  appearance: Appearance
+  dashboardLayout: DashboardLayout
+  appearanceProfiles: AppearanceProfile[]
+  miniPresentation: MiniPresentation
+  trayPresentation: TrayPresentation
   dashboardPollingPaused: boolean
   dashboardDensity: DashboardDensity
   miniMonitorVisible: boolean
@@ -56,6 +64,11 @@ export interface UiSettings {
 }
 
 export const DEFAULT_UI_SETTINGS: UiSettings = {
+  appearance: DEFAULT_APPEARANCE,
+  dashboardLayout: DEFAULT_DASHBOARD_LAYOUT,
+  appearanceProfiles: [],
+  miniPresentation: DEFAULT_MINI_PRESENTATION,
+  trayPresentation: DEFAULT_TRAY_PRESENTATION,
   dashboardPollingPaused: false,
   dashboardDensity: 'comfortable',
   miniMonitorVisible: false,
@@ -70,7 +83,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
     battery: true,
     anomalies: true
   },
-  dashboardWidgetOrder: [...DASHBOARD_WIDGET_KEYS],
+  dashboardWidgetOrder: ['cpu', 'memory', 'disk', 'gpu', 'network', 'battery', 'anomalies'],
   historyView: 'chart',
   historyMetrics: { cpu: true, memory: true, network: true, disk: true, gpu: true, battery: true },
   historyRangeMinutes: 60,
@@ -99,9 +112,43 @@ export interface AppSettings {
   ui: UiSettings
 }
 
-export interface SettingsSaveResult {
-  success: boolean
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  settingsVersion: 1,
+  launchAtLogin: false,
+  hideFromDock: false,
+  pollIntervalMs: 2000,
+  collectionIntervalsMs: {},
+  tempUnit: 'C',
+  dataRetentionDays: 7,
+  anomalySensitivity: 'balanced',
+  anomalyNotifications: true,
+  monitoringAlerts: {
+    cpu: { enabled: false, thresholdPercent: 90 },
+    memory: { enabled: false, thresholdPercent: 90 },
+    disk: { enabled: false, thresholdPercent: 90 },
+    battery: { enabled: false, thresholdPercent: 20 },
+    cooldownMinutes: 15
+  },
+  ui: DEFAULT_UI_SETTINGS
+}
+
+export type SettingsPersistenceIssue = 'unreadable' | 'invalid' | 'incompatible'
+
+export interface UiSettingsSnapshot {
+  revision: number
+  ui: UiSettings
+  tempUnit: AppSettings['tempUnit']
+  persistenceIssue: SettingsPersistenceIssue | null
+}
+
+export interface SettingsReadResult {
   settings: AppSettings
+  launchAtLoginActual: boolean | null
+  persistenceIssue: SettingsPersistenceIssue | null
+}
+
+export interface SettingsSaveResult extends SettingsReadResult {
+  success: boolean
   launchAtLoginError: boolean
   isPackaged: boolean
 }

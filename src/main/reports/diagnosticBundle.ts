@@ -29,6 +29,7 @@ Intentionally excluded:
 - Home directory and private filesystem paths
 - Authentication tokens, cookies, credentials, and secrets
 - Environment variables
+- Saved appearance profiles and their names
 
 Diagnostic reports omit hostnames, local IP addresses, and disk labels or mount paths.
 Hardware names, startup application names, and configured settings may still identify
@@ -67,7 +68,11 @@ export async function createDiagnosticBundle(
       threshold
     })
   )
-  const settings = sanitizeForExport(loadSettings())
+  const currentSettings = loadSettings()
+  const settings = sanitizeForExport({
+    ...currentSettings,
+    ui: { ...currentSettings.ui, appearanceProfiles: [] }
+  })
   await yieldToMainLoop()
 
   const appInfo = {

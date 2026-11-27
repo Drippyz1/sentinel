@@ -1,7 +1,8 @@
-import type { BrowserWindow } from 'electron'
+import { Notification, type BrowserWindow } from 'electron'
 import type { UiSettingsPatch } from '../shared/contracts'
+import type { MiniPresentation } from '../shared/contracts/personalization'
 import { loadSettings } from './storage/settings'
-import { createMiniMonitorWindow } from './windows/miniMonitorWindow'
+import { createMiniMonitorWindow, updateMiniPresentation } from './windows/miniMonitorWindow'
 
 interface MiniMonitorControllerOptions {
   saveUiSettings: (patch: UiSettingsPatch) => boolean
@@ -18,32 +19,52 @@ export class MiniMonitorController {
     if (loadSettings().ui.miniMonitorVisible) this.show()
   }
 
-  show = (): void => {
+  show = (): boolean => {
+    if (!this.options.saveUiSettings({ miniMonitorVisible: true })) return false
     clearTimeout(this.disposeTimer)
     const window = this.getOrCreateWindow()
     if (!window.isVisible()) window.showInactive()
-    this.options.saveUiSettings({ miniMonitorVisible: true })
+    return true
   }
 
-  hide = (): void => {
+  hide = (): boolean => {
     const window = this.window
-    if (window && !window.isDestroyed()) {
+    const wasVisible = window && !window.isDestroyed() && window.isVisible()
+    if (wasVisible) {
+      // Closing this session must never depend on a settings write.
       window.hide()
       clearTimeout(this.disposeTimer)
       this.disposeTimer = setTimeout(() => {
         if (!window.isDestroyed() && !window.isVisible()) window.destroy()
       }, 2000)
     }
-    this.options.saveUiSettings({ miniMonitorVisible: false })
+    const saved = this.options.saveUiSettings({ miniMonitorVisible: false })
+    if (wasVisible && !saved && Notification.isSupported()) {
+      try {
+        new Notification({
+          title: 'Mini Monitor hidden for this session',
+          body: 'The startup preference was not saved. After settings are writable, reopen and hide Mini Monitor again.'
+        }).show()
+      } catch (error) {
+        console.error('Could not show Mini Monitor save warning:', error)
+      }
+    }
+    return saved
   }
 
   setAlwaysOnTop = (alwaysOnTop: boolean): boolean => {
-    const window = this.getOrCreateWindow()
+    const window = this.window
+    if (!window || window.isDestroyed() || !window.isVisible()) return false
+    if (!this.options.saveUiSettings({ miniMonitorAlwaysOnTop: alwaysOnTop })) return false
     window.setAlwaysOnTop(alwaysOnTop, 'floating')
     if (process.platform === 'darwin') {
       window.setVisibleOnAllWorkspaces(alwaysOnTop, { visibleOnFullScreen: true })
     }
-    return this.options.saveUiSettings({ miniMonitorAlwaysOnTop: alwaysOnTop })
+    return true
+  }
+
+  applyPresentation(presentation: MiniPresentation): void {
+    if (this.window && !this.window.isDestroyed()) updateMiniPresentation(this.window, presentation)
   }
 
   destroy(): void {
@@ -60,7 +81,8 @@ export class MiniMonitorController {
     const settings = loadSettings().ui
     const window = createMiniMonitorWindow({
       alwaysOnTop: settings.miniMonitorAlwaysOnTop,
-      position: settings.miniMonitorPosition
+      position: settings.miniMonitorPosition,
+      presentation: settings.miniPresentation
     })
     this.window = window
 

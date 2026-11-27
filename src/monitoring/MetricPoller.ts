@@ -106,6 +106,26 @@ export class MetricPoller<T> {
     }
   }
 
+  invalidate(): void {
+    if (!this.running) return
+    this.generation += 1
+    for (const group of this.groups) {
+      const slot = this.slots[group]
+      slot.observation = {
+        value: null,
+        capability: slot.observation.capability,
+        status: {
+          state: 'pending',
+          reason: 'warming-up',
+          sampledAt: null,
+          revision: ++this.revision
+        }
+      }
+      slot.failures = 0
+      this.schedule(group, 0)
+    }
+  }
+
   async stop(): Promise<void> {
     this.running = false
     this.generation += 1

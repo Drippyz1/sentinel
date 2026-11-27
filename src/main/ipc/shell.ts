@@ -1,31 +1,27 @@
-import { app, clipboard, ipcMain } from 'electron'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { app, clipboard } from 'electron'
+import { handleTrustedIpc } from '../ipcSecurity'
 
 interface ShellIpcOptions {
   showMainWindow: () => void
-  setTrayCompact: (compact: boolean) => void
+  setTrayCompact: (compact: boolean) => boolean
 }
 
 export function registerShellIpc({ showMainWindow, setTrayCompact }: ShellIpcOptions): void {
-  ipcMain.handle('copy-text', (event, text: unknown) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('copy-text', (_event, _role, text: unknown) => {
     if (typeof text !== 'string' || text.length > 262_144 || text.includes('\0')) {
       throw new Error('Invalid clipboard text')
     }
     clipboard.writeText(text)
   })
-  ipcMain.handle('open-main-window', (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('open-main-window', () => {
     showMainWindow()
   })
 
-  ipcMain.handle('quit-app', (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('quit-app', () => {
     app.quit()
   })
 
-  ipcMain.handle('set-tray-compact', (event, compact: unknown) => {
-    assertTrustedIpcSender(event, 'tray')
-    if (typeof compact === 'boolean') setTrayCompact(compact)
+  handleTrustedIpc('set-tray-compact', (_event, _role, compact: unknown) => {
+    return typeof compact === 'boolean' && setTrayCompact(compact)
   })
 }

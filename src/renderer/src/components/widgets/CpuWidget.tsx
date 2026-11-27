@@ -1,97 +1,80 @@
 import { useCpuMetrics, useCpuTemperature } from '../../hooks/useMetrics'
-import { useHistoryStore } from '../../store/historyStore'
-import { formatPercent } from '../../utils/format'
 import { useTemp } from '../../hooks/useTemp'
-import { Card } from '../ui/Card'
-import { StatRow } from '../ui/StatRow'
-import { UsageBar } from '../ui/UsageBar'
-import { MiniChart } from '../ui/MiniChart'
-import { TrendIndicator } from '../ui/TrendIndicator'
+import { formatPercent } from '../../utils/format'
+import { LiveChart } from '../ui/MiniChart'
 import { MetricMessage } from './MetricMessage'
 import {
-  DASHBOARD_CHART_HEIGHT,
-  isCompactDashboard,
-  type DashboardWidgetProps
-} from './dashboardDensity'
+  CoreActivity,
+  MetricDetails,
+  MetricFacts,
+  PercentDisplay,
+  WidgetFrame
+} from './MetricVisuals'
+import type { DashboardWidgetProps } from './dashboardDensity'
 
-export function CpuWidget({ density }: DashboardWidgetProps) {
+export function CpuWidget({ expanded, showChart = true, style = 'gauge' }: DashboardWidgetProps) {
   const cpu = useCpuMetrics()
   const temperature = useCpuTemperature()
-  const history = useHistoryStore((state) => state.cpu)
   const { formatTemp } = useTemp()
-  if (!cpu) {
-    return (
-      <Card title="CPU" density={density}>
-        <MetricMessage group="cpu" name="processor data" />
-        {temperature !== null && (
-          <StatRow label="Temperature" value={formatTemp(temperature)} accent="amber" />
-        )}
-      </Card>
-    )
-  }
-  const compact = isCompactDashboard(density)
-
+  const timeline = (
+    <LiveChart
+      series="cpu"
+      label="CPU utilization"
+      color="var(--metric-ink)"
+      max={100}
+      formatValue={formatPercent}
+      calibrated
+    />
+  )
   return (
-    <Card title="CPU" subtitle={cpu.brand} density={density}>
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-1 mb-3">
-        <span
-          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {cpu.usagePercent}
-        </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
-          %
-        </span>
-        <span className="mb-1.5 ml-auto">
-          <TrendIndicator data={history} />
-        </span>
-      </div>
-
-      {!compact && <UsageBar percent={cpu.usagePercent} />}
-
-      <div
-        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
-        style={{ borderTop: '1px solid var(--border)' }}
-      >
-        <MiniChart
-          data={history}
-          color="#3b82f6"
-          ariaLabel="Recent CPU usage trend"
-          formatValue={(v) => `${v}%`}
-          domain={[0, 100]}
-          height={DASHBOARD_CHART_HEIGHT[density]}
-        />
-      </div>
-
-      {!compact && (
+    <WidgetFrame id="cpu" title="Processor" meta="CPU">
+      {cpu ? (
         <>
-          <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-            <StatRow label="Cores" value={`${cpu.cores}`} accent="blue" />
-            <StatRow label="Base speed" value={`${cpu.speedGHz} GHz`} accent="blue" />
-            <StatRow label="Temperature" value={formatTemp(temperature)} accent="amber" />
-          </div>
-
-          <div className="mt-4">
-            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-              Per core
-            </p>
-            <div className="grid grid-cols-4 gap-1.5">
-              {cpu.perCoreUsage.map((usage, i) => (
-                <div key={i} className="text-center">
-                  {usage !== null && <UsageBar percent={usage} height={3} />}
-                  <span
-                    className="text-xs font-mono mt-1 block"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {usage === null ? '-' : formatPercent(usage, 0)}
-                  </span>
-                </div>
-              ))}
+          <div className="instrument-split">
+            <PercentDisplay
+              value={cpu.usagePercent}
+              style={style === 'gauge' || style === 'bar' ? style : 'number'}
+              note="How busy the processor is"
+            />
+            <div className="cpu-observed">
+              <strong>{cpu.brand}</strong>
+              <span>{cpu.cores} logical processors</span>
+              <span>Temperature: {formatTemp(temperature)}</span>
             </div>
           </div>
+          {showChart && timeline}
+          <CoreActivity cores={cpu.perCoreUsage} />
+          <MetricDetails expanded={expanded} label="Core activity">
+            <MetricFacts
+              values={[
+                ['Nominal clock', cpu.speedGHz > 0 ? `${cpu.speedGHz} GHz` : 'Unavailable'],
+                ['Physical cores', cpu.physicalCores?.toString() ?? 'Unavailable']
+              ]}
+            />
+            {cpu.loadAverage?.length === 3 && cpu.loadAverage.every(Number.isFinite) && (
+              <MetricFacts
+                values={[
+                  [
+                    'System load (1 / 5 / 15 min)',
+                    cpu.loadAverage.map((value) => value.toFixed(2)).join(' / ')
+                  ]
+                ]}
+              />
+            )}
+            <p className="instrument-note">
+              Temperature depends on OS sensor access. An unavailable sensor does not indicate
+              overheating.
+            </p>
+          </MetricDetails>
+        </>
+      ) : (
+        <>
+          <MetricMessage group="cpu" name="processor data" />
+          {temperature !== null && (
+            <MetricFacts values={[['Temperature', formatTemp(temperature)]]} />
+          )}
         </>
       )}
-    </Card>
+    </WidgetFrame>
   )
 }

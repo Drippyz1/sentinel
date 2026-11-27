@@ -12,15 +12,24 @@ export async function getGpuMetrics(): Promise<MetricCollectionResult<GpuMetrics
   const controllers: GpuController[] = data.controllers
     .filter((controller) => controller.model || controller.vendor)
     .map((controller) => {
-      const vram = controller.vramDynamic ? null : nonNegative(controller.vram)
+      const unified =
+        Boolean(controller.vramDynamic) ||
+        (process.platform === 'darwin' &&
+          process.arch === 'arm64' &&
+          /^(apple|m[1-9])/i.test(controller.vendor || controller.model))
+      const vram = unified ? null : nonNegative(controller.vram)
       const used = nonNegative(controller.memoryUsed)
+      const free = nonNegative(controller.memoryFree)
+      const validUsed = vram && used !== null && used <= vram ? used : null
+      const validFree = vram && free !== null && free <= vram ? free : null
       return {
         name: controller.model || controller.vendor,
         vendor: controller.vendor || '',
         vramBytes: vram ? toBytes(vram) : null,
-        vramUsedBytes: toBytes(used),
-        vramFreeBytes: toBytes(nonNegative(controller.memoryFree)),
-        vramUsagePercent: vram && used !== null ? percent(Math.round((used / vram) * 100)) : null,
+        vramUsedBytes: toBytes(validUsed),
+        vramFreeBytes: toBytes(validFree),
+        vramUsagePercent:
+          vram && validUsed !== null ? percent(Math.round((validUsed / vram) * 100)) : null,
         utilizationPercent: percent(controller.utilizationGpu),
         temperatureCelsius: normalizeTemperature(controller.temperatureGpu),
         powerDrawWatts: nonNegative(controller.powerDraw),

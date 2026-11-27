@@ -12,7 +12,9 @@ export async function getMemoryMetrics(): Promise<MetricCollectionResult<MemoryM
   }
 
   const swapTotal = nonNegative(mem.swaptotal)
-  const swapUsed = nonNegative(mem.swapused)
+  const used = nonNegative(mem.swapused)
+  const swapUsed = used !== null && swapTotal !== null && used <= swapTotal ? used : null
+  const available = nonNegative(mem.available)
   const swapUsagePercent =
     swapTotal !== null && swapTotal > 0 && swapUsed !== null && swapUsed <= swapTotal
       ? Math.round((swapUsed / swapTotal) * 100)
@@ -20,6 +22,7 @@ export async function getMemoryMetrics(): Promise<MetricCollectionResult<MemoryM
 
   return observed({
     totalBytes: total,
+    availableBytes: available !== null && available <= total ? available : null,
     usedBytes: active,
     freeBytes: free,
     activeBytes: active,

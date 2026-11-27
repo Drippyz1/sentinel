@@ -11,7 +11,8 @@ import {
 } from './hooks/useMetrics'
 import { UsageBar } from './components/ui/UsageBar'
 import { useUiSettingsStore } from './store/uiSettingsStore'
-import { useAlertHistoryStore } from './store/alertHistoryStore'
+import { UiSettingsFeedback } from './components/ui/UiSettingsFeedback'
+import type { TrayAlertSummary } from '../../shared/contracts'
 import { selectPrimaryDrive } from '../../shared/utils/disk'
 import { formatBytes, formatPercent, formatSpeed, formatTime } from './utils/format'
 
@@ -26,7 +27,7 @@ interface MetricRowProps {
 
 function MetricRow({ label, value, percent, accent, detail, compact }: MetricRowProps) {
   return (
-    <div className={compact ? 'py-1.5' : 'py-2'}>
+    <div className={compact ? 'tray-reading py-1.5' : 'tray-reading py-2'}>
       <div className="flex min-w-0 items-center gap-2">
         <span className="w-14 shrink-0 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
           {label}
@@ -37,7 +38,7 @@ function MetricRow({ label, value, percent, accent, detail, compact }: MetricRow
           )}
         </div>
         <span
-          className="w-20 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
+          className="max-w-[45%] shrink-0 text-right text-xs font-semibold tabular-nums break-words"
           style={{ color: 'var(--text-primary)' }}
         >
           {value}
@@ -57,14 +58,31 @@ function TrayContent() {
   const initialized = useUiSettingsStore((state) => state.initialized)
   const isPaused = useUiSettingsStore((state) => state.dashboardPollingPaused)
   const setPaused = useUiSettingsStore((state) => state.setDashboardPollingPaused)
-  const initializeAlertHistory = useAlertHistoryStore((state) => state.initialize)
-  const alerts = useAlertHistoryStore((state) => state.alerts)
-  const [compact, setCompact] = useState(false)
+  const saving = useUiSettingsStore((state) => state.saveState.saving)
+  const [summary, setSummary] = useState<TrayAlertSummary | null>(null)
+  const { compact, metrics } = useUiSettingsStore((state) => state.trayPresentation)
+  const [compactError, setCompactError] = useState(false)
+  const [savingCompact, setSavingCompact] = useState(false)
 
   useEffect(() => {
     void initializeUiSettings()
-    void initializeAlertHistory()
-  }, [initializeAlertHistory, initializeUiSettings])
+    let current = true
+    let received = false
+    const stop = window.electronAPI.onTrayAlertSummaryUpdated((value) => {
+      received = true
+      setSummary(value)
+    })
+    window.electronAPI
+      .getTrayAlertSummary()
+      .then((value) => {
+        if (current && !received) setSummary(value)
+      })
+      .catch(console.error)
+    return () => {
+      current = false
+      stop()
+    }
+  }, [initializeUiSettings])
 
   useMetricsSubscription()
 
@@ -75,15 +93,20 @@ function TrayContent() {
   const gpu = useGpuMetrics()
   const battery = useBatteryMetrics()
   const { isLoading, lastUpdated } = useMetricsStatus()
-  const unreadAlerts = alerts.filter((alert) => !alert.read)
-  const mostRecentAlert = alerts[0]
+  const unreadCount = summary?.unreadCount ?? 0
   const primaryDrive = selectPrimaryDrive(disk?.drives)
   const gpuController = gpu?.controllers[0]
 
-  function toggleCompact() {
-    const next = !compact
-    setCompact(next)
-    void window.electronAPI.setTrayCompact(next)
+  async function toggleCompact() {
+    setSavingCompact(true)
+    setCompactError(false)
+    try {
+      if (!(await window.electronAPI.setTrayCompact(!compact))) setCompactError(true)
+    } catch {
+      setCompactError(true)
+    } finally {
+      setSavingCompact(false)
+    }
   }
 
   if (!initialized || (isLoading && !lastUpdated)) {
@@ -94,7 +117,7 @@ function TrayContent() {
       >
         <div className="text-center">
           <div
-            className="mx-auto mb-2 h-2 w-2 animate-pulse rounded-full"
+            className="mx-auto mb-2 h-2 w-2 rounded-full"
             style={{ backgroundColor: 'var(--accent-blue)' }}
           />
           <p className="text-xs">Reading system metrics...</p>
@@ -104,7 +127,7 @@ function TrayContent() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-3">
+    <div className="aux-workbench tray-instruments flex h-full flex-col overflow-hidden p-3">
       <header
         className="flex items-start justify-between gap-3 border-b pb-2.5"
         style={{ borderColor: 'var(--border)' }}
@@ -122,9 +145,7 @@ function TrayContent() {
           <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>
             {lastUpdated ? `Updated ${formatTime(lastUpdated)}` : 'Waiting for metrics'}
             {isPaused ? ' · Paused' : ''}
-            {unreadAlerts.length > 0
-              ? ` · ${unreadAlerts.length} unread alert${unreadAlerts.length === 1 ? '' : 's'}`
-              : ''}
+            {unreadCount > 0 ? ` · ${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}` : ''}
           </p>
         </div>
         <button
@@ -141,27 +162,35 @@ function TrayContent() {
         </button>
       </header>
 
-      <section className="min-h-0 flex-1 divide-y" style={{ borderColor: 'var(--border)' }}>
-        <MetricRow
-          label="CPU"
-          value={cpu ? formatPercent(cpu.usagePercent, 0) : '—'}
-          percent={cpu?.usagePercent ?? null}
-          detail={cpu ? `${cpu.speedGHz} GHz · ${cpu.cores} cores` : undefined}
-          compact={compact}
-        />
-        <MetricRow
-          label="Mem"
-          value={memory ? formatPercent(memory.usagePercent, 0) : '—'}
-          percent={memory?.usagePercent ?? null}
-          accent="purple"
-          detail={
-            memory
-              ? `${formatBytes(memory.usedBytes)} of ${formatBytes(memory.totalBytes)}`
-              : undefined
-          }
-          compact={compact}
-        />
-        {!compact && (
+      <section
+        className="aux-scroll divide-y"
+        style={{ borderColor: 'var(--border)' }}
+        aria-label="Metrics"
+      >
+        {metrics.includes('cpu') && (
+          <MetricRow
+            label="CPU"
+            value={cpu ? formatPercent(cpu.usagePercent, 0) : '—'}
+            percent={cpu?.usagePercent ?? null}
+            detail={cpu ? `${cpu.speedGHz} GHz · ${cpu.cores} cores` : undefined}
+            compact={compact}
+          />
+        )}
+        {metrics.includes('memory') && (
+          <MetricRow
+            label="Mem"
+            value={memory ? formatPercent(memory.usagePercent, 0) : '—'}
+            percent={memory?.usagePercent ?? null}
+            accent="purple"
+            detail={
+              memory
+                ? `${formatBytes(memory.usedBytes)} of ${formatBytes(memory.totalBytes)}`
+                : undefined
+            }
+            compact={compact}
+          />
+        )}
+        {metrics.includes('gpu') && (
           <MetricRow
             label="GPU"
             value={gpuController ? formatPercent(gpuController.utilizationPercent, 0) : '—'}
@@ -171,54 +200,58 @@ function TrayContent() {
             compact={compact}
           />
         )}
-        <MetricRow
-          label="Disk"
-          value={primaryDrive ? formatBytes(primaryDrive.availableBytes) : '—'}
-          percent={primaryDrive?.usagePercent ?? null}
-          detail={
-            disk && primaryDrive
-              ? `${formatPercent(primaryDrive.usagePercent, 0)} used · Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`
-              : undefined
-          }
-          compact={compact}
-        />
+        {metrics.includes('disk') && (
+          <MetricRow
+            label="Disk"
+            value={primaryDrive ? formatBytes(primaryDrive.availableBytes) : '—'}
+            percent={primaryDrive?.usagePercent ?? null}
+            detail={
+              disk && primaryDrive
+                ? `${formatPercent(primaryDrive.usagePercent, 0)} used · Read ${formatSpeed(disk.io.readBytesPerSec)} · Write ${formatSpeed(disk.io.writeBytesPerSec)}`
+                : undefined
+            }
+            compact={compact}
+          />
+        )}
 
-        <div className={compact ? 'py-2' : 'py-2.5'}>
-          <div className="grid grid-cols-2 gap-2">
-            <div
-              className="min-w-0 rounded-lg px-2 py-1.5"
-              style={{ background: 'var(--bg-card)' }}
-            >
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Down
-              </p>
-              <p
-                className="truncate font-mono text-xs font-semibold tabular-nums"
-                style={{ color: 'var(--accent-green)' }}
-                title={network ? formatSpeed(network.totalDownloadBytesPerSec) : 'Unavailable'}
+        {metrics.includes('network') && (
+          <div className={compact ? 'py-2' : 'py-2.5'}>
+            <div className="grid grid-cols-2 gap-2">
+              <div
+                className="min-w-0 rounded-lg px-2 py-1.5"
+                style={{ background: 'var(--bg-card)' }}
               >
-                {network ? formatSpeed(network.totalDownloadBytesPerSec) : '—'}
-              </p>
-            </div>
-            <div
-              className="min-w-0 rounded-lg px-2 py-1.5"
-              style={{ background: 'var(--bg-card)' }}
-            >
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Up
-              </p>
-              <p
-                className="truncate font-mono text-xs font-semibold tabular-nums"
-                style={{ color: 'var(--accent-blue)' }}
-                title={network ? formatSpeed(network.totalUploadBytesPerSec) : 'Unavailable'}
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Down
+                </p>
+                <p
+                  className="truncate font-mono text-xs font-semibold tabular-nums"
+                  style={{ color: 'var(--accent-green)' }}
+                  title={network ? formatSpeed(network.totalDownloadBytesPerSec) : 'Unavailable'}
+                >
+                  {network ? formatSpeed(network.totalDownloadBytesPerSec) : '—'}
+                </p>
+              </div>
+              <div
+                className="min-w-0 rounded-lg px-2 py-1.5"
+                style={{ background: 'var(--bg-card)' }}
               >
-                {network ? formatSpeed(network.totalUploadBytesPerSec) : '—'}
-              </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Up
+                </p>
+                <p
+                  className="truncate font-mono text-xs font-semibold tabular-nums"
+                  style={{ color: 'var(--accent-blue)' }}
+                  title={network ? formatSpeed(network.totalUploadBytesPerSec) : 'Unavailable'}
+                >
+                  {network ? formatSpeed(network.totalUploadBytesPerSec) : '—'}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {!compact && (
+        {metrics.includes('battery') && (
           <div className="flex items-center justify-between gap-3 py-2">
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Battery
@@ -231,7 +264,7 @@ function TrayContent() {
           </div>
         )}
 
-        {!compact && (
+        {
           <div className="flex items-center justify-between gap-3 py-2">
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Alerts
@@ -239,26 +272,35 @@ function TrayContent() {
             <span
               className="min-w-0 truncate text-right text-xs font-semibold"
               style={{
-                color: unreadAlerts.length > 0 ? 'var(--accent-amber)' : 'var(--accent-green)'
+                color: unreadCount > 0 ? 'var(--accent-amber)' : 'var(--accent-green)'
               }}
-              title={mostRecentAlert?.title}
+              title={summary?.latestTitle ?? undefined}
             >
-              {unreadAlerts.length > 0
-                ? `${unreadAlerts.length} unread`
-                : mostRecentAlert?.title || 'None'}
+              {unreadCount > 0
+                ? `${unreadCount} unread`
+                : (summary?.latestTitle ?? (summary ? 'None' : 'Unavailable'))}
             </span>
           </div>
-        )}
+        }
       </section>
 
       <footer
         className="grid grid-cols-3 gap-2 border-t pt-2.5"
         style={{ borderColor: 'var(--border)' }}
       >
+        <div className="col-span-3 empty:hidden">
+          <UiSettingsFeedback compact />
+          {compactError && (
+            <p className="workspace-meta" role="alert">
+              Could not save tray layout.
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setPaused(!isPaused)}
-          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
+          disabled={saving}
+          className="control"
           style={{
             backgroundColor: isPaused ? 'rgba(34, 197, 94, 0.12)' : 'rgba(245, 158, 11, 0.12)',
             border: `1px solid ${isPaused ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
@@ -269,8 +311,9 @@ function TrayContent() {
         </button>
         <button
           type="button"
-          onClick={toggleCompact}
-          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
+          onClick={() => void toggleCompact()}
+          disabled={savingCompact}
+          className="control"
           style={{
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border)',
@@ -282,7 +325,7 @@ function TrayContent() {
         <button
           type="button"
           onClick={() => void window.electronAPI.quitApp()}
-          className="min-h-8 rounded-lg px-2 text-xs font-semibold"
+          className="control control--danger"
           style={{
             color: 'var(--accent-red)',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',

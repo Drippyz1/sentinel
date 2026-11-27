@@ -34,7 +34,26 @@ export function projectLiveMetrics(snapshot: MetricsSnapshot, view: MetricsView)
   const frame = { view, timestamp, sequence, statuses, capabilities }
   switch (view) {
     case 'dashboard':
-      return { ...frame, cpu, cpuTemperature, memory, disk, network, gpu, battery, anomalyReport }
+      return {
+        ...frame,
+        cpu,
+        cpuTemperature,
+        memory,
+        disk,
+        network,
+        gpu,
+        battery,
+        anomalyReport,
+        topProcesses:
+          statuses.processes.state === 'ok' && processes
+            ? processes.list.slice(0, 5).map(({ pid, name, cpuPercent, memoryBytes }) => ({
+                pid,
+                name,
+                cpuPercent,
+                memoryBytes
+              }))
+            : undefined
+      }
     case 'processes':
       return { ...frame, processes }
     case 'system':
@@ -46,7 +65,11 @@ export function projectLiveMetrics(snapshot: MetricsSnapshot, view: MetricsView)
         cpu: cpu && { ...cpu, perCoreUsage: [] },
         memory,
         disk: view === 'tray' ? disk : undefined,
-        network: network && { ...network, interfaces: [] },
+        network: network && {
+          interfaces: [],
+          totalDownloadBytesPerSec: network.totalDownloadBytesPerSec,
+          totalUploadBytesPerSec: network.totalUploadBytesPerSec
+        },
         gpu,
         battery
       }

@@ -1,17 +1,18 @@
-import { app, BrowserWindow, Notification } from 'electron'
+import { app, BrowserWindow, Notification, powerMonitor } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { setThreshold } from './analysis/anomalyDetector'
 import { MetricPoller } from '../monitoring/MetricPoller'
 import { localCollectors } from '../monitoring/collectors'
+import { clearCpuBaselines } from '../monitoring/collectors/cpu'
+import { clearDiskBaselines } from '../monitoring/collectors/disk'
+import { clearNetworkBaselines } from '../monitoring/collectors/network'
+import { clearProcessInventory } from '../monitoring/collectors/processes'
 import { resolveCollectionIntervals } from '../shared/utils/collectionPolicy'
 import { registerIpcHandlers } from './ipc'
 import { broadcastAlertHistory } from './ipc/alerts'
 import { broadcastLiveMetrics, sendLiveMetrics } from './ipc/metrics'
-import {
-  beginIpcShutdown,
-  broadcastToTrustedWindows,
-  lockDownRendererPermissions
-} from './ipcSecurity'
+import { beginIpcShutdown, lockDownRendererPermissions } from './ipcSecurity'
+import { publishUiSettings } from './ipc/settings'
 import { AppLifecycle } from './lifecycle/appLifecycle'
 import { MiniMonitorController } from './miniMonitor'
 import { MetricsService } from './services/MetricsService'
@@ -19,9 +20,16 @@ import { MonitoringAlertService } from './services/MonitoringAlertService'
 import { closeDatabase, getDatabase } from './storage/database'
 import { cleanOldSnapshots, recordSnapshot } from './storage/recorder'
 import { recordAlertHistory } from './storage/alertHistory'
-import { loadSettings, SENSITIVITY_THRESHOLD, updateUiSettings } from './storage/settings'
+import {
+  getUiSettingsSnapshot,
+  loadSettings,
+  SENSITIVITY_THRESHOLD,
+  updateUiSettings
+} from './storage/settings'
 import { destroyTray, hasTray, setTrayCompact, setupTray } from './tray'
 import { createMainWindow } from './windows/mainWindow'
+import { StorageSessions } from './storageExplorer/session'
+import { DuplicateSessions } from './duplicates/session'
 import type { UiSettingsPatch } from '../shared/contracts'
 
 const APP_ID = 'io.github.drippyz1.sentinel'
@@ -29,6 +37,8 @@ let mainWindow: BrowserWindow | null = null
 let miniMonitor: MiniMonitorController | null = null
 let stopBackgroundTasks: () => Promise<void> = async () => {}
 let latestMetrics: MetricsService | undefined
+const storageSessions = new StorageSessions()
+const duplicateSessions = new DuplicateSessions()
 
 function openMainWindow(): BrowserWindow {
   const window = createMainWindow({
@@ -55,9 +65,13 @@ const lifecycle = new AppLifecycle({
   createMainWindow: openMainWindow,
   getMainWindow: () => mainWindow,
   hasTray,
-  stopBackgroundTasks: () => {
+  stopBackgroundTasks: async () => {
     beginIpcShutdown()
-    return stopBackgroundTasks()
+    await Promise.all([
+      stopBackgroundTasks(),
+      storageSessions.shutdown(),
+      duplicateSessions.shutdown()
+    ])
   },
   closeResources: () => {
     closeDatabase()
@@ -149,6 +163,14 @@ async function startDesktop(): Promise<void> {
     }
   })
   latestMetrics = metricsService
+  const onResume = () => {
+    clearCpuBaselines()
+    clearDiskBaselines()
+    clearNetworkBaselines()
+    clearProcessInventory()
+    poller.invalidate()
+  }
+  powerMonitor.on('resume', onResume)
 
   cleanOldSnapshots(currentSettings.dataRetentionDays)
   const cleanupTimer = setInterval(
@@ -162,16 +184,24 @@ async function startDesktop(): Promise<void> {
     60 * 60 * 1000
   )
   stopBackgroundTasks = async () => {
+    powerMonitor.removeListener('resume', onResume)
     clearInterval(cleanupTimer)
     await metricsService.stop()
   }
 
   function saveUiSettingsPatch(patch: UiSettingsPatch): boolean {
+    const previous = getUiSettingsSnapshot()
     const saved = updateUiSettings(patch)
     if (!saved) return false
 
-    broadcastToTrustedWindows('ui-settings-changed', patch)
-    if (patch.dashboardPollingPaused === false) {
+    const current = getUiSettingsSnapshot()
+    if (current.revision === previous.revision) return true
+    publishUiSettings(current)
+    if (patch.miniPresentation) miniMonitor?.applyPresentation(current.ui.miniPresentation)
+    if (previous.ui.trayPresentation.compact !== current.ui.trayPresentation.compact) {
+      setTrayCompact(current.ui.trayPresentation.compact)
+    }
+    if (previous.ui.dashboardPollingPaused && !current.ui.dashboardPollingPaused) {
       metricsService.broadcastLatest()
     }
     return true
@@ -183,9 +213,14 @@ async function startDesktop(): Promise<void> {
 
   registerIpcHandlers({
     metricsService,
+    storageSessions,
+    duplicateSessions,
     saveUiSettingsPatch,
     showMainWindow: showOrCreateMainWindow,
-    setTrayCompact,
+    setTrayCompact: (compact) =>
+      saveUiSettingsPatch({
+        trayPresentation: { ...getUiSettingsSnapshot().ui.trayPresentation, compact }
+      }),
     showMiniMonitor: miniMonitor.show,
     hideMiniMonitor: miniMonitor.hide,
     setMiniMonitorAlwaysOnTop: miniMonitor.setAlwaysOnTop

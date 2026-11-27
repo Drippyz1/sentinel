@@ -5,12 +5,12 @@ import { configureTrustedWindow, trustedWebPreferences } from '../ipcSecurity'
 
 const TRAY_EXPANDED_SIZE = {
   width: 360,
-  height: 480
+  height: 464
 } as const
 
 const TRAY_COMPACT_SIZE = {
   width: 320,
-  height: 280
+  height: 326
 } as const
 
 export function setTrayWindowCompact(window: BrowserWindow, compact: boolean): void {

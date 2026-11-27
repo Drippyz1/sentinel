@@ -110,7 +110,7 @@ export function AnomalyPanel({ density }: DashboardWidgetProps) {
         </div>
         {!compact && (
           <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-            Anomaly detection activates after 2 minutes of data collection
+            Each metric needs 60 valid observations before it can flag a deviation.
           </p>
         )}
       </Card>
@@ -126,7 +126,7 @@ export function AnomalyPanel({ density }: DashboardWidgetProps) {
             style={{ backgroundColor: 'var(--accent-green)' }}
           />
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            All metrics within normal range
+            No anomalies observed
           </p>
         </div>
       </Card>

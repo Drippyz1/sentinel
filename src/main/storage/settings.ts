@@ -1,19 +1,36 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, renameSync, writeFileSync } from 'fs'
 import type {
   AppSettings,
   DashboardWidget,
   MonitoringAlerts,
+  SettingsPersistenceIssue,
+  SettingsReadResult,
   SettingsSaveResult,
   UiSettings,
-  UiSettingsPatch
+  UiSettingsPatch,
+  UiSettingsSnapshot
 } from '../../shared/contracts'
-import { DASHBOARD_WIDGET_KEYS, DEFAULT_UI_SETTINGS, METRIC_GROUPS } from '../../shared/contracts'
+import {
+  DASHBOARD_WIDGET_KEYS,
+  DEFAULT_APP_SETTINGS as DEFAULTS,
+  DEFAULT_UI_SETTINGS,
+  METRIC_GROUPS
+} from '../../shared/contracts'
 import {
   isCollectionInterval,
   normalizeCollectionOverrides
 } from '../../shared/utils/collectionPolicy'
+import { applyUiSettingsPatch } from '../../shared/utils/uiSettingsPatch'
+import {
+  isAppearance,
+  isDashboardLayout,
+  isMiniPresentation,
+  isTrayPresentation,
+  isProfileList
+} from '../../shared/contracts/personalization'
+import { readSettingsFile, replaceSettingsFile } from './settingsFile'
+import { commitWithLoginPreference, type LoginPreference } from './loginPreference'
 
 export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], number> = {
   sensitive: 2.0,
@@ -21,27 +38,7 @@ export const SENSITIVITY_THRESHOLD: Record<AppSettings['anomalySensitivity'], nu
   conservative: 3.0
 }
 
-const DEFAULT_MONITORING_ALERTS: MonitoringAlerts = {
-  cpu: { enabled: false, thresholdPercent: 90 },
-  memory: { enabled: false, thresholdPercent: 90 },
-  disk: { enabled: false, thresholdPercent: 90 },
-  battery: { enabled: false, thresholdPercent: 20 },
-  cooldownMinutes: 15
-}
-
-const DEFAULTS: AppSettings = {
-  settingsVersion: 1,
-  launchAtLogin: false,
-  hideFromDock: false,
-  pollIntervalMs: 2000,
-  collectionIntervalsMs: {},
-  tempUnit: 'C',
-  dataRetentionDays: 7,
-  anomalySensitivity: 'balanced',
-  anomalyNotifications: true,
-  monitoringAlerts: DEFAULT_MONITORING_ALERTS,
-  ui: DEFAULT_UI_SETTINGS
-}
+const DEFAULT_MONITORING_ALERTS = DEFAULTS.monitoringAlerts
 
 const POLL_INTERVALS = [1000, 2000, 5000, 10000] as const
 const RETENTION_DAYS = [1, 3, 7, 14, 30] as const
@@ -53,51 +50,62 @@ function settingsPath(): string {
 }
 
 let cachedSettings: AppSettings | undefined
+let persistenceIssue: SettingsPersistenceIssue | null = null
+let settingsRevision = 0
+
+const nativeLogin: LoginPreference = {
+  read: () => {
+    try {
+      return app.getLoginItemSettings().openAtLogin
+    } catch {
+      return null
+    }
+  },
+  apply: (desired) => app.setLoginItemSettings({ openAtLogin: desired })
+}
 
 export function loadSettings(): AppSettings {
   if (cachedSettings) return cachedSettings
-  try {
-    const raw = readFileSync(settingsPath(), 'utf8')
-    cachedSettings = normalizeSettings(JSON.parse(raw))
-  } catch {
-    cachedSettings = normalizeSettings({})
-  }
+  const document = readSettingsFile(settingsPath(), DEFAULTS.settingsVersion)
+  persistenceIssue = document.issue
+  cachedSettings = normalizeSettings(document.value)
   return cachedSettings
 }
 
-export function saveSettings(settings: AppSettings): SettingsSaveResult {
-  const normalized = normalizeSettings(settings)
-  const loginItemResult = applyLaunchAtLogin(normalized.launchAtLogin)
-  const reconciled = {
-    ...normalized,
-    launchAtLogin: loginItemResult.actualState
-  }
+export function readSettings(): SettingsReadResult {
+  const settings = loadSettings()
+  return { settings, launchAtLoginActual: nativeLogin.read(), persistenceIssue }
+}
 
+export function getUiSettingsSnapshot(): UiSettingsSnapshot {
+  const { ui, tempUnit } = loadSettings()
+  return { revision: settingsRevision, ui, tempUnit, persistenceIssue }
+}
+
+export function saveSettings(settings: AppSettings, applyLogin: boolean): SettingsSaveResult {
+  const current = loadSettings()
+  const intent = applyLogin ? settings.launchAtLogin : undefined
+  const result = commitWithLoginPreference(
+    () =>
+      writeSettings({
+        ...settings,
+        ui: current.ui,
+        launchAtLogin: intent ?? current.launchAtLogin
+      }),
+    nativeLogin,
+    intent
+  )
   return {
-    success: writeSettings(reconciled),
-    settings: reconciled,
-    launchAtLoginError: loginItemResult.denied,
+    ...result,
+    settings: loadSettings(),
+    persistenceIssue,
     isPackaged: app.isPackaged
   }
 }
 
 export function updateUiSettings(patch: UiSettingsPatch): boolean {
   const settings = loadSettings()
-  return writeSettings({
-    ...settings,
-    ui: {
-      ...settings.ui,
-      ...patch,
-      dashboardWidgets: {
-        ...settings.ui.dashboardWidgets,
-        ...patch.dashboardWidgets
-      },
-      historyMetrics: {
-        ...settings.ui.historyMetrics,
-        ...patch.historyMetrics
-      }
-    }
-  })
+  return writeSettings({ ...settings, ui: applyUiSettingsPatch(settings.ui, patch) })
 }
 
 export function isValidAppSettings(value: unknown): value is AppSettings {
@@ -112,6 +120,16 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(metrics)) return false
 
   return (
+    onlyKnownKeys(value, DEFAULTS) &&
+    onlyKnownKeys(monitoringAlerts, DEFAULT_MONITORING_ALERTS) &&
+    onlyKnownKeys(ui, DEFAULT_UI_SETTINGS) &&
+    isAppearance(ui.appearance) &&
+    isDashboardLayout(ui.dashboardLayout) &&
+    isProfileList(ui.appearanceProfiles) &&
+    isMiniPresentation(ui.miniPresentation) &&
+    isTrayPresentation(ui.trayPresentation) &&
+    onlyKnownKeys(dashboardWidgets, DEFAULT_UI_SETTINGS.dashboardWidgets) &&
+    onlyKnownKeys(metrics, DEFAULT_UI_SETTINGS.historyMetrics) &&
     value.settingsVersion === DEFAULTS.settingsVersion &&
     typeof value.launchAtLogin === 'boolean' &&
     typeof value.hideFromDock === 'boolean' &&
@@ -160,24 +178,18 @@ export function isValidAppSettings(value: unknown): value is AppSettings {
 
 export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch {
   if (!isRecord(value)) return false
-
-  const validKeys = new Set([
-    'dashboardPollingPaused',
-    'dashboardDensity',
-    'miniMonitorVisible',
-    'miniMonitorAlwaysOnTop',
-    'miniMonitorPosition',
-    'dashboardWidgets',
-    'dashboardWidgetOrder',
-    'historyView',
-    'historyMetrics',
-    'historyRangeMinutes',
-    'historyAlertMarkers',
-    'processDensity',
-    'processQuickFilter',
-    'systemView'
-  ])
-  if (Object.keys(value).some((key) => !validKeys.has(key))) return false
+  if (!onlyKnownKeys(value, DEFAULT_UI_SETTINGS) || Object.values(value).includes(undefined)) {
+    return false
+  }
+  if (Object.hasOwn(value, 'appearance') && !isAppearance(value.appearance)) return false
+  if (Object.hasOwn(value, 'dashboardLayout') && !isDashboardLayout(value.dashboardLayout))
+    return false
+  if (Object.hasOwn(value, 'appearanceProfiles') && !isProfileList(value.appearanceProfiles))
+    return false
+  if (Object.hasOwn(value, 'miniPresentation') && !isMiniPresentation(value.miniPresentation))
+    return false
+  if (Object.hasOwn(value, 'trayPresentation') && !isTrayPresentation(value.trayPresentation))
+    return false
 
   if (
     value.dashboardPollingPaused !== undefined &&
@@ -208,8 +220,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
   }
   if (value.dashboardWidgets !== undefined) {
     if (!isRecord(value.dashboardWidgets)) return false
-    const widgetKeys = new Set(['cpu', 'memory', 'gpu', 'disk', 'network', 'battery', 'anomalies'])
-    if (Object.keys(value.dashboardWidgets).some((key) => !widgetKeys.has(key))) return false
+    if (!onlyKnownKeys(value.dashboardWidgets, DEFAULT_UI_SETTINGS.dashboardWidgets)) return false
     if (Object.values(value.dashboardWidgets).some((widget) => typeof widget !== 'boolean')) {
       return false
     }
@@ -250,8 +261,7 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
 
   if (value.historyMetrics !== undefined) {
     if (!isRecord(value.historyMetrics)) return false
-    const metricKeys = new Set(['cpu', 'memory', 'network', 'disk', 'gpu', 'battery'])
-    if (Object.keys(value.historyMetrics).some((key) => !metricKeys.has(key))) return false
+    if (!onlyKnownKeys(value.historyMetrics, DEFAULT_UI_SETTINGS.historyMetrics)) return false
     if (Object.values(value.historyMetrics).some((metric) => typeof metric !== 'boolean')) {
       return false
     }
@@ -261,14 +271,13 @@ export function isValidUiSettingsPatch(value: unknown): value is UiSettingsPatch
 }
 
 function writeSettings(settings: AppSettings): boolean {
+  if (persistenceIssue) return false
   try {
     const normalized = normalizeSettings(settings)
-    const destination = settingsPath()
-    const temporary = `${destination}.tmp`
-
-    writeFileSync(temporary, JSON.stringify(normalized, null, 2), 'utf8')
-    renameSync(temporary, destination)
+    if (JSON.stringify(normalized) === JSON.stringify(cachedSettings)) return true
+    replaceSettingsFile(settingsPath(), normalized)
     cachedSettings = normalized
+    settingsRevision++
     return true
   } catch (err) {
     console.error('Failed to save settings:', err)
@@ -276,30 +285,12 @@ function writeSettings(settings: AppSettings): boolean {
   }
 }
 
-function applyLaunchAtLogin(requestedState: boolean): {
-  actualState: boolean
-  denied: boolean
-} {
-  const currentState = getLaunchAtLoginState()
-  if (currentState === requestedState) {
-    return { actualState: currentState, denied: false }
-  }
-
-  try {
-    app.setLoginItemSettings({ openAtLogin: requestedState })
-  } catch {
-    return { actualState: getLaunchAtLoginState(), denied: true }
-  }
-
-  const actualState = getLaunchAtLoginState()
-  return {
-    actualState,
-    denied: actualState !== requestedState
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function onlyKnownKeys(value: object, expected: object): boolean {
+  return Object.keys(value).every((key) => Object.hasOwn(expected, key))
 }
 
 function isOneOf<T extends string | number>(value: unknown, options: readonly T[]): value is T {
@@ -433,6 +424,24 @@ function normalizeSettings(value: unknown): AppSettings {
         : DEFAULT_MONITORING_ALERTS.cooldownMinutes
     },
     ui: {
+      appearance: isAppearance(rawUi.appearance)
+        ? rawUi.appearance
+        : DEFAULT_UI_SETTINGS.appearance,
+      dashboardLayout: isDashboardLayout(rawUi.dashboardLayout)
+        ? rawUi.dashboardLayout
+        : {
+            ...DEFAULT_UI_SETTINGS.dashboardLayout,
+            ...(rawUi.dashboardWidgets || rawUi.dashboardWidgetOrder
+              ? { preset: 'custom', wide: ['anomalies'] }
+              : {})
+          },
+      appearanceProfiles: isProfileList(rawUi.appearanceProfiles) ? rawUi.appearanceProfiles : [],
+      miniPresentation: isMiniPresentation(rawUi.miniPresentation)
+        ? rawUi.miniPresentation
+        : DEFAULT_UI_SETTINGS.miniPresentation,
+      trayPresentation: isTrayPresentation(rawUi.trayPresentation)
+        ? rawUi.trayPresentation
+        : DEFAULT_UI_SETTINGS.trayPresentation,
       dashboardPollingPaused: booleanOr(
         rawUi.dashboardPollingPaused,
         DEFAULT_UI_SETTINGS.dashboardPollingPaused
@@ -498,15 +507,5 @@ function normalizeSettings(value: unknown): AppSettings {
         ? rawUi.systemView
         : DEFAULT_UI_SETTINGS.systemView
     }
-  }
-}
-
-// Read the actual OS login item state so the toggle
-// reflects reality on first launch, not just our saved value
-export function getLaunchAtLoginState(): boolean {
-  try {
-    return app.getLoginItemSettings().openAtLogin
-  } catch {
-    return false
   }
 }

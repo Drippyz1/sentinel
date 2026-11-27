@@ -20,7 +20,7 @@ export function Card({
 
   return (
     <div
-      className={`min-w-0 rounded-xl border ${padding} ${className}`}
+      className={`surface metric-card min-w-0 ${padding} ${className}`}
       style={{
         backgroundColor: 'var(--bg-card)',
         borderColor: 'var(--border)'
@@ -28,10 +28,7 @@ export function Card({
     >
       {title && (
         <div className={`min-w-0 ${titleSpacing}`}>
-          <h3
-            className="text-sm font-semibold uppercase tracking-widest truncate"
-            style={{ color: 'var(--text-muted)' }}
-          >
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
             {title}
           </h3>
           {subtitle && density !== 'compact' && (

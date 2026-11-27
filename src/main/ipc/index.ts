@@ -8,15 +8,21 @@ import { registerProcessIpc } from './processes'
 import { registerSettingsIpc } from './settings'
 import { registerShellIpc } from './shell'
 import { registerSystemIpc } from './system'
+import { registerStorageIpc } from './storageExplorer'
+import { registerDuplicateIpc } from './duplicates'
+import type { DuplicateSessions } from '../duplicates/session'
+import type { StorageSessions } from '../storageExplorer/session'
 import type { UiSettingsPatch } from '../../shared/contracts'
 
 interface RegisterIpcOptions {
   metricsService: MetricsService
+  storageSessions: StorageSessions
+  duplicateSessions: DuplicateSessions
   saveUiSettingsPatch: (patch: UiSettingsPatch) => boolean
   showMainWindow: () => void
-  setTrayCompact: (compact: boolean) => void
-  showMiniMonitor: () => void
-  hideMiniMonitor: () => void
+  setTrayCompact: (compact: boolean) => boolean
+  showMiniMonitor: () => boolean
+  hideMiniMonitor: () => boolean
   setMiniMonitorAlwaysOnTop: (alwaysOnTop: boolean) => boolean
 }
 
@@ -27,7 +33,9 @@ export function registerIpcHandlers(options: RegisterIpcOptions): void {
   registerNetworkConnectionsIpc()
   registerHistoryIpc()
   registerSettingsIpc(options)
-  registerProcessIpc()
+  registerProcessIpc(options.metricsService)
   registerSystemIpc(options.metricsService)
+  registerStorageIpc(options.storageSessions, () => !options.duplicateSessions.active)
+  registerDuplicateIpc(options.duplicateSessions, () => !options.storageSessions.active)
   registerShellIpc(options)
 }

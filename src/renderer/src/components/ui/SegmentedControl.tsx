@@ -15,7 +15,7 @@ export function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   return (
     <div
-      className={`inline-flex max-w-full flex-wrap gap-1 rounded-xl p-1 ${className}`}
+      className={`inline-flex max-w-full flex-wrap gap-1 rounded-lg p-1 ${className}`}
       style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
       role="group"
       aria-label={ariaLabel}
@@ -28,12 +28,7 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className="min-h-8 flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
-            style={{
-              backgroundColor: isActive ? 'var(--accent-blue)' : 'transparent',
-              color: isActive ? 'white' : 'var(--text-muted)',
-              boxShadow: isActive ? '0 1px 6px rgba(59, 130, 246, 0.25)' : 'none'
-            }}
+            className="control segmented-item"
             aria-pressed={isActive}
           >
             {option.label}

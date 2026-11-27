@@ -1,10 +1,12 @@
 import type Database from 'better-sqlite3'
 import { canRecordHistory, getDatabase } from './database'
 import type { MetricsSnapshot } from '../../shared/contracts'
-import { historyValues } from './snapshotRow'
+import { historyRows } from './snapshotRow'
 
 let insertStmt: Database.Statement | null = null
 let cleanupStmt: Database.Statement | null = null
+let writeBatch: ((rows: Record<string, number | null>[]) => void) | undefined
+let lastFailure = -Infinity
 
 function getInsertStmt(): Database.Statement {
   if (insertStmt) return insertStmt
@@ -35,12 +37,20 @@ function getCleanupStmt(): Database.Statement {
 export function recordSnapshot(data: MetricsSnapshot) {
   if (!canRecordHistory()) return
   try {
-    const metrics = historyValues(data)
-    if (Object.values(metrics).some((value) => value !== null)) {
-      getInsertStmt().run({ timestamp: data.timestamp, ...metrics })
+    const rows = historyRows(data)
+    if (rows.length === 1) getInsertStmt().run(rows[0])
+    else if (rows.length > 1) {
+      writeBatch ??= getDatabase().transaction((batch: Record<string, number | null>[]) => {
+        for (const row of batch) getInsertStmt().run(row)
+      })
+      writeBatch(rows)
     }
   } catch (err) {
-    console.error('Failed to record snapshot:', err)
+    const now = performance.now()
+    if (now - lastFailure >= 60_000) {
+      lastFailure = now
+      console.error('Failed to record snapshot:', err)
+    }
   }
 }
 

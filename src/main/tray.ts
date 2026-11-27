@@ -71,6 +71,7 @@ export function setupTray(
     if (!trayWindow || trayWindow.isDestroyed()) {
       const window = createTrayWindow()
       trayWindow = window
+      setTrayWindowCompact(window, loadSettings().ui.trayPresentation.compact)
       window.once('ready-to-show', () => {
         if (trayWindow !== window || window.isDestroyed()) return
         positionTrayWindow()

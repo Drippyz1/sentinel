@@ -11,6 +11,9 @@ files:
   - resources/tray-icon*.png
 asarUnpack:
   - resources/**
+  - out/main/storage-scan.js
+  - out/main/duplicate-scan.js
+  - out/main/chunks/**
 win:
   executableName: sentinel
   icon: resources/icon.ico

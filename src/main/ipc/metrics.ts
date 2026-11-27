@@ -1,5 +1,10 @@
-import { BrowserWindow, ipcMain, type WebContents } from 'electron'
-import { assertTrustedIpcSender, getWindowRole, sendToTrustedWindow } from '../ipcSecurity'
+import { BrowserWindow, type WebContents } from 'electron'
+import {
+  assertTrustedIpcSender,
+  handleTrustedIpc,
+  getWindowRole,
+  sendToTrustedWindow
+} from '../ipcSecurity'
 import type { MetricsService } from '../services/MetricsService'
 import type { LiveMetricsFrame, MetricsSnapshot } from '../../shared/contracts'
 import { metricsView, projectLiveMetrics } from '../../shared/utils/liveMetrics'
@@ -23,12 +28,11 @@ export function broadcastLiveMetrics(snapshot: MetricsSnapshot): void {
 }
 
 export function registerMetricsIpc(metricsService: MetricsService): void {
-  ipcMain.handle('get-latest-metrics', async (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('get-latest-metrics', async (event) => {
     const snapshot = loadSettings().ui.dashboardPollingPaused
       ? await metricsService.getPausedSnapshot()
       : metricsService.getLatestSnapshot()
-    assertTrustedIpcSender(event)
+    assertTrustedIpcSender(event, 'get-latest-metrics')
     return frameFor(event.sender, snapshot)
   })
 }

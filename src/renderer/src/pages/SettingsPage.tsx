@@ -1,61 +1,35 @@
-import { useEffect, useState } from 'react'
-import type { AppSettings, MonitoringAlertRule, MonitoringAlerts } from '../../../shared/contracts'
-import { METRIC_GROUPS, type MetricGroup } from '../../../shared/contracts'
+import { useEffect, useRef, useState } from 'react'
+import { NavLink, useSearchParams } from 'react-router-dom'
+import type {
+  AppSettings,
+  MonitoringAlertRule,
+  MonitoringAlerts,
+  SettingsReadResult
+} from '../../../shared/contracts'
+import { DEFAULT_APP_SETTINGS, METRIC_GROUPS, type MetricGroup } from '../../../shared/contracts'
 import {
   COLLECTION_INTERVALS,
   resolveCollectionIntervals
 } from '../../../shared/utils/collectionPolicy'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
+import {
+  AppearanceSettings,
+  DashboardSettings,
+  MiniSettings,
+  StartupPreference,
+  TraySettings
+} from '../components/settings/AppearanceSettings'
 
-const DEFAULT_SETTINGS: AppSettings = {
-  settingsVersion: 1,
-  launchAtLogin: false,
-  hideFromDock: false,
-  pollIntervalMs: 2000,
-  collectionIntervalsMs: {},
-  tempUnit: 'C',
-  dataRetentionDays: 7,
-  anomalySensitivity: 'balanced',
-  anomalyNotifications: true,
-  monitoringAlerts: {
-    cpu: { enabled: false, thresholdPercent: 90 },
-    memory: { enabled: false, thresholdPercent: 90 },
-    disk: { enabled: false, thresholdPercent: 90 },
-    battery: { enabled: false, thresholdPercent: 20 },
-    cooldownMinutes: 15
-  },
-  ui: {
-    dashboardPollingPaused: false,
-    dashboardDensity: 'comfortable',
-    miniMonitorVisible: false,
-    miniMonitorAlwaysOnTop: true,
-    miniMonitorPosition: null,
-    dashboardWidgets: {
-      cpu: true,
-      memory: true,
-      gpu: true,
-      disk: true,
-      network: true,
-      battery: true,
-      anomalies: true
-    },
-    dashboardWidgetOrder: ['cpu', 'memory', 'gpu', 'disk', 'network', 'battery', 'anomalies'],
-    historyView: 'chart',
-    historyMetrics: {
-      cpu: true,
-      memory: true,
-      network: true,
-      disk: true,
-      gpu: true,
-      battery: true
-    },
-    historyRangeMinutes: 60,
-    historyAlertMarkers: true,
-    processDensity: 'comfortable',
-    processQuickFilter: 'all',
-    systemView: 'advanced'
-  }
-}
+const categories = [
+  ['general', 'General'],
+  ['appearance', 'Appearance'],
+  ['dashboard', 'Dashboard'],
+  ['monitoring', 'Monitoring'],
+  ['alerts', 'Alerts'],
+  ['mini', 'Mini Monitor'],
+  ['tray', 'System Tray'],
+  ['data', 'Data and Privacy']
+] as const
 
 const GROUP_LABELS: Record<MetricGroup, string> = {
   cpu: 'CPU usage',
@@ -79,12 +53,9 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="mb-7">
-      <div className="mb-3">
-        <h3
-          className="text-xs font-semibold uppercase tracking-widest"
-          style={{ color: 'var(--text-muted)' }}
-        >
+    <section className="preference-section">
+      <div className="preference-heading">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
           {title}
         </h3>
         {description && (
@@ -94,7 +65,7 @@ function Section({
         )}
       </div>
       <div
-        className="rounded-xl divide-y"
+        className="divide-y"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
         {children}
@@ -113,7 +84,7 @@ function Row({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between px-4 py-3.5 gap-4">
+    <div className="preference-row">
       <div className="flex flex-col min-w-0">
         <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
           {label}
@@ -210,66 +181,61 @@ function AlertSettingRow({
 }
 
 export function SettingsPage() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+  const [params] = useSearchParams()
+  const category = categories.find(([key]) => key === params.get('section'))?.[0] ?? 'general'
+  const [view, setView] = useState<SettingsReadResult>({
+    settings: DEFAULT_APP_SETTINGS,
+    launchAtLoginActual: null,
+    persistenceIssue: null
+  })
+  const { settings, launchAtLoginActual, persistenceIssue } = view
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [launchAtLoginError, setLaunchAtLoginError] = useState<string | null>(null)
-  const [savingLaunchAtLogin, setSavingLaunchAtLogin] = useState(false)
+  const saving = useRef(false)
+  const failedSave = useRef<{ next: AppSettings; login: boolean } | null>(null)
 
   useEffect(() => {
+    let current = true
     window.electronAPI
       .getSettings()
-      .then(setSettings)
-      .catch((error) => {
-        console.error('Failed to load settings:', error)
-        setLoadError(true)
+      .then((result) => {
+        if (current) setView(result)
       })
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (current) setLoadError(true)
+      })
+      .finally(() => {
+        if (current) setLoading(false)
+      })
+    return () => {
+      current = false
+    }
   }, [])
 
-  async function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    const previous = settings
-    const next = { ...settings, [key]: value }
-    setSettings(next)
-    setSaveStatus('idle')
-    if (key === 'launchAtLogin') setSavingLaunchAtLogin(true)
-
+  async function commit(next: AppSettings, login: boolean): Promise<void> {
+    if (saving.current || persistenceIssue) return
+    saving.current = true
+    failedSave.current = null
+    setSaveStatus('saving')
     try {
-      const result = await window.electronAPI.saveSettings(next)
-      if (!result.success) {
-        setSettings({
-          ...previous,
-          launchAtLogin: result.settings.launchAtLogin
-        })
-        setSaveStatus('error')
+      const result = await window.electronAPI.saveSettings(next, login)
+      setView(result)
+      if (result.success) {
+        setSaveStatus(result.launchAtLoginError ? 'idle' : 'saved')
         return
       }
-
-      setSettings(result.settings)
-      if (key === 'launchAtLogin') {
-        if (result.launchAtLoginError) {
-          const requestedAction = next.launchAtLogin ? 'enable' : 'disable'
-          const developmentNote = result.isPackaged
-            ? ''
-            : ' Development builds may only support Launch at Login reliably when packaged and signed.'
-          setLaunchAtLoginError(
-            `macOS did not allow Sentinel to ${requestedAction} Launch at Login. The toggle now reflects the current system setting.${developmentNote}`
-          )
-          return
-        }
-        setLaunchAtLoginError(null)
-      }
-
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 1500)
     } catch (error) {
       console.error('Failed to save settings:', error)
-      setSettings(previous)
-      setSaveStatus('error')
     } finally {
-      if (key === 'launchAtLogin') setSavingLaunchAtLogin(false)
+      saving.current = false
     }
+    failedSave.current = { next, login }
+    setSaveStatus('error')
+  }
+
+  function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
+    void commit({ ...settings, [key]: value }, key === 'launchAtLogin')
   }
 
   function updateAlert(
@@ -317,217 +283,269 @@ export function SettingsPage() {
   const isMac = navigator.platform.toUpperCase().includes('MAC')
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-7">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Settings
-        </h2>
+    <fieldset
+      className="preferences-workspace min-w-0"
+      disabled={saveStatus === 'saving' || Boolean(persistenceIssue)}
+    >
+      <div className="workbench-toolbar preferences-header">
+        <h2 className="sr-only">Settings</h2>
+        <p className="track-kicker">Application preferences</p>
         {saveStatus !== 'idle' && (
-          <span
-            className="text-xs transition-opacity duration-300"
-            style={{
-              color: saveStatus === 'saved' ? 'var(--accent-green)' : 'var(--accent-red)'
-            }}
-          >
-            {saveStatus === 'saved' ? 'Saved' : 'Could not save'}
-          </span>
+          <div className="flex items-center gap-2 text-xs">
+            <span role={saveStatus === 'error' ? 'alert' : 'status'}>
+              {saveStatus === 'saving'
+                ? 'Saving settings...'
+                : saveStatus === 'saved'
+                  ? 'Saved'
+                  : 'Could not save settings.'}
+            </span>
+            {saveStatus === 'error' && !persistenceIssue && (
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  const failed = failedSave.current
+                  if (failed) void commit(failed.next, failed.login)
+                }}
+              >
+                Retry
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {/* ── System — macOS only ──────────────────── */}
-      {isMac && (
-        <Section title="System">
-          <div>
+      <nav className="settings-nav" aria-label="Settings categories">
+        {categories.map(([key, label]) => (
+          <NavLink
+            key={key}
+            to={`?section=${key}`}
+            className="control"
+            aria-current={key === category ? 'page' : false}
+            data-current={key === category}
+          >
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="preferences-content">
+        <h3 className="preferences-page-name">
+          {categories.find(([key]) => key === category)?.[1]}
+        </h3>
+        {category === 'appearance' && <AppearanceSettings />}
+        {category === 'dashboard' && <DashboardSettings />}
+        {category === 'general' && <StartupPreference />}
+        {category === 'mini' && (
+          <MiniSettings opacitySupported={isMac || navigator.platform.startsWith('Win')} />
+        )}
+        {category === 'tray' && <TraySettings />}
+
+        {category === 'general' && isMac && (
+          <Section title="macOS">
+            <div>
+              <Row
+                label="Launch at login"
+                description="Launch at login may require a packaged macOS build and system permission approval."
+              >
+                <ToggleSwitch
+                  checked={launchAtLoginActual ?? false}
+                  disabled={launchAtLoginActual === null}
+                  label="Launch at login"
+                  onChange={(value) => update('launchAtLogin', value)}
+                />
+              </Row>
+              {launchAtLoginActual !== settings.launchAtLogin && (
+                <div
+                  role="alert"
+                  className="mx-4 mb-3 rounded-lg px-3 py-2.5 text-xs leading-relaxed"
+                  style={{
+                    color: 'var(--accent-amber)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)'
+                  }}
+                >
+                  {launchAtLoginActual === null
+                    ? 'Could not read the macOS login-item status.'
+                    : `macOS has Launch at Login ${launchAtLoginActual ? 'enabled' : 'disabled'}.`}{' '}
+                  Saved preference: {settings.launchAtLogin ? 'enabled' : 'disabled'}.{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => update('launchAtLogin', settings.launchAtLogin)}
+                  >
+                    Apply saved preference
+                  </button>
+                </div>
+              )}
+            </div>
             <Row
-              label="Launch at login"
-              description="Launch at login may require a packaged macOS build and system permission approval."
+              label="Hide from Dock"
+              description="Remove the app icon from the macOS Dock — still accessible via menu bar"
             >
               <ToggleSwitch
-                checked={settings.launchAtLogin}
-                disabled={savingLaunchAtLogin}
-                label="Launch at login"
-                onChange={(value) => update('launchAtLogin', value)}
+                checked={settings.hideFromDock}
+                label="Hide from Dock"
+                onChange={(value) => update('hideFromDock', value)}
               />
             </Row>
-            {launchAtLoginError && (
-              <div
-                role="alert"
-                className="mx-4 mb-3 rounded-lg px-3 py-2.5 text-xs leading-relaxed"
-                style={{
-                  color: 'var(--accent-amber)',
-                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)'
-                }}
-              >
-                {launchAtLoginError}
-              </div>
-            )}
-          </div>
-          <Row
-            label="Hide from Dock"
-            description="Remove the app icon from the macOS Dock — still accessible via menu bar"
-          >
-            <ToggleSwitch
-              checked={settings.hideFromDock}
-              label="Hide from Dock"
-              onChange={(value) => update('hideFromDock', value)}
-            />
-          </Row>
-        </Section>
-      )}
+          </Section>
+        )}
 
-      {/* ── Monitoring ───────────────────────────── */}
-      <Section title="Monitoring">
-        <Row label="Poll interval" description="Default cadence for live counters">
-          <Select
-            ariaLabel="Poll interval"
-            value={settings.pollIntervalMs}
-            onChange={(v) => update('pollIntervalMs', v)}
-            options={[
-              { label: '1 second', value: 1000 },
-              { label: '2 seconds', value: 2000 },
-              { label: '5 seconds', value: 5000 },
-              { label: '10 seconds', value: 10000 }
-            ]}
-          />
-        </Row>
-        <details>
-          <summary className="cursor-pointer px-4 py-3.5 text-sm font-medium">
-            Collection intervals
-          </summary>
-          {METRIC_GROUPS.map((group) => (
-            <Row key={group} label={GROUP_LABELS[group]}>
+        {category === 'monitoring' && (
+          <Section title="Monitoring">
+            <Row label="Poll interval" description="Default cadence for live counters">
               <Select
-                ariaLabel={`${GROUP_LABELS[group]} interval`}
-                value={settings.collectionIntervalsMs[group] ?? 0}
-                onChange={(value) => updateCollectionInterval(group, value)}
+                ariaLabel="Poll interval"
+                value={settings.pollIntervalMs}
+                onChange={(v) => update('pollIntervalMs', v)}
                 options={[
-                  {
-                    label: `Default (${resolveCollectionIntervals(settings.pollIntervalMs)[group] / 1000}s)`,
-                    value: 0
-                  },
-                  ...COLLECTION_INTERVALS.map((ms) => ({
-                    label: `${ms / 1000} seconds`,
-                    value: ms
-                  }))
+                  { label: '1 second', value: 1000 },
+                  { label: '2 seconds', value: 2000 },
+                  { label: '5 seconds', value: 5000 },
+                  { label: '10 seconds', value: 10000 }
                 ]}
               />
             </Row>
-          ))}
-        </details>
-        <Row label="Temperature unit" description="Unit used across all thermal readings">
-          <Select
-            ariaLabel="Temperature unit"
-            value={settings.tempUnit}
-            onChange={(v) => update('tempUnit', v)}
-            options={[
-              { label: 'Celsius (°C)', value: 'C' },
-              { label: 'Fahrenheit (°F)', value: 'F' }
-            ]}
-          />
-        </Row>
-      </Section>
+            <details>
+              <summary className="cursor-pointer px-4 py-3.5 text-sm font-medium">
+                Collection intervals
+              </summary>
+              {METRIC_GROUPS.map((group) => (
+                <Row key={group} label={GROUP_LABELS[group]}>
+                  <Select
+                    ariaLabel={`${GROUP_LABELS[group]} interval`}
+                    value={settings.collectionIntervalsMs[group] ?? 0}
+                    onChange={(value) => updateCollectionInterval(group, value)}
+                    options={[
+                      {
+                        label: `Default (${resolveCollectionIntervals(settings.pollIntervalMs)[group] / 1000}s)`,
+                        value: 0
+                      },
+                      ...COLLECTION_INTERVALS.map((ms) => ({
+                        label: `${ms / 1000} seconds`,
+                        value: ms
+                      }))
+                    ]}
+                  />
+                </Row>
+              ))}
+            </details>
+            <Row label="Temperature unit" description="Unit used across all thermal readings">
+              <Select
+                ariaLabel="Temperature unit"
+                value={settings.tempUnit}
+                onChange={(v) => update('tempUnit', v)}
+                options={[
+                  { label: 'Celsius (°C)', value: 'C' },
+                  { label: 'Fahrenheit (°F)', value: 'F' }
+                ]}
+              />
+            </Row>
+          </Section>
+        )}
 
-      <Section
-        title="Alerts"
-        description="Native notifications are sent after a threshold remains exceeded for 10 seconds."
-      >
-        <AlertSettingRow
-          label="CPU usage"
-          description="Notify when total processor usage stays at or above this threshold"
-          rule={settings.monitoringAlerts.cpu}
-          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
-          onChange={(rule) => updateAlert('cpu', rule)}
-        />
-        <AlertSettingRow
-          label="Memory usage"
-          description="Notify when system memory usage stays at or above this threshold"
-          rule={settings.monitoringAlerts.memory}
-          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
-          onChange={(rule) => updateAlert('memory', rule)}
-        />
-        <AlertSettingRow
-          label="Disk usage"
-          description="Notify when any mounted volume stays at or above this capacity threshold"
-          rule={settings.monitoringAlerts.disk}
-          thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
-          onChange={(rule) => updateAlert('disk', rule)}
-        />
-        <AlertSettingRow
-          label="Low battery"
-          description="Notify when battery charge stays at or below this level while not charging"
-          rule={settings.monitoringAlerts.battery}
-          thresholdOptions={[5, 10, 15, 20, 25, 30, 40, 50]}
-          onChange={(rule) => updateAlert('battery', rule)}
-        />
-        <Row
-          label="Notification cooldown"
-          description="Minimum time between monitoring alert notifications"
-        >
-          <Select
-            ariaLabel="Notification cooldown"
-            value={settings.monitoringAlerts.cooldownMinutes}
-            onChange={(cooldownMinutes) =>
-              void update('monitoringAlerts', {
-                ...settings.monitoringAlerts,
-                cooldownMinutes
-              })
-            }
-            options={[
-              { label: '5 minutes', value: 5 },
-              { label: '10 minutes', value: 10 },
-              { label: '15 minutes', value: 15 },
-              { label: '30 minutes', value: 30 },
-              { label: '60 minutes', value: 60 }
-            ]}
-          />
-        </Row>
-      </Section>
-
-      {/* ── Data & Storage ───────────────────────── */}
-      <Section title="Data & Storage">
-        <Row label="History retention" description="How long metric snapshots are kept on disk">
-          <Select
-            ariaLabel="History retention"
-            value={settings.dataRetentionDays}
-            onChange={(v) => update('dataRetentionDays', v)}
-            options={[
-              { label: '1 day', value: 1 },
-              { label: '3 days', value: 3 },
-              { label: '7 days', value: 7 },
-              { label: '14 days', value: 14 },
-              { label: '30 days', value: 30 }
-            ]}
-          />
-        </Row>
-      </Section>
-
-      {/* ── Anomaly Detection ────────────────────── */}
-      <Section title="Anomaly Detection">
-        <Row label="Sensitivity" description="How aggressively unusual activity is flagged">
-          <Select
-            ariaLabel="Anomaly sensitivity"
-            value={settings.anomalySensitivity}
-            onChange={(v) => update('anomalySensitivity', v)}
-            options={[
-              { label: 'Sensitive — flags ~5% of readings', value: 'sensitive' },
-              { label: 'Balanced — flags ~1% of readings', value: 'balanced' },
-              { label: 'Conservative — flags ~0.3% of readings', value: 'conservative' }
-            ]}
-          />
-        </Row>
-        <Row
-          label="Anomaly notifications"
-          description="Send a system notification when an anomaly is detected"
-        >
-          <ToggleSwitch
-            checked={settings.anomalyNotifications}
-            label="Anomaly notifications"
-            onChange={(value) => update('anomalyNotifications', value)}
-          />
-        </Row>
-      </Section>
-    </div>
+        {category === 'alerts' && (
+          <>
+            <Section
+              title="Alerts"
+              description="Native notifications are sent after a threshold remains exceeded for 10 seconds."
+            >
+              <AlertSettingRow
+                label="CPU usage"
+                description="Notify when total processor usage stays at or above this threshold"
+                rule={settings.monitoringAlerts.cpu}
+                thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+                onChange={(rule) => updateAlert('cpu', rule)}
+              />
+              <AlertSettingRow
+                label="Active memory"
+                description="Notify when the active share of physical memory stays at or above this threshold"
+                rule={settings.monitoringAlerts.memory}
+                thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+                onChange={(rule) => updateAlert('memory', rule)}
+              />
+              <AlertSettingRow
+                label="Disk usage"
+                description="Notify when any mounted volume stays at or above this capacity threshold"
+                rule={settings.monitoringAlerts.disk}
+                thresholdOptions={[50, 60, 70, 75, 80, 85, 90, 95, 100]}
+                onChange={(rule) => updateAlert('disk', rule)}
+              />
+              <AlertSettingRow
+                label="Low battery"
+                description="Notify when battery charge stays at or below this level while not charging"
+                rule={settings.monitoringAlerts.battery}
+                thresholdOptions={[5, 10, 15, 20, 25, 30, 40, 50]}
+                onChange={(rule) => updateAlert('battery', rule)}
+              />
+              <Row
+                label="Notification cooldown"
+                description="Minimum time between monitoring alert notifications"
+              >
+                <Select
+                  ariaLabel="Notification cooldown"
+                  value={settings.monitoringAlerts.cooldownMinutes}
+                  onChange={(cooldownMinutes) =>
+                    void update('monitoringAlerts', {
+                      ...settings.monitoringAlerts,
+                      cooldownMinutes
+                    })
+                  }
+                  options={[
+                    { label: '5 minutes', value: 5 },
+                    { label: '10 minutes', value: 10 },
+                    { label: '15 minutes', value: 15 },
+                    { label: '30 minutes', value: 30 },
+                    { label: '60 minutes', value: 60 }
+                  ]}
+                />
+              </Row>
+            </Section>
+            <Section title="Anomaly Detection">
+              <Row label="Sensitivity" description="How aggressively unusual activity is flagged">
+                <Select
+                  ariaLabel="Anomaly sensitivity"
+                  value={settings.anomalySensitivity}
+                  onChange={(v) => update('anomalySensitivity', v)}
+                  options={[
+                    { label: 'Sensitive — flags ~5% of readings', value: 'sensitive' },
+                    { label: 'Balanced — flags ~1% of readings', value: 'balanced' },
+                    { label: 'Conservative — flags ~0.3% of readings', value: 'conservative' }
+                  ]}
+                />
+              </Row>
+              <Row
+                label="Anomaly notifications"
+                description="Send a system notification when an anomaly is detected"
+              >
+                <ToggleSwitch
+                  checked={settings.anomalyNotifications}
+                  label="Anomaly notifications"
+                  onChange={(value) => update('anomalyNotifications', value)}
+                />
+              </Row>
+            </Section>
+          </>
+        )}
+        {category === 'data' && (
+          <Section title="Data and Privacy">
+            <Row
+              label="History retention"
+              description="Metric snapshots are stored locally. This controls how long they are kept."
+            >
+              <Select
+                ariaLabel="History retention"
+                value={settings.dataRetentionDays}
+                onChange={(v) => update('dataRetentionDays', v)}
+                options={[1, 3, 7, 14, 30].map((value) => ({
+                  label: `${value} ${value === 1 ? 'day' : 'days'}`,
+                  value
+                }))}
+              />
+            </Row>
+          </Section>
+        )}
+      </div>
+    </fieldset>
   )
 }

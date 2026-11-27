@@ -130,7 +130,7 @@ export class MetricsService {
     const network = this.poller.get('network').value
     const gpu = this.poller.get('gpu').value
     const fresh = (group: MetricGroup, value: number | null | undefined) =>
-      updatedGroups.includes(group) ? (value ?? null) : null
+      updatedGroups.includes(group) && statuses[group].state === 'ok' ? (value ?? null) : null
 
     return {
       timestamp: Date.now(),

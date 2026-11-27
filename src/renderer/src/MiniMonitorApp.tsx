@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   useBatteryMetrics,
   useCpuMetrics,
@@ -8,33 +8,34 @@ import {
   useMetricsSubscription,
   useNetworkMetrics
 } from './hooks/useMetrics'
+import { boundedPercent } from '../../shared/utils/visualization'
 import { useUiSettingsStore } from './store/uiSettingsStore'
 import { formatPercent, formatSpeed, formatTime } from './utils/format'
 
 function Metric({
   label,
   value,
-  color = 'var(--text-primary)'
+  color = 'var(--text-primary)',
+  percent
 }: {
   label: string
   value: string
   color?: string
+  percent?: number | null
 }) {
+  const fill = boundedPercent(percent)
   return (
     <div
-      className="min-w-0 rounded-lg px-2.5 py-2"
-      style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
+      className="mini-tile mini-instrument"
+      style={
+        { '--mini-ink': color, '--mini-fill': fill === null ? '0%' : `${fill}%` } as CSSProperties
+      }
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-nowrap">
-        <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-      </p>
-      <p
-        className="mt-0.5 truncate font-mono text-sm font-bold tabular-nums"
-        style={{ color }}
-        title={value}
-      >
+      <span className="mini-instrument-label">{label}</span>
+      <strong className="mini-instrument-reading" title={value}>
         {value}
-      </p>
+      </strong>
+      {fill !== null && <span className="mini-instrument-meter" aria-hidden="true" />}
     </div>
   )
 }
@@ -43,6 +44,10 @@ export function MiniMonitorApp() {
   const initializeUiSettings = useUiSettingsStore((state) => state.initialize)
   const initialized = useUiSettingsStore((state) => state.initialized)
   const alwaysOnTop = useUiSettingsStore((state) => state.miniMonitorAlwaysOnTop)
+  const presentation = useUiSettingsStore((state) => state.miniPresentation)
+  const paused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+  const [pending, setPending] = useState(false)
+  const [failure, setFailure] = useState<'pin' | 'hide' | null>(null)
 
   useEffect(() => {
     void initializeUiSettings()
@@ -58,28 +63,33 @@ export function MiniMonitorApp() {
   const { isLoading, lastUpdated } = useMetricsStatus()
   const gpuController = gpu?.hasGpu ? gpu.controllers[0] : undefined
 
-  async function toggleAlwaysOnTop() {
-    await window.electronAPI.setMiniMonitorAlwaysOnTop(!alwaysOnTop)
+  async function togglePin(): Promise<void> {
+    setPending(true)
+    setFailure(null)
+    try {
+      if (!(await window.electronAPI.setMiniMonitorAlwaysOnTop(!alwaysOnTop))) setFailure('pin')
+    } catch {
+      setFailure('pin')
+    } finally {
+      setPending(false)
+    }
   }
 
-  if (!initialized || (isLoading && !lastUpdated)) {
-    return (
-      <div className="window-drag flex h-full items-center justify-center">
-        <div className="text-center">
-          <div
-            className="mx-auto mb-2 h-2 w-2 animate-pulse rounded-full"
-            style={{ backgroundColor: 'var(--accent-blue)' }}
-          />
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Reading metrics...
-          </p>
-        </div>
-      </div>
-    )
+  async function dismiss(): Promise<void> {
+    setFailure(null)
+    try {
+      // A false response still dismisses the window. Main reports the save failure.
+      await window.electronAPI.hideMiniMonitor()
+    } catch {
+      setFailure('hide')
+    }
   }
+
+  const reading = !initialized || (isLoading && !lastUpdated)
+  const unavailable = reading ? 'Pending' : 'Unavailable'
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-2.5">
+    <div className="aux-workbench mini-workbench flex h-full flex-col overflow-hidden p-2.5">
       <header
         className="window-drag flex items-start justify-between gap-2 border-b pb-2"
         style={{ borderColor: 'var(--border)' }}
@@ -88,65 +98,97 @@ export function MiniMonitorApp() {
           <div className="flex items-center gap-2">
             <span
               className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: 'var(--accent-green)' }}
+              style={{ backgroundColor: paused ? 'var(--accent-amber)' : 'var(--accent-green)' }}
             />
             <h1 className="text-xs font-semibold">Sentinel Mini Monitor</h1>
           </div>
-          <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            {lastUpdated ? `Updated ${formatTime(lastUpdated)}` : 'Waiting for metrics'}
+          <p
+            className="mt-0.5 truncate text-[10px]"
+            role={failure ? 'alert' : undefined}
+            style={{ color: failure ? 'var(--accent-amber)' : 'var(--text-muted)' }}
+          >
+            {failure === 'pin'
+              ? 'Could not save. Try again.'
+              : failure === 'hide'
+                ? 'Could not hide. Try again.'
+                : paused
+                  ? 'Live updates paused'
+                  : reading
+                    ? 'Reading metrics…'
+                    : lastUpdated
+                      ? `Updated ${formatTime(lastUpdated)}`
+                      : 'Waiting for metrics'}
           </p>
         </div>
         <button
           type="button"
-          className="window-no-drag min-h-7 shrink-0 rounded-md px-2 text-[10px] font-semibold"
-          style={{
-            color: alwaysOnTop ? 'var(--accent-blue)' : 'var(--text-muted)',
-            backgroundColor: alwaysOnTop ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-            border: '1px solid var(--border)'
-          }}
+          className="window-no-drag control shrink-0"
           aria-pressed={alwaysOnTop}
-          onClick={() => void toggleAlwaysOnTop()}
+          disabled={pending}
+          onClick={() => void togglePin()}
         >
           {alwaysOnTop ? 'Unpin' : 'Pin'}
         </button>
       </header>
 
-      <main className="window-drag min-h-0 flex-1 py-2">
-        <div className="grid grid-cols-2 gap-1.5">
-          <Metric
-            label="CPU"
-            value={cpu ? formatPercent(cpu.usagePercent, 0) : 'Unavailable'}
-            color="var(--accent-blue)"
-          />
-          <Metric
-            label="Memory"
-            value={memory ? formatPercent(memory.usagePercent, 0) : 'Unavailable'}
-            color="var(--accent-purple)"
-          />
-          {gpuController && (
+      <main className="window-no-drag aux-scroll py-2">
+        <div className="mini-grid" data-layout={presentation.layout}>
+          {presentation.metrics.includes('cpu') && (
             <Metric
-              label="GPU"
-              value={formatPercent(gpuController.utilizationPercent, 0)}
+              label="CPU"
+              percent={cpu?.usagePercent}
+              value={cpu ? formatPercent(cpu.usagePercent, 0) : unavailable}
+              color="var(--accent-blue)"
+            />
+          )}
+          {presentation.metrics.includes('memory') && (
+            <Metric
+              label="Memory"
+              percent={memory?.usagePercent}
+              value={memory ? formatPercent(memory.usagePercent, 0) : unavailable}
               color="var(--accent-purple)"
             />
           )}
-          {battery?.hasBattery && (
+          {presentation.metrics.includes('gpu') && (
             <Metric
-              label="Battery"
-              value={`${battery.chargePercent}%${battery.isCharging ? ' · Charging' : ''}`}
-              color={battery.chargePercent < 20 ? 'var(--accent-red)' : 'var(--accent-green)'}
+              label="GPU"
+              percent={gpuController?.utilizationPercent}
+              value={
+                gpuController ? formatPercent(gpuController.utilizationPercent, 0) : unavailable
+              }
+              color="var(--accent-purple)"
             />
           )}
-          <Metric
-            label="Down"
-            value={network ? formatSpeed(network.totalDownloadBytesPerSec) : 'Unavailable'}
-            color="var(--accent-green)"
-          />
-          <Metric
-            label="Up"
-            value={network ? formatSpeed(network.totalUploadBytesPerSec) : 'Unavailable'}
-            color="var(--accent-blue)"
-          />
+          {presentation.metrics.includes('battery') && (
+            <Metric
+              label="Battery"
+              percent={battery?.hasBattery ? battery.chargePercent : null}
+              value={
+                battery?.hasBattery
+                  ? `${battery.chargePercent}%${battery.isCharging ? ' · Charging' : ''}`
+                  : unavailable
+              }
+              color={
+                battery?.hasBattery && battery.chargePercent < 20
+                  ? 'var(--accent-red)'
+                  : 'var(--accent-green)'
+              }
+            />
+          )}
+          {presentation.metrics.includes('network') && (
+            <>
+              <Metric
+                label="Down"
+                value={network ? formatSpeed(network.totalDownloadBytesPerSec) : unavailable}
+                color="var(--accent-green)"
+              />
+              <Metric
+                label="Up"
+                value={network ? formatSpeed(network.totalUploadBytesPerSec) : unavailable}
+                color="var(--accent-blue)"
+              />
+            </>
+          )}
         </div>
       </main>
 
@@ -157,25 +199,11 @@ export function MiniMonitorApp() {
         <button
           type="button"
           onClick={() => void window.electronAPI.openMainWindow()}
-          className="min-h-8 rounded-lg px-2 text-[11px] font-semibold"
-          style={{
-            color: 'var(--accent-blue)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.25)'
-          }}
+          className="control control--accent"
         >
           Open Sentinel
         </button>
-        <button
-          type="button"
-          onClick={() => void window.electronAPI.hideMiniMonitor()}
-          className="min-h-8 rounded-lg px-2 text-[11px] font-semibold"
-          style={{
-            color: 'var(--text-muted)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)'
-          }}
-        >
+        <button type="button" onClick={() => void dismiss()} className="control">
           Hide Monitor
         </button>
       </footer>

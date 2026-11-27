@@ -2,6 +2,15 @@
 
 All notable changes to Sentinel are documented in this file.
 
+## 0.6.0 (unreleased)
+
+- Redesign the desktop workspace and Overview with live traces, per-core activity, compact process inspection, and a configurable dashboard. Customize themes, profiles, tray and Mini Monitor.
+- Improve sampled and cached process inspection, local connection details, and History presentation while preserving recording and gaps for missing observations.
+- Add read-only Storage Explorer with radial and treemap navigation, bounded indexing, and separately labeled logical and allocated estimates.
+- Add byte-for-byte Duplicate Files verification and side-by-side Similar Photos comparison for JPEG and PNG. Windows content analysis remains disabled.
+- Keep scanning local and folder-scoped, with read-only workers, isolated image decoding, cancellation, and explicit partial results. Preserve native process confirmation and identity revalidation.
+- Fix clean source installation with Electron 45's explicit runtime installer. This is a source-first release; no public installer or automatic updater is included.
+
 ## [0.5.0] - 2026-11-26
 
 ### Monitoring and Desktop

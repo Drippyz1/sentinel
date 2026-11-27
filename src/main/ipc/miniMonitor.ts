@@ -1,9 +1,8 @@
-import { ipcMain } from 'electron'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { handleTrustedIpc } from '../ipcSecurity'
 
 interface MiniMonitorIpcOptions {
-  showMiniMonitor: () => void
-  hideMiniMonitor: () => void
+  showMiniMonitor: () => boolean
+  hideMiniMonitor: () => boolean
   setMiniMonitorAlwaysOnTop: (alwaysOnTop: boolean) => boolean
 }
 
@@ -12,18 +11,11 @@ export function registerMiniMonitorIpc({
   hideMiniMonitor,
   setMiniMonitorAlwaysOnTop
 }: MiniMonitorIpcOptions): void {
-  ipcMain.handle('show-mini-monitor', (event) => {
-    assertTrustedIpcSender(event)
-    showMiniMonitor()
-  })
+  handleTrustedIpc('show-mini-monitor', () => showMiniMonitor())
 
-  ipcMain.handle('hide-mini-monitor', (event) => {
-    assertTrustedIpcSender(event)
-    hideMiniMonitor()
-  })
+  handleTrustedIpc('hide-mini-monitor', () => hideMiniMonitor())
 
-  ipcMain.handle('set-mini-monitor-always-on-top', (event, alwaysOnTop: unknown) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('set-mini-monitor-always-on-top', (_event, _role, alwaysOnTop: unknown) => {
     return typeof alwaysOnTop === 'boolean' ? setMiniMonitorAlwaysOnTop(alwaysOnTop) : false
   })
 }

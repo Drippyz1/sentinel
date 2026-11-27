@@ -1,13 +1,11 @@
 import type { DashboardDensity } from '../../../../shared/contracts'
+import type { WidgetStyle } from '../../../../shared/contracts/personalization'
 
 export interface DashboardWidgetProps {
   density: DashboardDensity
-}
-
-export const DASHBOARD_CHART_HEIGHT: Record<DashboardDensity, number> = {
-  compact: 48,
-  comfortable: 74,
-  detailed: 88
+  showChart?: boolean
+  expanded?: boolean
+  style?: WidgetStyle
 }
 
 export function isCompactDashboard(density: DashboardDensity): boolean {

@@ -1,4 +1,6 @@
+import { Modal } from '../components/ui/Modal'
 import { useState, useEffect, useCallback } from 'react'
+import { scheduleVisibleRefresh } from '../utils/visibleRefresh'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type {
   StartupMetrics,
@@ -11,8 +13,15 @@ import { Card } from '../components/ui/Card'
 import { StatRow } from '../components/ui/StatRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
-import { useCpuTemperature, useGpuMetrics } from '../hooks/useMetrics'
+import {
+  useBatteryMetrics,
+  useCpuTemperature,
+  useDiskMetrics,
+  useGpuMetrics,
+  useNetworkMetrics
+} from '../hooks/useMetrics'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
+import { CapabilityPanel } from '../components/widgets/CapabilityPanel'
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400)
@@ -40,17 +49,43 @@ function thermalColor(level: string): string {
 
 function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="mb-3 mt-6 first:mt-0">
-      <h3
-        className="text-xs font-semibold uppercase tracking-widest"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        {title}
-      </h3>
+    <div className="diagnostic-heading">
+      <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
         {description}
       </p>
     </div>
+  )
+}
+
+function ResourceInventory() {
+  const gpu = useGpuMetrics()
+  const drive = useDiskMetrics()?.drives.find(({ isPrimary }) => isPrimary)
+  const network = useNetworkMetrics()
+  const battery = useBatteryMetrics()
+  return (
+    <section className="inventory-properties" aria-label="Device resources">
+      <dl>
+        <dt>Graphics adapters</dt>
+        <dd>{gpu?.controllers.map(({ name }) => name).join(', ') || 'Unavailable'}</dd>
+        <dt>Primary volume</dt>
+        <dd>
+          {drive ? `${drive.name} · ${formatBytes(drive.totalBytes)} capacity` : 'Unavailable'}
+        </dd>
+        <dt>Monitored interface</dt>
+        <dd>{network?.monitoredInterface ?? 'Unavailable'}</dd>
+        <dt>Battery</dt>
+        <dd>
+          {!battery
+            ? 'Unavailable'
+            : battery.hasBattery
+              ? battery.isPluggedIn
+                ? 'External power connected'
+                : 'On battery'
+              : 'Not detected'}
+        </dd>
+      </dl>
+    </section>
   )
 }
 
@@ -68,108 +103,91 @@ function ReportExportDialog({
   const isExporting = exportingFormat !== null
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
-      onClick={() => {
-        if (!isExporting) onCancel()
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="report-export-title"
-        className="w-full max-w-md rounded-xl p-5 shadow-xl"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)'
-        }}
-        onClick={(event) => event.stopPropagation()}
+    <Modal titleId="report-export-title" onClose={onCancel} locked={isExporting}>
+      <h2
+        id="report-export-title"
+        className="text-base font-semibold"
+        style={{ color: 'var(--text-primary)' }}
       >
-        <h2
-          id="report-export-title"
-          className="text-base font-semibold"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Export system report?
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          The diagnostic report may include information that identifies your computer or local
-          network:
-        </p>
+        Export system report?
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        The diagnostic report may include information that identifies your computer or local
+        network:
+      </p>
 
-        <ul
-          className="mt-4 space-y-2 rounded-lg px-4 py-3 text-sm list-disc list-inside"
+      <ul
+        className="mt-4 space-y-2 rounded-lg px-4 py-3 text-sm list-disc list-inside"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-primary)'
+        }}
+      >
+        <li>Hostname</li>
+        <li>Local IP addresses</li>
+        <li>Volume labels</li>
+        <li>Startup application names</li>
+        <li>Hardware and OS details</li>
+      </ul>
+
+      <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        Review the downloaded report before sharing it publicly.
+      </p>
+
+      {error && (
+        <div
+          className="mt-4 rounded-lg px-3 py-2 text-xs"
           style={{
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-primary)'
+            color: 'var(--accent-red)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
           }}
         >
-          <li>Hostname</li>
-          <li>Local IP addresses</li>
-          <li>Volume labels</li>
-          <li>Startup application names</li>
-          <li>Hardware and OS details</li>
-        </ul>
-
-        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          Review the downloaded report before sharing it publicly.
-        </p>
-
-        {error && (
-          <div
-            className="mt-4 rounded-lg px-3 py-2 text-xs"
-            style={{
-              color: 'var(--accent-red)',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)'
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border)'
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onExport('txt')}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border)'
-            }}
-          >
-            {exportingFormat === 'txt' ? 'Exporting...' : 'Export TXT'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onExport('json')}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              backgroundColor: 'var(--accent-blue)',
-              border: '1px solid var(--accent-blue)'
-            }}
-          >
-            {exportingFormat === 'json' ? 'Exporting...' : 'Export JSON'}
-          </button>
+          {error}
         </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          data-initial-focus
+          onClick={onCancel}
+          disabled={isExporting}
+          className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)'
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => onExport('txt')}
+          disabled={isExporting}
+          className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)'
+          }}
+        >
+          {exportingFormat === 'txt' ? 'Exporting...' : 'Export TXT'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onExport('json')}
+          disabled={isExporting}
+          className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-[var(--on-accent)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--accent-blue)',
+            border: '1px solid var(--accent-blue)'
+          }}
+        >
+          {exportingFormat === 'json' ? 'Exporting...' : 'Export JSON'}
+        </button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -185,105 +203,92 @@ function DiagnosticBundleDialog({
   onExport: () => void
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
-      onClick={() => {
-        if (!isExporting) onCancel()
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="diagnostic-bundle-title"
-        className="w-full max-w-md rounded-xl p-5 shadow-xl"
-        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
-        onClick={(event) => event.stopPropagation()}
+    <Modal titleId="diagnostic-bundle-title" onClose={onCancel} locked={isExporting}>
+      <h2
+        id="diagnostic-bundle-title"
+        className="text-base font-semibold"
+        style={{ color: 'var(--text-primary)' }}
       >
-        <h2
-          id="diagnostic-bundle-title"
-          className="text-base font-semibold"
-          style={{ color: 'var(--text-primary)' }}
+        Export diagnostic bundle?
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        This ZIP is designed for troubleshooting and may contain identifying device or network
+        details.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div
+          className="rounded-lg px-3 py-3 text-xs"
+          style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
         >
-          Export diagnostic bundle?
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          This ZIP is designed for troubleshooting and may contain identifying device or network
-          details.
-        </p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div
-            className="rounded-lg px-3 py-3 text-xs"
-            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Included
-            </p>
-            <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
-              <li>System information</li>
-              <li>Alert history</li>
-              <li>History metrics</li>
-              <li>Settings</li>
-            </ul>
-          </div>
-          <div
-            className="rounded-lg px-3 py-3 text-xs"
-            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Excluded
-            </p>
-            <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
-              <li>Serial numbers</li>
-              <li>Private paths</li>
-              <li>Credentials</li>
-            </ul>
-          </div>
+          <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Included
+          </p>
+          <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
+            <li>System information</li>
+            <li>Alert history</li>
+            <li>History metrics</li>
+            <li>Settings</li>
+          </ul>
         </div>
-
-        <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          Review the bundle contents before attaching it to a public issue.
-        </p>
-
-        {error && (
-          <div
-            className="mt-4 rounded-lg px-3 py-2 text-xs"
-            style={{
-              color: 'var(--accent-red)',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)'
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={isExporting}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              backgroundColor: 'var(--accent-blue)',
-              border: '1px solid var(--accent-blue)'
-            }}
-          >
-            {isExporting ? 'Exporting...' : 'Export Bundle'}
-          </button>
+        <div
+          className="rounded-lg px-3 py-3 text-xs"
+          style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        >
+          <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Excluded
+          </p>
+          <ul className="mt-2 space-y-1 list-disc pl-4" style={{ color: 'var(--text-muted)' }}>
+            <li>Serial numbers</li>
+            <li>Private paths</li>
+            <li>Saved appearance profiles</li>
+            <li>Credentials</li>
+          </ul>
         </div>
       </div>
-    </div>
+
+      <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        Review the bundle contents before attaching it to a public issue.
+      </p>
+
+      {error && (
+        <div
+          className="mt-4 rounded-lg px-3 py-2 text-xs"
+          style={{
+            color: 'var(--accent-red)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          type="button"
+          data-initial-focus
+          onClick={onCancel}
+          disabled={isExporting}
+          className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={isExporting}
+          className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--accent-blue)',
+            border: '1px solid var(--accent-blue)'
+          }}
+        >
+          {isExporting ? 'Exporting...' : 'Export Bundle'}
+        </button>
+      </div>
+    </Modal>
   )
 }
 
@@ -525,8 +530,6 @@ export function SystemPage() {
         if (cancelled) return
         setThermal(null)
         setThermalError(true)
-      } finally {
-        if (!cancelled) thermalTimer = setTimeout(() => void refreshThermal(), 10000)
       }
     }
 
@@ -538,11 +541,11 @@ export function SystemPage() {
       .catch(() => {
         if (!cancelled) setSystemInfoError(true)
       })
-    let thermalTimer = setTimeout(() => void refreshThermal(), 0)
+    const stopRefresh = scheduleVisibleRefresh(document, 10000, refreshThermal)
 
     return () => {
       cancelled = true
-      clearTimeout(thermalTimer)
+      stopRefresh()
     }
   }, [])
 
@@ -583,7 +586,7 @@ export function SystemPage() {
   }
 
   return (
-    <div>
+    <div className="system-workspace">
       {showExportDialog && (
         <ReportExportDialog
           error={exportError}
@@ -607,11 +610,10 @@ export function SystemPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="workbench-toolbar system-toolbar">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            System
-          </h2>
+          <h2 className="sr-only">System</h2>
+          <p className="track-kicker">Device inventory</p>
           {lastRefreshed && (
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Refreshed {formatTime(lastRefreshed)}
@@ -628,12 +630,7 @@ export function SystemPage() {
                   setShowExportDialog(true)
                 }}
                 disabled={exportingFormat !== null || isExportingBundle}
-                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                style={{
-                  backgroundColor: 'var(--accent-blue)',
-                  color: 'white',
-                  border: '1px solid var(--accent-blue)'
-                }}
+                className="control control--accent"
               >
                 Export Report
               </button>
@@ -644,12 +641,7 @@ export function SystemPage() {
                   setShowBundleDialog(true)
                 }}
                 disabled={exportingFormat !== null || isExportingBundle}
-                className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                style={{
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border)'
-                }}
+                className="control"
               >
                 Diagnostic Bundle
               </button>
@@ -679,9 +671,9 @@ export function SystemPage() {
         title="Overview"
         description="Core machine identity and current operating system details."
       />
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="system-inventory-grid">
         {systemInfo ? (
-          <Card title="Machine">
+          <Card title="Operating system">
             <StatRow label="Model" value={systemInfo.model} accent="blue" />
             <StatRow
               label="OS"
@@ -698,7 +690,7 @@ export function SystemPage() {
             )}
           </Card>
         ) : (
-          <Card title="Machine">
+          <Card title="Operating system">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               {systemInfoError ? 'Machine information unavailable.' : 'Loading...'}
             </p>
@@ -706,18 +698,18 @@ export function SystemPage() {
         )}
 
         {systemInfo ? (
-          <Card title="Hardware">
-            <StatRow label="CPU" value={systemInfo.cpuBrand} accent="blue" />
+          <Card title="Processor and physical memory">
+            <StatRow label="Processor" value={systemInfo.cpuBrand} accent="blue" />
             <StatRow
-              label="Total RAM"
+              label="Physical memory"
               value={formatBytes(systemInfo.totalMemory)}
               accent="purple"
             />
             {view === 'advanced' && (
               <>
                 <StatRow
-                  label="Cores"
-                  value={`${systemInfo.cpuCores} cores / ${systemInfo.cpuThreads} threads`}
+                  label="Core topology"
+                  value={`${systemInfo.cpuCores} physical / ${systemInfo.cpuThreads} logical`}
                   accent="blue"
                 />
                 <StatRow
@@ -729,13 +721,16 @@ export function SystemPage() {
             )}
           </Card>
         ) : (
-          <Card title="Hardware">
+          <Card title="Processor and physical memory">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               {systemInfoError ? 'Hardware information unavailable.' : 'Loading...'}
             </p>
           </Card>
         )}
       </div>
+
+      <ResourceInventory />
+      <CapabilityPanel />
 
       <SectionHeading
         title="Thermal"

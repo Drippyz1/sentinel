@@ -1,146 +1,80 @@
 import { useBatteryMetrics } from '../../hooks/useMetrics'
-import { useHistoryStore } from '../../store/historyStore'
-import { Card } from '../ui/Card'
-import { StatRow } from '../ui/StatRow'
-import { UsageBar } from '../ui/UsageBar'
-import { MiniChart } from '../ui/MiniChart'
+import { useUiSettingsStore } from '../../store/uiSettingsStore'
+import { formatPercent } from '../../utils/format'
+import { LiveChart } from '../ui/MiniChart'
 import { MetricMessage } from './MetricMessage'
-import { getTrendDirection } from '../../utils/trend'
-import {
-  DASHBOARD_CHART_HEIGHT,
-  isCompactDashboard,
-  type DashboardWidgetProps
-} from './dashboardDensity'
+import { MetricDetails, MetricFacts, PercentDisplay, WidgetFrame } from './MetricVisuals'
+import type { DashboardWidgetProps } from './dashboardDensity'
 
-function formatTime(minutes: number): string {
-  if (minutes < 60) return `${Math.round(minutes)}m`
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
+function duration(minutes: number | null): string {
+  if (minutes === null || !Number.isFinite(minutes) || minutes < 0) return 'Unavailable'
+  return `${Math.floor(minutes / 60)}h ${Math.floor(minutes % 60)}m`
 }
+const quantity = (value: number | null, unit: string) =>
+  Number.isFinite(value) && value !== null ? `${value.toFixed(1)} ${unit}` : 'Unavailable'
 
-function healthColor(pct: number): 'green' | 'amber' | 'red' {
-  if (pct >= 80) return 'green'
-  if (pct >= 60) return 'amber'
-  return 'red'
-}
-
-export function BatteryWidget({ density }: DashboardWidgetProps) {
+export function BatteryWidget({
+  expanded,
+  showChart = true,
+  style = 'ring'
+}: DashboardWidgetProps) {
   const battery = useBatteryMetrics()
-  const history = useHistoryStore((state) => state.battery)
-
-  if (!battery?.hasBattery) {
-    return (
-      <Card title="Battery" density={density}>
-        <MetricMessage group="battery" name="battery data" notDetected="No battery detected." />
-      </Card>
-    )
-  }
-
-  const chargeAccent = battery.isCharging
-    ? 'green'
-    : battery.chargePercent < 20
-      ? 'red'
-      : battery.chargePercent < 40
-        ? 'amber'
-        : 'blue'
-
-  const statusLabel = battery.isCharging
-    ? 'Charging'
-    : battery.isPluggedIn
-      ? 'Plugged in'
-      : 'On battery'
-  const batteryTrend = getTrendDirection(history, 0.25)
-  const trendStatus = battery.isCharging
-    ? 'Charging'
-    : batteryTrend === 'falling'
-      ? 'Discharging'
-      : 'Stable'
-  const compact = isCompactDashboard(density)
-
+  const paused = useUiSettingsStore((state) => state.dashboardPollingPaused)
   return (
-    <Card title="Battery" subtitle={statusLabel} density={density}>
-      <div className="flex items-end gap-2 mb-3">
-        <span
-          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {battery.chargePercent}
-        </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
-          %
-        </span>
-        {battery.isCharging && (
-          <span className="text-sm mb-1.5 ml-1" style={{ color: 'var(--accent-green)' }}>
-            ⚡
-          </span>
-        )}
-      </div>
-
-      {!compact && <UsageBar percent={battery.chargePercent} accent={chargeAccent} />}
-
-      <div
-        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
-        style={{ borderTop: '1px solid var(--border)' }}
-      >
-        <MiniChart
-          data={history}
-          color={battery.isCharging ? '#22c55e' : '#3b82f6'}
-          status={trendStatus}
-          ariaLabel="Recent battery percentage trend"
-          formatValue={(value) => `${value}%`}
-          domain={[0, 100]}
-          height={DASHBOARD_CHART_HEIGHT[density]}
-        />
-      </div>
-
-      {!compact && (
-        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-          {battery.timeRemainingMins !== null && (
-            <StatRow
-              label={battery.isCharging ? 'Time to full' : 'Time remaining'}
-              value={formatTime(battery.timeRemainingMins)}
-              accent="blue"
+    <WidgetFrame
+      id="battery"
+      title="Battery"
+      meta={battery?.hasBattery ? (battery.isPluggedIn ? 'AC power' : 'On battery') : undefined}
+    >
+      {battery?.hasBattery ? (
+        <>
+          <div className="instrument-split">
+            <PercentDisplay
+              value={battery.chargePercent}
+              style={style === 'ring' || style === 'bar' ? style : 'number'}
             />
-          )}
-          {battery.cycleCount !== null && (
-            <StatRow label="Cycle count" value={`${battery.cycleCount}`} accent="blue" />
-          )}
-          {battery.voltage !== null && (
-            <StatRow label="Voltage" value={`${battery.voltage.toFixed(2)}V`} accent="blue" />
-          )}
-        </div>
-      )}
-
-      {!compact && battery.healthPercent !== null && (
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-            Battery Health
-          </p>
-          <UsageBar percent={battery.healthPercent} accent={healthColor(battery.healthPercent)} />
-          <div className="mt-2 space-y-1">
-            <StatRow
-              label="Health"
-              value={`${battery.healthPercent}%`}
-              accent={healthColor(battery.healthPercent)}
-            />
-            {battery.capacityWh !== null && (
-              <StatRow
-                label="Current capacity"
-                value={`${battery.capacityWh.toFixed(1)} Wh`}
-                accent="blue"
-              />
-            )}
-            {battery.designCapacityWh !== null && (
-              <StatRow
-                label="Design capacity"
-                value={`${battery.designCapacityWh.toFixed(1)} Wh`}
-                accent="blue"
-              />
-            )}
+            <div>
+              <strong>
+                {battery.isCharging
+                  ? 'Charging'
+                  : battery.isPluggedIn
+                    ? 'Plugged in'
+                    : 'Discharging'}
+              </strong>
+              {battery.healthPercent !== null && (
+                <p className="instrument-note">
+                  Health · {formatPercent(battery.healthPercent, 0)}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+          <MetricDetails expanded={expanded} label="Battery health">
+            <MetricFacts
+              values={[
+                [
+                  paused ? 'Last time estimate' : 'Estimated time remaining',
+                  duration(battery.timeRemainingMins)
+                ],
+                ['Cycle count', battery.cycleCount?.toString() ?? 'Unavailable'],
+                ['Voltage', quantity(battery.voltage, 'V')],
+                ['Current capacity', quantity(battery.capacityWh, 'Wh')],
+                ['Design capacity', quantity(battery.designCapacityWh, 'Wh')]
+              ]}
+            />
+            {showChart && (
+              <LiveChart
+                series="battery"
+                label="Battery charge"
+                color="var(--metric-ink)"
+                max={100}
+                formatValue={formatPercent}
+              />
+            )}
+          </MetricDetails>
+        </>
+      ) : (
+        <MetricMessage group="battery" name="battery readings" notDetected="No battery detected." />
       )}
-    </Card>
+    </WidgetFrame>
   )
 }

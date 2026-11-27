@@ -1,8 +1,13 @@
-import { useState, useMemo, useRef } from 'react'
-import type { ProcessDetails, ProcessIdentity, ProcessInfo } from '../../../shared/contracts'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import type {
+  ProcessDetails,
+  ProcessIdentity,
+  ProcessInfo,
+  ProcessPage
+} from '../../../shared/contracts'
+import { selectProcesses } from '../../../shared/utils/processPage'
 import { useProcessMetrics, useProcessMetricsStatus } from '../hooks/useMetrics'
 import { formatBytes, formatPercent, formatTime } from '../utils/format'
-import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
 import { useUiSettingsStore } from '../store/uiSettingsStore'
@@ -55,11 +60,17 @@ export function ProcessesPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('cpuPercent')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [browse, setBrowse] = useState(false)
+  const [page, setPage] = useState(0)
+  const [result, setResult] = useState<ProcessPage | null>(null)
+  const [pageStatus, setPageStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading')
+  const [refresh, setRefresh] = useState(0)
+  const paused = useUiSettingsStore((state) => state.dashboardPollingPaused)
+  const browsing = browse && !paused
   const density = useUiSettingsStore((state) => state.processDensity)
   const setDensity = useUiSettingsStore((state) => state.setProcessDensity)
   const quickFilter = useUiSettingsStore((state) => state.processQuickFilter)
   const setQuickFilter = useUiSettingsStore((state) => state.setProcessQuickFilter)
-  const [hoveredPid, setHoveredPid] = useState<number | null>(null)
   const [selectedProcess, setSelectedProcess] = useState<ProcessInfo | null>(null)
   const [processDetails, setProcessDetails] = useState<ProcessDetails | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
@@ -68,28 +79,48 @@ export function ProcessesPage() {
   const killPending = useRef(false)
   const detailsRequest = useRef(0)
 
-  const filtered = useMemo(() => {
-    if (!processes) return []
-    const query = search.toLowerCase()
-    return processes.list
-      .filter((process) => {
-        if (quickFilter === 'cpu') return (process.cpuPercent ?? 0) >= 5
-        if (quickFilter === 'memory') return (process.memoryPercent ?? 0) >= 1
-        return true
-      })
-      .filter((p) => p.name.toLowerCase().includes(query))
-      .sort((a, b) => {
-        const aVal = a[sortKey]
-        const bVal = b[sortKey]
-        if (aVal === null || bVal === null) return Number(aVal === null) - Number(bVal === null)
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-        }
-        return sortDir === 'asc'
-          ? (aVal as number) - (bVal as number)
-          : (bVal as number) - (aVal as number)
-      })
-  }, [processes, quickFilter, search, sortKey, sortDir])
+  useEffect(() => {
+    if (!browsing) return
+    let cancelled = false
+    const timeout = window.setTimeout(() => {
+      setPageStatus('loading')
+      void window.electronAPI
+        .getProcessPage({
+          query: search,
+          sort: sortKey,
+          direction: sortDir,
+          filter: quickFilter,
+          page
+        })
+        .then((answer) => {
+          if (cancelled) return
+          setResult(answer)
+          setPageStatus(answer ? 'ready' : 'unavailable')
+        })
+        .catch(() => {
+          if (cancelled) return
+          setResult(null)
+          setPageStatus('unavailable')
+        })
+    }, 160)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [browsing, page, quickFilter, refresh, search, sortDir, sortKey])
+
+  const filtered = useMemo(
+    () =>
+      browsing
+        ? (result?.rows ?? [])
+        : selectProcesses(processes?.list ?? [], {
+            query: search,
+            filter: quickFilter,
+            sort: sortKey,
+            direction: sortDir
+          }),
+    [browsing, processes, quickFilter, result, search, sortKey, sortDir]
+  )
 
   const topConsumers = useMemo(() => {
     if (!processes || processes.list.length === 0) {
@@ -108,6 +139,7 @@ export function ProcessesPage() {
   }, [processes])
 
   function handleSort(key: SortKey) {
+    setPage(0)
     if (key === sortKey) {
       setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
     } else {
@@ -158,7 +190,7 @@ export function ProcessesPage() {
   }
 
   return (
-    <div>
+    <div className="process-workspace">
       {selectedProcess && (
         <ProcessDetailsDrawer
           process={selectedProcess}
@@ -186,17 +218,28 @@ export function ProcessesPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Processes
-        </h2>
-        <div className="text-right">
-          {processes && (
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {processes.total} total — showing {filtered.length}
+      <div className="workspace-header table-workspace-header workbench-toolbar">
+        <h2 className="sr-only">Processes</h2>
+        <div className="workspace-meta">
+          <p>
+            {browsing
+              ? 'Browse searches the latest cached inventory. Pages update on search, navigation or refresh.'
+              : 'Live view: up to 100 processes ranked by CPU. Search covers this sample.'}
+          </p>
+          {browsing && result && (
+            <p>
+              {result.matching} matches · {result.captured} captured of {result.reported} reported
+              {result.truncated && ' · inventory capped'} · Collected{' '}
+              {formatTime(new Date(result.collectedAt))}
             </p>
           )}
-          {processesUpdatedAt && (
+          {!browsing && processes && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              {filtered.length} shown from {processes.list.length} sampled · {processes.total}{' '}
+              running
+            </p>
+          )}
+          {!browsing && processesUpdatedAt && (
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Refreshed {formatTime(processesUpdatedAt)}
             </p>
@@ -205,214 +248,203 @@ export function ProcessesPage() {
       </div>
 
       {!processes && <MetricMessage group="processes" name="process data" />}
-      <Card>
-        <div className="relative mb-4">
-          <label
-            htmlFor="process-search"
-            className="mb-1.5 block text-xs font-semibold"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Search processes
-          </label>
-          <input
-            id="process-search"
-            type="text"
-            placeholder="Name or application"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full min-h-10 text-sm pl-3.5 pr-16 py-2.5 rounded-lg outline-none transition-colors"
-            style={{
-              backgroundColor: 'var(--bg-base)',
-              border: '1px solid var(--accent-blue)',
-              color: 'var(--text-primary)'
-            }}
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch('')}
-              className="absolute bottom-1.5 right-2 min-h-7 rounded-md px-2 text-xs"
-              style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
+      <div>
+        <div className="workbench-toolbar process-tools">
+          <div className="relative workbench-search">
+            <label
+              htmlFor="process-search"
+              className="mb-1.5 block text-xs font-semibold"
+              style={{ color: 'var(--text-muted)' }}
             >
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div
-          className="flex flex-wrap items-end justify-between gap-4 mb-4 rounded-xl p-3"
-          style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
-        >
-          <ControlGroup label="Filter">
-            <SegmentedControl
-              value={quickFilter}
-              onChange={setQuickFilter}
-              ariaLabel="Process filter"
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'High CPU', value: 'cpu' },
-                { label: 'High Memory', value: 'memory' }
-              ]}
+              Search processes
+            </label>
+            <input
+              id="process-search"
+              type="text"
+              placeholder="Name or PID"
+              value={search}
+              maxLength={128}
+              onChange={(e) => {
+                setPage(0)
+                setSearch(e.target.value)
+              }}
+              className="control process-search w-full pr-16"
             />
-          </ControlGroup>
-          <ControlGroup label="Density">
-            <SegmentedControl
-              value={density}
-              onChange={setDensity}
-              ariaLabel="Process list density"
-              options={[
-                { label: 'Compact', value: 'compact' },
-                { label: 'Comfortable', value: 'comfortable' }
-              ]}
-            />
-          </ControlGroup>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div
-            className="grid gap-4 px-3 pb-2 mb-1 min-w-[620px]"
-            style={{
-              gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 80px 32px',
-              borderBottom: '1px solid var(--border)'
-            }}
-          >
-            <ColHeader
-              label="Name"
-              sortKey="name"
-              current={sortKey}
-              direction={sortDir}
-              onSort={handleSort}
-            />
-            <ColHeader
-              label="CPU"
-              sortKey="cpuPercent"
-              current={sortKey}
-              direction={sortDir}
-              onSort={handleSort}
-            />
-            <ColHeader
-              label="Memory"
-              sortKey="memoryBytes"
-              current={sortKey}
-              direction={sortDir}
-              onSort={handleSort}
-            />
-            <ColHeader
-              label="PID"
-              sortKey="pid"
-              current={sortKey}
-              direction={sortDir}
-              onSort={handleSort}
-            />
-            <div />
-          </div>
-
-          <div
-            className="overflow-y-auto min-w-[620px]"
-            style={{ maxHeight: 'calc(100vh - 340px)' }}
-          >
-            {filtered.map((process) => {
-              const isTopCpu = process.pid === topConsumers.cpuPid
-              const isTopMemory = process.pid === topConsumers.memoryPid
-              const isHovered = hoveredPid === process.pid
-
-              return (
-                <div
-                  key={process.pid}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`View details for ${process.name}, PID ${process.pid}`}
-                  className={`grid gap-4 px-3 rounded-lg items-center group transition-colors ${
-                    density === 'compact' ? 'py-1' : 'py-2.5'
-                  }`}
-                  style={{
-                    gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 80px 32px',
-                    backgroundColor: isHovered
-                      ? 'var(--bg-card-hover)'
-                      : isTopCpu || isTopMemory
-                        ? 'rgba(59, 130, 246, 0.05)'
-                        : 'transparent',
-                    boxShadow:
-                      isTopCpu || isTopMemory
-                        ? 'inset 2px 0 0 var(--accent-blue)'
-                        : 'inset 0 0 0 transparent'
-                  }}
-                  onClick={() => void openProcessDetails(process)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void openProcessDetails(process)
-                  }}
-                  onMouseEnter={() => setHoveredPid(process.pid)}
-                  onMouseLeave={() => setHoveredPid(null)}
-                  onFocus={() => setHoveredPid(process.pid)}
-                  onBlur={() => setHoveredPid(null)}
-                >
-                  <div className="min-w-0">
-                    <span
-                      className="block text-sm font-medium truncate"
-                      style={{ color: 'var(--text-primary)' }}
-                      title={process.name}
-                    >
-                      {process.name}
-                    </span>
-                    {(isTopCpu || isTopMemory) && density === 'comfortable' && (
-                      <span
-                        className="text-[10px] font-semibold"
-                        style={{ color: 'var(--accent-blue)' }}
-                      >
-                        {[isTopCpu && 'Top CPU', isTopMemory && 'Top Memory']
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className="text-sm font-mono"
-                    style={{ color: cpuColor(process.cpuPercent) }}
-                  >
-                    {formatPercent(process.cpuPercent)}
-                  </span>
-                  <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
-                    {formatBytes(process.memoryBytes)}
-                  </span>
-                  <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>
-                    {process.pid}
-                  </span>
-
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      void terminateProcess(process)
-                    }}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    title={`Kill ${process.name}`}
-                    aria-label={`Kill ${process.name}`}
-                    onFocus={() => setHoveredPid(process.pid)}
-                    onBlur={() => setHoveredPid(null)}
-                    className="flex items-center justify-center w-6 h-6 rounded transition-all"
-                    style={{
-                      opacity: hoveredPid === process.pid ? 1 : 0,
-                      backgroundColor: 'rgba(239,68,68,0.15)',
-                      color: 'var(--accent-red)',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      lineHeight: 1
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )
-            })}
-
-            {processes && filtered.length === 0 && (
-              <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>
-                No processes match these filters.
-              </p>
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPage(0)
+                  setSearch('')
+                }}
+                className="absolute bottom-1.5 right-2 min-h-7 rounded-md px-2 text-xs"
+                style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-card)' }}
+              >
+                Clear
+              </button>
             )}
           </div>
+
+          <div className="workspace-actions">
+            <button
+              className="control"
+              type="button"
+              disabled={paused}
+              aria-pressed={browsing}
+              title={paused ? 'Resume live updates to browse' : undefined}
+              onClick={() => {
+                setPage(0)
+                setBrowse(!browse)
+              }}
+            >
+              Browse collected processes
+            </button>
+            {browsing && (
+              <button type="button" className="control" onClick={() => setRefresh((n) => n + 1)}>
+                Refresh inventory
+              </button>
+            )}
+            <ControlGroup label="Filter">
+              <SegmentedControl
+                value={quickFilter}
+                onChange={(value) => {
+                  setPage(0)
+                  setQuickFilter(value)
+                }}
+                ariaLabel="Process filter"
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'High CPU', value: 'cpu' },
+                  { label: 'High Memory', value: 'memory' }
+                ]}
+              />
+            </ControlGroup>
+            <ControlGroup label="Density">
+              <SegmentedControl
+                value={density}
+                onChange={setDensity}
+                ariaLabel="Process list density"
+                options={[
+                  { label: 'Compact', value: 'compact' },
+                  { label: 'Comfortable', value: 'comfortable' }
+                ]}
+              />
+            </ControlGroup>
+          </div>
         </div>
-      </Card>
+
+        {browsing && pageStatus !== 'ready' && (
+          <p className="workspace-meta" role="status">
+            {pageStatus === 'loading'
+              ? 'Reading cached process inventory...'
+              : 'Current inventory unavailable. Try refreshing after collection resumes.'}
+          </p>
+        )}
+        <div className="table-scroll process-table-scroll">
+          <table className="workspace-table" data-density={density}>
+            <caption className="sr-only">
+              Collected processes. CPU is the provider value and can exceed 100%.
+            </caption>
+            <thead>
+              <tr>
+                {(
+                  [
+                    ['name', 'Name'],
+                    ['cpuPercent', 'CPU (%)'],
+                    ['memoryBytes', 'Memory'],
+                    ['pid', 'PID']
+                  ] as const
+                ).map(([key, label]) => (
+                  <th
+                    scope="col"
+                    key={key}
+                    aria-sort={
+                      key === sortKey ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined
+                    }
+                  >
+                    <ColHeader
+                      label={label}
+                      sortKey={key}
+                      current={sortKey}
+                      direction={sortDir}
+                      onSort={handleSort}
+                    />
+                  </th>
+                ))}
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((process) => {
+                const isTopCpu = process.pid === topConsumers.cpuPid
+                const isTopMemory = process.pid === topConsumers.memoryPid
+                return (
+                  <tr key={process.pid} data-highlight={isTopCpu || isTopMemory}>
+                    <th scope="row">
+                      <button
+                        className="process-name"
+                        title={process.name}
+                        aria-label={`View details for ${process.name}, PID ${process.pid}`}
+                        onClick={() => void openProcessDetails(process)}
+                      >
+                        {process.name}
+                      </button>
+                      {(isTopCpu || isTopMemory) && density === 'comfortable' && (
+                        <span className="process-top">
+                          {[isTopCpu && 'Top CPU', isTopMemory && 'Top memory']
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      )}
+                    </th>
+                    <td className="tabular-nums" style={{ color: cpuColor(process.cpuPercent) }}>
+                      {formatPercent(process.cpuPercent)}
+                    </td>
+                    <td className="tabular-nums">{formatBytes(process.memoryBytes)}</td>
+                    <td className="tabular-nums">{process.pid}</td>
+                    <td>
+                      <button
+                        className="control process-terminate"
+                        title={`Terminate ${process.name}`}
+                        aria-label={`Terminate ${process.name}`}
+                        onClick={() => void terminateProcess(process)}
+                      >
+                        &times;
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {(browsing ? pageStatus === 'ready' : processes) && filtered.length === 0 && (
+            <p className="workspace-meta py-8 text-center">No processes match these filters.</p>
+          )}
+        </div>
+        {browsing && result && (
+          <div className="workspace-actions mt-3" aria-label="Process inventory pages">
+            <button
+              className="control"
+              disabled={result.page === 0}
+              onClick={() => setPage(result.page - 1)}
+            >
+              Previous
+            </button>
+            <span className="workspace-meta">
+              Page {result.page + 1} of {result.pageCount}
+            </span>
+            <button
+              className="control"
+              disabled={result.page + 1 >= result.pageCount}
+              onClick={() => setPage(result.page + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

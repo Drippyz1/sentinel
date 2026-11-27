@@ -1,3 +1,5 @@
+import { showMiniMonitorWithFeedback } from '../../store/uiSettingsStore'
+
 interface CommandContext {
   navigate: (path: string, options?: { state?: Record<string, unknown>; replace?: boolean }) => void
   dashboardPaused: boolean
@@ -18,7 +20,7 @@ export interface CommandDefinition {
 }
 
 const NAVIGATION_COMMANDS = [
-  { id: 'dashboard', label: 'Dashboard', path: '/', keywords: ['home', 'overview', 'metrics'] },
+  { id: 'dashboard', label: 'Overview', path: '/', keywords: ['home', 'dashboard', 'metrics'] },
   { id: 'history', label: 'History', path: '/history', keywords: ['charts', 'table', 'metrics'] },
   {
     id: 'processes',
@@ -28,8 +30,20 @@ const NAVIGATION_COMMANDS = [
   },
   { id: 'system', label: 'System', path: '/system', keywords: ['hardware', 'thermal', 'report'] },
   {
+    id: 'storage',
+    label: 'Storage Explorer',
+    path: '/storage',
+    keywords: ['disk', 'files', 'folders', 'space']
+  },
+  {
+    id: 'duplicates',
+    label: 'Duplicate Files',
+    path: '/duplicates',
+    keywords: ['files', 'photos', 'similar', 'matching', 'copies']
+  },
+  {
     id: 'network',
-    label: 'Network',
+    label: 'Network Connections',
     path: '/network',
     keywords: ['connections', 'tcp', 'udp', 'ports']
   },
@@ -63,7 +77,7 @@ export function createCommandRegistry(context: CommandContext): CommandDefinitio
       label: 'Open Mini Monitor',
       keywords: ['floating', 'window', 'metrics', 'monitor'],
       group: 'Actions',
-      execute: () => window.electronAPI.showMiniMonitor()
+      execute: showMiniMonitorWithFeedback
     },
     {
       id: 'pause-live-updates',

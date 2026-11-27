@@ -1,46 +1,24 @@
 import { create } from 'zustand'
+import { appendObservation, type Observation } from '../../../shared/utils/visualization'
 
-export interface DataPoint {
-  timestamp: number
-  value: number
-}
+const LIVE_SERIES = [
+  'cpu',
+  'memory',
+  'diskRead',
+  'diskWrite',
+  'networkDown',
+  'networkUp',
+  'gpu',
+  'battery'
+] as const
+export type LiveSeriesKey = (typeof LIVE_SERIES)[number]
+export type DataPoint = Observation
+const breaks = new Set<LiveSeriesKey>()
 
-const WINDOW_MS = 120_000
-
-interface HistoryState {
-  cpu: DataPoint[]
-  memory: DataPoint[]
-  diskRead: DataPoint[]
-  diskWrite: DataPoint[]
-  networkDown: DataPoint[]
-  networkUp: DataPoint[]
-  gpu: DataPoint[]
-  battery: DataPoint[]
-
-  pushSnapshot: (snapshot: {
-    timestamp: number
-    cpu: number | null
-    memory: number | null
-    diskRead: number | null
-    diskWrite: number | null
-    networkDown: number | null
-    networkUp: number | null
-    gpu: number | null
-    battery: number | null
-  }) => void
-}
-
-function appendOptionalPoint(
-  arr: DataPoint[],
-  value: number | null,
-  timestamp: number
-): DataPoint[] {
-  const oldest = timestamp - WINDOW_MS
-  const recent =
-    arr.length && arr[0].timestamp < oldest ? arr.filter((point) => point.timestamp >= oldest) : arr
-  return value === null || !Number.isFinite(value)
-    ? recent
-    : [...recent, { timestamp, value }].slice(-122)
+type HistoryState = Record<LiveSeriesKey, Observation[]> & {
+  interrupt: (keys?: readonly LiveSeriesKey[]) => void
+  reset: () => void
+  pushSnapshot: (timestamp: number, samples: Record<LiveSeriesKey, Observation | undefined>) => void
 }
 
 export const useHistoryStore = create<HistoryState>()((set) => ({
@@ -52,16 +30,42 @@ export const useHistoryStore = create<HistoryState>()((set) => ({
   networkUp: [],
   gpu: [],
   battery: [],
-
-  pushSnapshot: (snapshot) =>
-    set((state) => ({
-      cpu: appendOptionalPoint(state.cpu, snapshot.cpu, snapshot.timestamp),
-      memory: appendOptionalPoint(state.memory, snapshot.memory, snapshot.timestamp),
-      diskRead: appendOptionalPoint(state.diskRead, snapshot.diskRead, snapshot.timestamp),
-      diskWrite: appendOptionalPoint(state.diskWrite, snapshot.diskWrite, snapshot.timestamp),
-      networkDown: appendOptionalPoint(state.networkDown, snapshot.networkDown, snapshot.timestamp),
-      networkUp: appendOptionalPoint(state.networkUp, snapshot.networkUp, snapshot.timestamp),
-      gpu: appendOptionalPoint(state.gpu, snapshot.gpu, snapshot.timestamp),
-      battery: appendOptionalPoint(state.battery, snapshot.battery, snapshot.timestamp)
-    }))
+  interrupt: (keys = LIVE_SERIES) => {
+    for (const key of keys) breaks.add(key)
+  },
+  reset: () => {
+    breaks.clear()
+    set({
+      cpu: [],
+      memory: [],
+      diskRead: [],
+      diskWrite: [],
+      networkDown: [],
+      networkUp: [],
+      gpu: [],
+      battery: []
+    })
+  },
+  pushSnapshot: (timestamp, samples) =>
+    set((state) => {
+      const update: Partial<HistoryState> = {}
+      for (const key of LIVE_SERIES) {
+        const sample = samples[key]
+        const next = appendObservation(
+          state[key],
+          sample && breaks.has(key) ? { ...sample, breakBefore: true } : sample,
+          timestamp
+        )
+        if (next !== state[key]) {
+          update[key] = next
+          if (
+            sample &&
+            next.at(-1)?.timestamp === sample.timestamp &&
+            state[key].at(-1)?.timestamp !== sample.timestamp
+          )
+            breaks.delete(key)
+        }
+      }
+      return Object.keys(update).length ? update : state
+    })
 }))

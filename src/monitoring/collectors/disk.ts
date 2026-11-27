@@ -11,6 +11,10 @@ import { readDiskCounters } from './diskCounters'
 const execFileAsync = promisify(execFile)
 const diskRates = new CounterRates()
 
+export function clearDiskBaselines(): void {
+  diskRates.clear()
+}
+
 type SupportedDiskPlatform = 'darwin' | 'win32' | 'linux' | 'unix'
 
 interface MacVolumeCapacity {
@@ -112,10 +116,10 @@ export async function getDiskIo(): Promise<MetricCollectionResult<DiskIO>> {
   try {
     counters = await readDiskCounters(process.platform)
   } catch (error) {
-    diskRates.sample([], performance.now())
+    diskRates.sample([], performance.now(), Date.now())
     throw error
   }
-  const rates = [...diskRates.sample(counters, performance.now()).values()]
+  const rates = [...diskRates.sample(counters, performance.now(), Date.now()).values()]
   if (!rates.length) return unavailable('no-data')
   const readBytesPerSec = sumCompleteRates(rates.map((rate) => rate.read))
   const writeBytesPerSec = sumCompleteRates(rates.map((rate) => rate.write))

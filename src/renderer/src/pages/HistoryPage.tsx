@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react'
 import {
   AreaChart,
   Area,
@@ -15,9 +15,12 @@ import type {
   MonitoringAlertType,
   SnapshotRow
 } from '../../../shared/contracts'
+import { HISTORY_BUCKET_MS } from '../../../shared/contracts/history'
 import { formatHistoryCsv } from '../../../shared/utils/historyCsv'
-import { selectChartSamples } from '../../../shared/utils/chartSamples'
+import { projectHistoryChart } from '../../../shared/utils/chartSamples'
 import { formatPercent, formatSpeed, formatTime } from '../utils/format'
+import { scheduleVisibleRefresh } from '../utils/visibleRefresh'
+import { observedSummary } from '../utils/historyInspection'
 import { Card } from '../components/ui/Card'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { ControlGroup } from '../components/ui/ControlGroup'
@@ -44,7 +47,7 @@ const METRIC_GROUPS: {
     background: 'rgba(59, 130, 246, 0.1)'
   },
   {
-    label: 'Memory',
+    label: 'Active memory',
     value: 'memory',
     color: 'var(--accent-purple)',
     background: 'rgba(168, 85, 247, 0.1)'
@@ -64,13 +67,13 @@ const METRIC_GROUPS: {
   {
     label: 'GPU',
     value: 'gpu',
-    color: '#ec4899',
+    color: 'var(--series-gpu)',
     background: 'rgba(236, 72, 153, 0.1)'
   },
   {
     label: 'Battery',
     value: 'battery',
-    color: '#84cc16',
+    color: 'var(--series-battery)',
     background: 'rgba(132, 204, 22, 0.1)'
   }
 ]
@@ -83,13 +86,9 @@ const ALERT_METRIC_MAP: Record<MonitoringAlertType, HistoryMetric> = {
 }
 
 const tickTime = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
-const chartTime = new Intl.DateTimeFormat(undefined, {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit'
-})
 const rowTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' })
 const ROWS_PER_PAGE = 90
+const InspectionTime = createContext<number | null>(null)
 
 function formatTemperature(value: number): string {
   return `${value}°C`
@@ -116,7 +115,7 @@ interface AlertMarkerLineProps {
 function AlertMarkerLine({ marker, x1, x2, y1, y2 }: AlertMarkerLineProps) {
   if (x1 === undefined || x2 === undefined || y1 === undefined || y2 === undefined) return <g />
 
-  const color = marker.severity === 'critical' ? '#ef4444' : '#f59e0b'
+  const color = marker.severity === 'critical' ? 'var(--accent-red)' : 'var(--accent-amber)'
   const tooltip = [
     marker.title,
     marker.message,
@@ -153,8 +152,9 @@ function ChartCard({
   domain = [0, 100],
   alertMarkers = []
 }: ChartCardProps) {
-  const host = useRef<HTMLDivElement>(null)
+  const host = useRef<HTMLElement>(null)
   const [near, setNear] = useState(false)
+  const timestamp = useContext(InspectionTime)
   useEffect(() => {
     if (!host.current) return
     const observer = new IntersectionObserver(([entry]) => setNear(entry.isIntersecting), {
@@ -163,24 +163,52 @@ function ChartCard({
     observer.observe(host.current)
     return () => observer.disconnect()
   }, [])
-  const samples = useMemo(
-    () =>
-      near
-        ? selectChartSamples(data.map((row) => ({ timestamp: row.timestamp, value: row[dataKey] })))
-        : [],
-    [data, dataKey, near]
-  )
+  const { samples, min, max, average, count } = useMemo(() => {
+    if (!near) return { samples: [], ...observedSummary([]) }
+    const points = data.map((row) => ({ timestamp: row.timestamp, value: row[dataKey] }))
+    return {
+      samples: projectHistoryChart(points),
+      ...observedSummary(points.map(({ value }) => value))
+    }
+  }, [data, dataKey, near])
+  const selected =
+    timestamp === null ? undefined : data.find((row) => row.timestamp === timestamp)?.[dataKey]
+  const measurement = (value: number | null | undefined) =>
+    value == null || !Number.isFinite(value) ? 'Unavailable' : formatValue(Number(value.toFixed(2)))
+  const timeDomain: [number, number] | ['dataMin', 'dataMax'] =
+    data.length >= 2 ? [data[0].timestamp, data[data.length - 1].timestamp] : ['dataMin', 'dataMax']
   return (
-    <Card title={title}>
-      <div ref={host} style={{ height: 160 }}>
-        {near && (
+    <figure ref={host} className="history-instrument" aria-label={title}>
+      <figcaption className="history-chart-caption">
+        <h3>
+          <i aria-hidden="true" style={{ backgroundColor: color }} />
+          {title}
+        </h3>
+        <span>
+          Selected <strong>{measurement(selected)}</strong>
+        </span>
+        <span>
+          Min <strong>{measurement(min)}</strong>
+        </span>
+        <span>
+          Avg <strong>{measurement(average)}</strong>
+        </span>
+        <span>
+          Max <strong>{measurement(max)}</strong>
+        </span>
+        <span>
+          {count} / {data.length} buckets
+        </span>
+      </figcaption>
+      <div className="history-plot">
+        {near && samples.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={samples} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" vertical={false} />
               <XAxis
                 dataKey="timestamp"
                 type="number"
-                domain={['dataMin', 'dataMax']}
+                domain={timeDomain}
                 scale="time"
                 tickFormatter={tickTime.format}
                 tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
@@ -200,22 +228,35 @@ function ChartCard({
                 contentStyle={{
                   backgroundColor: 'var(--bg-card)',
                   border: '1px solid var(--border)',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius)',
                   fontSize: '12px',
                   color: 'var(--text-primary)'
                 }}
-                formatter={(value: unknown) => [formatValue(value as number), title]}
-                labelFormatter={(label: unknown) => chartTime.format(label as number)}
+                cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '3 3' }}
+                formatter={(value: unknown) => [
+                  typeof value === 'number' && Number.isFinite(value)
+                    ? formatValue(value)
+                    : 'Unavailable',
+                  title
+                ]}
+                labelFormatter={(label: unknown) =>
+                  typeof label === 'number' && Number.isFinite(label) ? rowTime.format(label) : ''
+                }
               />
               <Area
-                type="monotone"
+                type="linear"
                 dataKey="value"
                 stroke={color}
                 strokeWidth={1.5}
-                fill={`${color}20`}
+                className="metric-chart-fill"
+                fill={color}
                 dot={false}
+                connectNulls={false}
                 isAnimationActive={false}
               />
+              {timestamp !== null && (
+                <ReferenceLine x={timestamp} ifOverflow="hidden" stroke="var(--focus)" />
+              )}
               {alertMarkers.map((marker) => (
                 <ReferenceLine
                   key={marker.id}
@@ -226,9 +267,11 @@ function ChartCard({
               ))}
             </AreaChart>
           </ResponsiveContainer>
-        )}
+        ) : near ? (
+          <p className="history-no-observations">No recorded readings for this metric.</p>
+        ) : null}
       </div>
-    </Card>
+    </figure>
   )
 }
 
@@ -281,6 +324,7 @@ export function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [pinnedTime, setPinnedTime] = useState<number | null>(null)
   const historyRangeMinutes = useUiSettingsStore((state) => state.historyRangeMinutes)
   const setHistoryRangeMinutes = useUiSettingsStore((state) => state.setHistoryRangeMinutes)
   const view = useUiSettingsStore((state) => state.historyView)
@@ -290,14 +334,14 @@ export function HistoryPage() {
   const showAlertMarkers = useUiSettingsStore((state) => state.historyAlertMarkers)
   const setShowAlertMarkers = useUiSettingsStore((state) => state.setHistoryAlertMarkers)
   const selectedRange = RANGES.find((range) => range.minutes === historyRangeMinutes) ?? RANGES[1]
+  const pinIndex =
+    pinnedTime === null ? -1 : data.findIndex(({ timestamp }) => timestamp === pinnedTime)
+  const cursorIndex = pinIndex >= 0 ? pinIndex : Math.max(0, data.length - 1)
+  const displayTimestamp = data[cursorIndex]?.timestamp ?? null
 
   useEffect(() => {
     let cancelled = false
     async function loadHistory() {
-      if (document.hidden) {
-        timer = setTimeout(() => void loadHistory(), 30000)
-        return
-      }
       setIsLoading(true)
       setLoadError(null)
       try {
@@ -319,16 +363,13 @@ export function HistoryPage() {
         console.error('Failed to load history:', error)
         setLoadError('History could not be loaded. Sentinel will try again automatically.')
       } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-          timer = setTimeout(() => void loadHistory(), 30000)
-        }
+        if (!cancelled) setIsLoading(false)
       }
     }
-    let timer = setTimeout(() => void loadHistory(), 0)
+    const stopRefresh = scheduleVisibleRefresh(document, 30000, loadHistory)
     return () => {
       cancelled = true
-      clearTimeout(timer)
+      stopRefresh()
     }
   }, [selectedRange.minutes, showAlertMarkers])
 
@@ -414,12 +455,11 @@ export function HistoryPage() {
   )
 
   return (
-    <div>
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+    <div className="history-workspace">
+      <div className="workspace-header workbench-toolbar">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            History
-          </h2>
+          <h2 className="sr-only">History</h2>
+          <p className="track-kicker">Recorded observations</p>
           {lastRefreshed && (
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Refreshed {formatTime(lastRefreshed)}
@@ -437,14 +477,7 @@ export function HistoryPage() {
               type="button"
               onClick={exportCsv}
               disabled={data.length === 0}
-              className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-muted)',
-                border: '1px solid var(--border)',
-                cursor: data.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: data.length === 0 ? 0.5 : 1
-              }}
+              className="control"
             >
               Export CSV
             </button>
@@ -457,17 +490,11 @@ export function HistoryPage() {
                   type="button"
                   onClick={() => {
                     setPage(0)
+                    setPinnedTime(null)
                     setHistoryRangeMinutes(range.minutes)
                   }}
-                  className="min-h-10 flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:flex-none"
-                  style={{
-                    backgroundColor:
-                      selectedRange.minutes === range.minutes
-                        ? 'var(--accent-blue)'
-                        : 'var(--bg-card)',
-                    color: selectedRange.minutes === range.minutes ? 'white' : 'var(--text-muted)',
-                    border: '1px solid var(--border)'
-                  }}
+                  className="control"
+                  aria-pressed={selectedRange.minutes === range.minutes}
                 >
                   {range.label}
                 </button>
@@ -477,10 +504,7 @@ export function HistoryPage() {
         </div>
       </div>
 
-      <div
-        className="flex flex-wrap items-center justify-between gap-4 rounded-xl p-3 mb-5"
-        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}
-      >
+      <div className="workbench-toolbar history-filters">
         <ControlGroup label="View" className="flex-1">
           <SegmentedControl
             value={view}
@@ -502,15 +526,10 @@ export function HistoryPage() {
                   key={metric.value}
                   type="button"
                   onClick={() => toggleMetric(metric.value)}
-                  className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
-                  style={{
-                    backgroundColor: isVisible ? metric.background : 'var(--bg-base)',
-                    border: `1px solid ${isVisible ? metric.color : 'var(--border)'}`,
-                    color: isVisible ? metric.color : 'var(--text-muted)',
-                    boxShadow: isVisible ? `0 0 0 1px ${metric.background}` : 'none'
-                  }}
+                  className="control history-series-choice"
                   aria-pressed={isVisible}
                 >
+                  <i aria-hidden="true" style={{ backgroundColor: metric.color }} />
                   {metric.label}
                 </button>
               )
@@ -568,7 +587,7 @@ export function HistoryPage() {
                       {hasCpuTemperatureData && <HistoryTableHeader label="CPU Temp" />}
                     </>
                   )}
-                  {visibility.memory && <HistoryTableHeader label="Memory" />}
+                  {visibility.memory && <HistoryTableHeader label="Active memory (%)" />}
                   {visibility.network && (
                     <>
                       <HistoryTableHeader label="Download" />
@@ -720,120 +739,158 @@ export function HistoryPage() {
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {visibility.cpu && (
-            <>
-              <ChartCard
-                title="CPU Usage"
-                data={data}
-                dataKey="cpu_usage"
-                color="#3b82f6"
-                formatValue={(v) => `${v}%`}
-                domain={[0, 100]}
-                alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
-              />
-              {hasCpuTemperatureData && (
-                <ChartCard
-                  title="CPU Temperature"
-                  data={data}
-                  dataKey="cpu_temperature"
-                  color="#f59e0b"
-                  formatValue={formatTemperature}
-                  domain={[0, maxCpuTemperature]}
-                  alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
-                />
+        <InspectionTime.Provider value={displayTimestamp}>
+          <div className="history-cursor">
+            <div>
+              <label htmlFor="observation-cursor">Recorded bucket</label>
+              {displayTimestamp !== null && (
+                <time dateTime={new Date(displayTimestamp).toISOString()}>
+                  {rowTime.format(displayTimestamp)}
+                </time>
               )}
-            </>
-          )}
-          {visibility.memory && (
-            <ChartCard
-              title="Memory Usage"
-              data={data}
-              dataKey="memory_usage"
-              color="#a855f7"
-              formatValue={(v) => `${v}%`}
-              domain={[0, 100]}
-              alertMarkers={showAlertMarkers ? markersByType.get('memory') : undefined}
+            </div>
+            <input
+              id="observation-cursor"
+              type="range"
+              min={0}
+              max={Math.max(0, data.length - 1)}
+              value={cursorIndex}
+              disabled={data.length < 2}
+              aria-valuetext={
+                displayTimestamp === null ? 'No observation' : rowTime.format(displayTimestamp)
+              }
+              onChange={(event) =>
+                setPinnedTime(data[event.currentTarget.valueAsNumber]?.timestamp ?? null)
+              }
             />
-          )}
-          {visibility.network && (
-            <>
-              <ChartCard
-                title="Network Download"
-                data={data}
-                dataKey="net_down"
-                color="#22c55e"
-                formatValue={formatSpeed}
-                domain={[0, maxNetDown]}
-              />
-              <ChartCard
-                title="Network Upload"
-                data={data}
-                dataKey="net_up"
-                color="#f59e0b"
-                formatValue={formatSpeed}
-                domain={[0, maxNetUp]}
-              />
-            </>
-          )}
-          {visibility.disk && (
-            <>
-              <ChartCard
-                title="Disk Read"
-                data={data}
-                dataKey="disk_read"
-                color="#22c55e"
-                formatValue={formatSpeed}
-                domain={[0, maxDiskRead]}
-                alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
-              />
-              <ChartCard
-                title="Disk Write"
-                data={data}
-                dataKey="disk_write"
-                color="#ef4444"
-                formatValue={formatSpeed}
-                domain={[0, maxDiskWrite]}
-                alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
-              />
-            </>
-          )}
-          {visibility.gpu && (
-            <>
-              {hasGpuData && (
+            <button
+              type="button"
+              className="control"
+              disabled={pinIndex < 0}
+              onClick={() => setPinnedTime(null)}
+            >
+              Latest
+            </button>
+            <span>
+              {data.length.toLocaleString()} recorded buckets · {HISTORY_BUCKET_MS / 60000} min
+              aggregation
+            </span>
+          </div>
+          <div className="history-tracks">
+            {visibility.cpu && (
+              <>
                 <ChartCard
-                  title="GPU Usage"
+                  title="CPU Usage"
                   data={data}
-                  dataKey="gpu_usage"
-                  color="#ec4899"
+                  dataKey="cpu_usage"
+                  color="var(--accent-blue)"
                   formatValue={(v) => `${v}%`}
                   domain={[0, 100]}
+                  alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
                 />
-              )}
-              {hasGpuTemperatureData && (
+                {hasCpuTemperatureData && (
+                  <ChartCard
+                    title="CPU Temperature"
+                    data={data}
+                    dataKey="cpu_temperature"
+                    color="var(--accent-amber)"
+                    formatValue={formatTemperature}
+                    domain={[0, maxCpuTemperature]}
+                    alertMarkers={showAlertMarkers ? markersByType.get('cpu') : undefined}
+                  />
+                )}
+              </>
+            )}
+            {visibility.memory && (
+              <ChartCard
+                title="Active memory"
+                data={data}
+                dataKey="memory_usage"
+                color="var(--series-memory)"
+                formatValue={(v) => `${v}%`}
+                domain={[0, 100]}
+                alertMarkers={showAlertMarkers ? markersByType.get('memory') : undefined}
+              />
+            )}
+            {visibility.network && (
+              <>
                 <ChartCard
-                  title="GPU Temperature"
+                  title="Network Download"
                   data={data}
-                  dataKey="gpu_temperature"
-                  color="#ef4444"
-                  formatValue={formatTemperature}
-                  domain={[0, maxGpuTemperature]}
+                  dataKey="net_down"
+                  color="var(--series-network)"
+                  formatValue={formatSpeed}
+                  domain={[0, maxNetDown]}
                 />
-              )}
-            </>
-          )}
-          {visibility.battery && hasBatteryData && (
-            <ChartCard
-              title="Battery"
-              data={data}
-              dataKey="battery"
-              color="#84cc16"
-              formatValue={(v) => `${v}%`}
-              domain={[0, 100]}
-              alertMarkers={showAlertMarkers ? markersByType.get('battery') : undefined}
-            />
-          )}
-        </div>
+                <ChartCard
+                  title="Network Upload"
+                  data={data}
+                  dataKey="net_up"
+                  color="var(--accent-amber)"
+                  formatValue={formatSpeed}
+                  domain={[0, maxNetUp]}
+                />
+              </>
+            )}
+            {visibility.disk && (
+              <>
+                <ChartCard
+                  title="Disk Read"
+                  data={data}
+                  dataKey="disk_read"
+                  color="var(--series-network)"
+                  formatValue={formatSpeed}
+                  domain={[0, maxDiskRead]}
+                  alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
+                />
+                <ChartCard
+                  title="Disk Write"
+                  data={data}
+                  dataKey="disk_write"
+                  color="var(--accent-red)"
+                  formatValue={formatSpeed}
+                  domain={[0, maxDiskWrite]}
+                  alertMarkers={showAlertMarkers ? markersByType.get('disk') : undefined}
+                />
+              </>
+            )}
+            {visibility.gpu && (
+              <>
+                {hasGpuData && (
+                  <ChartCard
+                    title="GPU Usage"
+                    data={data}
+                    dataKey="gpu_usage"
+                    color="var(--series-gpu)"
+                    formatValue={(v) => `${v}%`}
+                    domain={[0, 100]}
+                  />
+                )}
+                {hasGpuTemperatureData && (
+                  <ChartCard
+                    title="GPU Temperature"
+                    data={data}
+                    dataKey="gpu_temperature"
+                    color="var(--accent-red)"
+                    formatValue={formatTemperature}
+                    domain={[0, maxGpuTemperature]}
+                  />
+                )}
+              </>
+            )}
+            {visibility.battery && hasBatteryData && (
+              <ChartCard
+                title="Battery"
+                data={data}
+                dataKey="battery"
+                color="var(--series-battery)"
+                formatValue={(v) => `${v}%`}
+                domain={[0, 100]}
+                alertMarkers={showAlertMarkers ? markersByType.get('battery') : undefined}
+              />
+            )}
+          </div>
+        </InspectionTime.Provider>
       )}
     </div>
   )

@@ -6,6 +6,7 @@ import type {
   MonitoringAlertSeverity,
   NewAlertHistoryEntry
 } from '../../shared/contracts'
+import { boundedPercent } from '../../shared/utils/visualization'
 
 const SUSTAINED_THRESHOLD_MS = 10_000
 const MAX_SAMPLE_GAP_MS = 45_000
@@ -16,6 +17,8 @@ interface AlertState {
   exceededSince: number | null
   lastObservedAt: number | null
   thresholdPercent: number | null
+  subject?: string
+  notified?: boolean
 }
 
 interface AlertReading {
@@ -26,6 +29,7 @@ interface AlertReading {
   rule: MonitoringAlertRule
   isExceeded: boolean
   message: string
+  subject?: string
 }
 
 interface MonitoringAlertServiceOptions {
@@ -52,33 +56,56 @@ export class MonitoringAlertService {
     for (const reading of readings) {
       if (!snapshot.updatedGroups.includes(reading.group)) continue
       const state = this.states[reading.key]
-      const observedAt = snapshot.statuses[reading.group].sampledAt ?? now
-
-      if (!reading.rule.enabled || reading.value === null || !reading.isExceeded) {
+      const status = snapshot.statuses[reading.group]
+      const observedAt = status.sampledAt
+      const changed =
+        state.thresholdPercent !== reading.rule.thresholdPercent ||
+        (reading.subject !== undefined && state.subject !== reading.subject)
+      if (changed || !reading.rule.enabled) {
+        state.notified = false
         state.exceededSince = null
         state.lastObservedAt = null
         state.thresholdPercent = reading.rule.thresholdPercent
+        if (reading.subject !== undefined) state.subject = reading.subject
+      }
+      if (!reading.rule.enabled) continue
+      if (
+        status.state !== 'ok' ||
+        observedAt === null ||
+        !Number.isFinite(observedAt) ||
+        Math.abs(now - observedAt) > MAX_SAMPLE_GAP_MS ||
+        reading.value === null
+      ) {
+        state.exceededSince = null
+        state.lastObservedAt = null
+        continue
+      }
+      if (!reading.isExceeded) {
+        state.exceededSince = null
+        state.lastObservedAt = null
+        state.notified = false
         continue
       }
 
-      const thresholdChanged = state.thresholdPercent !== reading.rule.thresholdPercent
       const sampleGapTooLong =
         state.lastObservedAt !== null &&
         (observedAt < state.lastObservedAt || observedAt - state.lastObservedAt > MAX_SAMPLE_GAP_MS)
-      if (state.exceededSince === null || thresholdChanged || sampleGapTooLong) {
+      if (state.exceededSince === null || sampleGapTooLong) {
         state.exceededSince = observedAt
       }
       state.lastObservedAt = observedAt
       state.thresholdPercent = reading.rule.thresholdPercent
 
-      if (observedAt - state.exceededSince >= SUSTAINED_THRESHOLD_MS) {
+      if (!state.notified && observedAt - state.exceededSince >= SUSTAINED_THRESHOLD_MS) {
         sustainedAlerts.push(reading)
       }
     }
 
     const cooldownMs = settings.cooldownMinutes * 60_000
+    if (now < this.lastNotificationAt) this.lastNotificationAt = 0
     if (sustainedAlerts.length === 0 || now - this.lastNotificationAt < cooldownMs) return
     this.lastNotificationAt = now
+    for (const reading of sustainedAlerts) this.states[reading.key].notified = true
 
     try {
       this.options.onTriggered?.(
@@ -112,13 +139,20 @@ export class MonitoringAlertService {
   }
 
   private getReadings(snapshot: MetricsSnapshot, settings: MonitoringAlerts): AlertReading[] {
-    const diskUsage =
-      snapshot.disk.drives.length > 0
-        ? Math.max(...snapshot.disk.drives.map((drive) => drive.usagePercent))
-        : null
-    const batteryCharge = snapshot.battery?.hasBattery ? snapshot.battery.chargePercent : null
-    const cpuUsage = snapshot.cpu?.usagePercent ?? null
-    const memoryUsage = snapshot.memory?.usagePercent ?? null
+    const disk = snapshot.disk.drives.reduce<(typeof snapshot.disk.drives)[number] | undefined>(
+      (highest, drive) =>
+        boundedPercent(drive.usagePercent) !== null &&
+        (!highest || drive.usagePercent > highest.usagePercent)
+          ? drive
+          : highest,
+      undefined
+    )
+    const diskUsage = disk?.usagePercent ?? null
+    const batteryCharge = snapshot.battery?.hasBattery
+      ? boundedPercent(snapshot.battery.chargePercent)
+      : null
+    const cpuUsage = boundedPercent(snapshot.cpu?.usagePercent)
+    const memoryUsage = boundedPercent(snapshot.memory?.usagePercent)
 
     return [
       {
@@ -133,15 +167,16 @@ export class MonitoringAlertService {
       {
         key: 'memory',
         group: 'memory',
-        label: 'Memory Usage',
+        label: 'Active Memory',
         value: memoryUsage,
         rule: settings.memory,
         isExceeded: memoryUsage !== null && memoryUsage >= settings.memory.thresholdPercent,
-        message: `Memory usage is ${Math.round(memoryUsage ?? 0)}% (threshold ${settings.memory.thresholdPercent}%).`
+        message: `Active memory is ${Math.round(memoryUsage ?? 0)}% (threshold ${settings.memory.thresholdPercent}%). This is not an OS memory pressure reading.`
       },
       {
         key: 'disk',
         group: 'diskCapacity',
+        subject: disk ? JSON.stringify([disk.name, disk.mount]) : undefined,
         label: 'Disk Usage',
         value: diskUsage,
         rule: settings.disk,
@@ -156,6 +191,7 @@ export class MonitoringAlertService {
         rule: settings.battery,
         isExceeded:
           batteryCharge !== null &&
+          !snapshot.battery?.isPluggedIn &&
           !snapshot.battery?.isCharging &&
           batteryCharge <= settings.battery.thresholdPercent,
         message: `Battery charge is ${Math.round(batteryCharge ?? 0)}% (threshold ${settings.battery.thresholdPercent}%).`

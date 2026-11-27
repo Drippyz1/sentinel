@@ -1,80 +1,96 @@
 import { useMemoryMetrics } from '../../hooks/useMetrics'
-import { useHistoryStore } from '../../store/historyStore'
 import { formatBytes, formatPercent } from '../../utils/format'
-import { Card } from '../ui/Card'
-import { StatRow } from '../ui/StatRow'
-import { UsageBar } from '../ui/UsageBar'
-import { MiniChart } from '../ui/MiniChart'
-import { TrendIndicator } from '../ui/TrendIndicator'
+import { LiveChart } from '../ui/MiniChart'
 import { MetricMessage } from './MetricMessage'
 import {
-  DASHBOARD_CHART_HEIGHT,
-  isCompactDashboard,
-  type DashboardWidgetProps
-} from './dashboardDensity'
+  FractionMeter,
+  MetricDetails,
+  MetricFacts,
+  PercentDisplay,
+  WidgetFrame
+} from './MetricVisuals'
+import type { DashboardWidgetProps } from './dashboardDensity'
 
-export function MemoryWidget({ density }: DashboardWidgetProps) {
+export function MemoryWidget({ expanded, showChart = true, style = 'ring' }: DashboardWidgetProps) {
   const memory = useMemoryMetrics()
-  const history = useHistoryStore((state) => state.memory)
-  if (!memory) {
-    return (
-      <Card title="Memory" density={density}>
-        <MetricMessage group="memory" name="memory data" />
-      </Card>
-    )
-  }
-  const compact = isCompactDashboard(density)
-
+  const timeline = (
+    <LiveChart
+      series="memory"
+      label="Active memory"
+      color="var(--metric-ink)"
+      max={100}
+      formatValue={formatPercent}
+      calibrated
+    />
+  )
   return (
-    <Card title="Memory" subtitle={`${formatBytes(memory.totalBytes)} total`} density={density}>
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-1 mb-3">
-        <span
-          className={`${compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {memory.usagePercent}
-        </span>
-        <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
-          %
-        </span>
-        <span className="mb-1.5 ml-auto">
-          <TrendIndicator data={history} />
-        </span>
-      </div>
-
-      {!compact && <UsageBar percent={memory.usagePercent} />}
-
-      <div
-        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
-        style={{ borderTop: '1px solid var(--border)' }}
-      >
-        <MiniChart
-          data={history}
-          color="#a855f7"
-          ariaLabel="Recent memory usage trend"
-          formatValue={(v) => `${v}%`}
-          domain={[0, 100]}
-          height={DASHBOARD_CHART_HEIGHT[density]}
-        />
-      </div>
-
-      {!compact && (
-        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-          <StatRow label="Used" value={formatBytes(memory.usedBytes)} accent="blue" />
-          <StatRow label="Free" value={formatBytes(memory.freeBytes)} accent="green" />
-          <StatRow label="Cached" value={formatBytes(memory.cachedBytes)} accent="purple" />
-          <StatRow label="Swap Used" value={formatBytes(memory.swapUsedBytes)} accent="amber" />
-        </div>
+    <WidgetFrame id="memory" title="Memory" meta="RAM">
+      {memory ? (
+        <>
+          <div className="instrument-split">
+            <PercentDisplay
+              value={memory.usagePercent}
+              style={style === 'ring' || style === 'bar' ? style : 'number'}
+            />
+            <div>
+              <strong>{formatBytes(memory.usedBytes)} active</strong>
+              <p className="instrument-note">of {formatBytes(memory.totalBytes)} physical</p>
+            </div>
+          </div>
+          {showChart && timeline}
+          {memory.totalBytes > 0 &&
+            memory.activeBytes >= 0 &&
+            memory.activeBytes <= memory.totalBytes && (
+              <div className="memory-composition">
+                <strong>Memory composition</strong>
+                <div
+                  role="img"
+                  aria-label={`${formatBytes(memory.activeBytes)} active; ${formatBytes(memory.totalBytes - memory.activeBytes)} not counted as active`}
+                >
+                  <span style={{ width: `${(100 * memory.activeBytes) / memory.totalBytes}%` }} />
+                </div>
+                <div>
+                  <span>Active · {formatBytes(memory.activeBytes)}</span>
+                  <span>Not active · {formatBytes(memory.totalBytes - memory.activeBytes)}</span>
+                </div>
+              </div>
+            )}
+          <MetricFacts
+            values={[
+              ['Estimated available', formatBytes(memory.availableBytes ?? null)],
+              [
+                'Swap used',
+                memory.swapUsedBytes === null ? 'Unavailable' : formatBytes(memory.swapUsedBytes)
+              ]
+            ]}
+          />
+          <MetricDetails expanded={expanded} label="Memory and swap">
+            <MetricFacts
+              values={[
+                ['Free now', formatBytes(memory.freeBytes)],
+                ['Cached', formatBytes(memory.cachedBytes)],
+                ['Inactive', formatBytes(memory.inactiveBytes)],
+                [
+                  'Swap used',
+                  `${formatBytes(memory.swapUsedBytes)} / ${formatBytes(memory.swapTotalBytes)}`
+                ]
+              ]}
+            />
+            {memory.swapUsagePercent !== null && (
+              <>
+                <p className="instrument-note">Swap: {formatPercent(memory.swapUsagePercent, 0)}</p>
+                <FractionMeter value={memory.swapUsagePercent} />
+              </>
+            )}
+            <p className="instrument-note">
+              Active memory is not OS memory pressure. Some cached memory can be reused. These
+              provider categories are shown independently. Swap is storage used as virtual memory.
+            </p>
+          </MetricDetails>
+        </>
+      ) : (
+        <MetricMessage group="memory" name="memory data" />
       )}
-
-      {!compact && memory.swapUsagePercent !== null && (
-        <div className="mt-4">
-          <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            Swap — {formatPercent(memory.swapUsagePercent)}
-          </p>
-          <UsageBar percent={memory.swapUsagePercent} accent="purple" />
-        </div>
-      )}
-    </Card>
+    </WidgetFrame>
   )
 }

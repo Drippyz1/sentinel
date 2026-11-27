@@ -64,13 +64,16 @@ class MetricDetector {
   }
 
   check(value: number | null): Anomaly | null {
-    if (value === null || !Number.isFinite(value)) return null
+    if (value === null || !Number.isFinite(value) || value < 0) return null
     const safe = value
-    this.buffer.push(safe)
 
-    if (this.buffer.length < MIN_SAMPLES) return null
+    if (this.buffer.length < MIN_SAMPLES) {
+      this.buffer.push(safe)
+      return null
+    }
 
     const { mean: avg, deviation: std } = this.buffer.statistics()
+    this.buffer.push(safe)
 
     if (std < 0.5) return null
 

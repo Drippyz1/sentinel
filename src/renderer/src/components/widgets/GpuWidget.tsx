@@ -1,116 +1,87 @@
 import { useGpuMetrics } from '../../hooks/useMetrics'
-import { useHistoryStore } from '../../store/historyStore'
 import { useTemp } from '../../hooks/useTemp'
-import { formatBytes } from '../../utils/format'
-import { Card } from '../ui/Card'
-import { StatRow } from '../ui/StatRow'
-import { UsageBar } from '../ui/UsageBar'
-import { MiniChart } from '../ui/MiniChart'
+import { formatBytes, formatPercent } from '../../utils/format'
+import { LiveChart } from '../ui/MiniChart'
 import { MetricMessage } from './MetricMessage'
 import {
-  DASHBOARD_CHART_HEIGHT,
-  isCompactDashboard,
-  type DashboardWidgetProps
-} from './dashboardDensity'
+  FractionMeter,
+  MetricDetails,
+  MetricFacts,
+  PercentDisplay,
+  WidgetFrame
+} from './MetricVisuals'
+import type { DashboardWidgetProps } from './dashboardDensity'
 
-export function GpuWidget({ density }: DashboardWidgetProps) {
-  const gpu = useGpuMetrics()
-  const history = useHistoryStore((state) => state.gpu)
+const watts = (value: number | null) => (value === null ? 'Unavailable' : `${value} W`)
+
+export function GpuWidget({ expanded, showChart = true, style = 'gauge' }: DashboardWidgetProps) {
+  const controllers = useGpuMetrics()?.controllers
+  const controller = controllers?.[0]
   const { formatTemp } = useTemp()
-
-  if (!gpu || !gpu.hasGpu) {
-    return (
-      <Card title="GPU" density={density}>
-        <MetricMessage group="gpu" name="GPU data" notDetected="No GPU detected." />
-      </Card>
-    )
-  }
-
-  const controller = gpu.controllers[0]
-  const compact = isCompactDashboard(density)
-
+  const timeline = controller?.utilizationPercent != null && (
+    <LiveChart
+      series="gpu"
+      label="GPU utilization"
+      color="var(--metric-ink)"
+      max={100}
+      formatValue={formatPercent}
+    />
+  )
   return (
-    <Card title="GPU" subtitle={controller.name} density={density}>
-      <div className="flex items-end gap-2 mb-3">
-        <span
-          className={`${controller.utilizationPercent === null ? 'text-lg' : compact ? 'text-3xl' : 'text-4xl'} font-bold font-mono`}
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {controller.utilizationPercent ?? 'Unavailable'}
-        </span>
-        {controller.utilizationPercent !== null && (
-          <span className="text-lg mb-1" style={{ color: 'var(--text-muted)' }}>
-            %
-          </span>
-        )}
-      </div>
-
-      {!compact && controller.utilizationPercent !== null && (
-        <UsageBar percent={controller.utilizationPercent} />
-      )}
-
-      <div
-        className={compact ? 'mt-3 pt-3' : 'mt-4 pt-4'}
-        style={{ borderTop: '1px solid var(--border)' }}
-      >
-        {history.length >= 2 ? (
-          <MiniChart
-            data={history}
-            color="#ec4899"
-            ariaLabel="Recent GPU usage trend"
-            formatValue={(value) => `${value}%`}
-            domain={[0, 100]}
-            height={DASHBOARD_CHART_HEIGHT[density]}
-          />
-        ) : (
-          <div
-            className={`rounded-lg border px-3 text-center text-sm ${compact ? 'py-4' : 'py-6'}`}
-            style={{
-              backgroundColor: 'var(--bg-base)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-muted)'
-            }}
-          >
-            No GPU activity data available
+    <WidgetFrame id="gpu" title="Graphics" meta="GPU">
+      {controller ? (
+        <>
+          <div className="instrument-split">
+            <PercentDisplay
+              value={controller.utilizationPercent}
+              style={style === 'gauge' ? 'gauge' : 'number'}
+              note="GPU utilization"
+            />
+            <p className="instrument-note">{controller.name}</p>
           </div>
-        )}
-      </div>
-
-      {!compact && (
-        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-          <StatRow
-            label="Temperature"
-            value={formatTemp(controller.temperatureCelsius)}
-            accent="amber"
-          />
-          <StatRow
-            label="Power Draw"
-            value={controller.powerDrawWatts ? `${controller.powerDrawWatts}W` : 'N/A'}
-            accent="blue"
-          />
-          <StatRow
-            label="Power Limit"
-            value={controller.powerLimitWatts ? `${controller.powerLimitWatts}W` : 'N/A'}
-            accent="blue"
-          />
-        </div>
-      )}
-
-      {!compact && controller.vramBytes !== null && (
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-            VRAM{controller.vramUsagePercent === null ? '' : ` — ${controller.vramUsagePercent}%`}
-          </p>
-          {controller.vramUsagePercent !== null && (
-            <UsageBar percent={controller.vramUsagePercent} accent="purple" />
+          {showChart && timeline}
+          {controller.vramUsagePercent != null && (
+            <>
+              <p className="instrument-note">
+                VRAM · {formatPercent(controller.vramUsagePercent, 0)}
+              </p>
+              <FractionMeter value={controller.vramUsagePercent} />
+            </>
           )}
-          <div className="mt-2 space-y-1">
-            <StatRow label="Used" value={formatBytes(controller.vramUsedBytes)} accent="purple" />
-            <StatRow label="Free" value={formatBytes(controller.vramFreeBytes)} accent="green" />
-            <StatRow label="Total" value={formatBytes(controller.vramBytes)} accent="blue" />
-          </div>
-        </div>
+          <MetricDetails expanded={expanded} label="Graphics details">
+            <MetricFacts
+              values={[
+                ['Temperature', formatTemp(controller.temperatureCelsius)],
+                ['Power draw', watts(controller.powerDrawWatts)],
+                ['Power limit', watts(controller.powerLimitWatts)],
+                ['VRAM used', formatBytes(controller.vramUsedBytes)],
+                ['VRAM free', formatBytes(controller.vramFreeBytes)],
+                ['VRAM total', formatBytes(controller.vramBytes)]
+              ]}
+            />
+            {controller.utilizationPercent === null && (
+              <p className="instrument-note">
+                The OS identified this adapter but did not expose utilization through the current
+                provider.
+              </p>
+            )}
+            {controllers?.slice(1).map((adapter, index) => (
+              <section key={index} className="interface-detail">
+                <strong>{adapter.name}</strong>
+                <MetricFacts
+                  values={[
+                    ['Utilization', formatPercent(adapter.utilizationPercent)],
+                    ['Dedicated memory', formatBytes(adapter.vramBytes)],
+                    ['Temperature', formatTemp(adapter.temperatureCelsius)]
+                  ]}
+                />
+              </section>
+            ))}
+          </MetricDetails>
+        </>
+      ) : (
+        <MetricMessage group="gpu" name="GPU readings" notDetected="No GPU detected." />
       )}
-    </Card>
+    </WidgetFrame>
   )
 }

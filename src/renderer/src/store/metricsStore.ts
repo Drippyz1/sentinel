@@ -22,6 +22,7 @@ interface MetricsState {
   disk: DiskMetrics | null
   network: NetworkMetrics | null
   processes: ProcessMetrics | null
+  topProcesses: LiveMetricsFrame['topProcesses']
   gpu: GpuMetrics | null
   battery: BatteryMetrics | null
   anomalyReport: AnomalyReport | null
@@ -33,6 +34,7 @@ interface MetricsState {
   sequence: number
   view: MetricsView | null
   statuses: LiveMetricsFrame['statuses'] | null
+  capabilities: LiveMetricsFrame['capabilities'] | null
 
   applySnapshot: (snapshot: LiveMetricsFrame) => void
   setMetricsError: (error: string) => void
@@ -45,6 +47,7 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
   disk: null,
   network: null,
   processes: null,
+  topProcesses: undefined,
   gpu: null,
   battery: null,
   anomalyReport: null,
@@ -56,6 +59,7 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
   sequence: -1,
   view: null,
   statuses: null,
+  capabilities: null,
 
   applySnapshot: (snapshot) => {
     const previous = get()
@@ -66,8 +70,18 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
     if (snapshot.sequence === previous.sequence && !changedView) return
     const changed = (group: MetricGroup) =>
       snapshot.statuses[group].revision !== previous.statuses?.[group].revision
-    const fresh = (group: MetricGroup, value: number | null | undefined) =>
-      changed(group) && snapshot.statuses[group].state === 'ok' ? (value ?? null) : null
+    const interrupted =
+      changedView ||
+      (previous.lastUpdated !== null &&
+        snapshot.timestamp - previous.lastUpdated.getTime() > 12_000)
+    const fresh = (group: MetricGroup, value: number | null | undefined) => {
+      const status = snapshot.statuses[group]
+      if (status.sampledAt === null || (!changed(group) && !changedView)) return undefined
+      return {
+        timestamp: status.sampledAt,
+        value: status.state === 'ok' ? (value ?? null) : null
+      }
+    }
     const processTime = snapshot.statuses.processes.sampledAt
 
     set({
@@ -87,6 +101,8 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
       network: changedView || changed('network') ? (snapshot.network ?? null) : previous.network,
       processes:
         changedView || changed('processes') ? (snapshot.processes ?? null) : previous.processes,
+      topProcesses:
+        changedView || changed('processes') ? snapshot.topProcesses : previous.topProcesses,
       gpu: changedView || changed('gpu') ? (snapshot.gpu ?? null) : previous.gpu,
       battery: changedView || changed('battery') ? (snapshot.battery ?? null) : previous.battery,
       anomalyReport: snapshot.anomalyReport ?? null,
@@ -101,12 +117,25 @@ export const useMetricsStore = create<MetricsState>()((set, get) => ({
           : previous.processesUpdatedAt,
       sequence: snapshot.sequence,
       view: snapshot.view,
-      statuses: snapshot.statuses
+      statuses: snapshot.statuses,
+      capabilities: snapshot.capabilities
     })
 
+    const history = useHistoryStore.getState()
+    if (previous.lastUpdated && snapshot.timestamp < previous.lastUpdated.getTime()) history.reset()
+    if (interrupted) history.interrupt()
     if (snapshot.view !== 'dashboard') return
-    useHistoryStore.getState().pushSnapshot({
-      timestamp: snapshot.timestamp,
+    if (snapshot.network?.monitoredInterface !== previous.network?.monitoredInterface) {
+      history.interrupt(['networkDown', 'networkUp'])
+    }
+    if (
+      Object.values(snapshot.statuses).some(
+        (status) => status.state === 'pending' && status.reason === 'warming-up'
+      )
+    ) {
+      history.interrupt()
+    }
+    history.pushSnapshot(snapshot.timestamp, {
       cpu: fresh('cpu', snapshot.cpu?.usagePercent),
       memory: fresh('memory', snapshot.memory?.usagePercent),
       diskRead: fresh('diskIo', snapshot.disk?.io.readBytesPerSec),

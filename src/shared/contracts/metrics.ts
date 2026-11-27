@@ -3,14 +3,17 @@ export interface CpuMetrics {
   brand: string
   speedGHz: number
   cores: number
-  usagePercent: number
+  usagePercent: number | null
   perCoreUsage: Array<number | null>
+  physicalCores?: number | null
+  loadAverage?: number[]
   /** Degrees Celsius; null when the OS does not provide a reading. */
   temperature: number | null
 }
 
 export interface MemoryMetrics {
   totalBytes: number
+  availableBytes?: number | null
   usedBytes: number
   freeBytes: number
   activeBytes: number
@@ -50,6 +53,7 @@ export interface NetworkMetrics {
   interfaces: NetworkInterface[]
   totalDownloadBytesPerSec: number | null
   totalUploadBytesPerSec: number | null
+  monitoredInterface?: string
 }
 
 export interface NetworkInterface {
@@ -58,7 +62,7 @@ export interface NetworkInterface {
   uploadBytesPerSec: number | null
   totalDownloaded: number | null
   totalUploaded: number | null
-  ipAddress: string
+  ipAddress: string | null
   isActive: boolean
 }
 
@@ -122,6 +126,27 @@ export interface ProcessDetails extends ProcessInfo {
 export interface ProcessMetrics {
   list: ProcessInfo[]
   total: number
+}
+
+export type TopProcessReading = Pick<ProcessInfo, 'pid' | 'name' | 'cpuPercent' | 'memoryBytes'>
+
+export interface ProcessPageRequest {
+  query: string
+  page: number
+  sort: 'cpuPercent' | 'memoryBytes' | 'name' | 'pid'
+  direction: 'asc' | 'desc'
+  filter: 'all' | 'cpu' | 'memory'
+}
+
+export interface ProcessPage {
+  rows: ProcessInfo[]
+  collectedAt: number
+  captured: number
+  reported: number
+  matching: number
+  page: number
+  pageCount: number
+  truncated: boolean
 }
 
 export type AnomalySeverity = 'info' | 'warning' | 'critical'
@@ -227,4 +252,4 @@ export type LiveMetricsFrame = Pick<
       | 'processes'
       | 'anomalyReport'
     >
-  > & { view: MetricsView }
+  > & { view: MetricsView; topProcesses?: TopProcessReading[] }

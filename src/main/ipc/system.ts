@@ -1,33 +1,27 @@
-import { ipcMain } from 'electron'
 import { getSystemInfo } from '../collectors/systemInfo'
 import { getThermalMetrics } from '../collectors/thermal'
 import { getStartupMetrics } from '../collectors/startup'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { handleTrustedIpc } from '../ipcSecurity'
 import { createDiagnosticBundle } from '../reports/diagnosticBundle'
 import { createSystemReportExport } from '../reports/systemReport'
 import { MetricsService } from '../services/MetricsService'
 import type { SystemReportFormat } from '../../shared/contracts'
 
 export function registerSystemIpc(metricsService: MetricsService): void {
-  ipcMain.handle('get-system-info', async (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('get-system-info', async () => {
     return getSystemInfo()
   })
-  ipcMain.handle('get-thermal-metrics', async (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('get-thermal-metrics', async () => {
     return getThermalMetrics()
   })
-  ipcMain.handle('get-startup-metrics', async (event) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('get-startup-metrics', async () => {
     return getStartupMetrics()
   })
-  ipcMain.handle('export-system-report', async (event, format: unknown) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('export-system-report', async (_event, _role, format: unknown) => {
     if (!isSystemReportFormat(format)) throw new Error('Invalid report format')
     return createSystemReportExport(metricsService, format)
   })
-  ipcMain.handle('export-diagnostic-bundle', async (event) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('export-diagnostic-bundle', async () => {
     return createDiagnosticBundle(metricsService)
   })
 }

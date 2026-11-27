@@ -1,0 +1,543 @@
+.workstation-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  min-height: 54px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  position: relative;
+  z-index: 20;
+  border-block-end: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.workstation-brand,
+.workstation-navigation,
+.workstation-tools {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.workstation-brand {
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 1.03rem;
+}
+
+.workstation-brand svg {
+  color: var(--accent);
+  flex: none;
+}
+.workstation-navigation {
+  align-items: stretch;
+  gap: 1px;
+  flex: 1;
+}
+.workstation-tools {
+  gap: 5px;
+  margin-inline-start: auto;
+}
+
+.workstation-bar :is(.workspace-tab, .workspace-tab.rail-link) {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-weight: 620;
+  white-space: nowrap;
+  background: transparent;
+  font-size: var(--type-label);
+}
+
+.workstation-bar .workspace-tab.rail-link {
+  margin-block: 7px;
+}
+
+.workstation-bar .workspace-tab:hover {
+  background: var(--bg-card-hover);
+}
+.workstation-bar .workspace-tab:is([aria-current='page'], [data-active='true']) {
+  color: var(--text-primary);
+  background: var(--selection);
+  border-color: var(--border);
+  box-shadow: inset 0 -2px var(--accent);
+}
+.workstation-bar .workspace-tab small {
+  color: var(--accent-amber);
+}
+
+.workspace-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.workspace-chevron {
+  width: 6px;
+  height: 6px;
+  border-bottom: 1px solid currentColor;
+  border-inline-end: 1px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  margin-inline-start: 4px;
+}
+.workspace-popup {
+  position: absolute;
+  inset: calc(100% - 4px) auto auto 0;
+  min-width: 172px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: 0 7px 19px var(--backdrop);
+}
+.workspace-popup a {
+  display: block;
+  padding: 6px 9px;
+  border-radius: var(--radius);
+}
+.workspace-popup a:is(:hover, :focus-visible) {
+  background: var(--selection);
+}
+.compact-workspaces {
+  display: none;
+}
+.skip-link {
+  z-index: 30;
+}
+
+.telemetry-workspace {
+  display: grid;
+  grid-template-columns: 174px minmax(0, 1fr);
+  min-height: 100%;
+  align-items: stretch;
+}
+.telemetry-workspace[data-editing='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.overview-context {
+  min-width: 0;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-secondary);
+  border-inline-end: 1px solid var(--border);
+  font-size: var(--type-label);
+}
+
+.overview-context h3 {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  font-weight: 665;
+  color: var(--text-muted);
+}
+.overview-context section {
+  border-block-start: 1px solid var(--border);
+  padding-block: 8px 4px;
+}
+.overview-context section h3 {
+  margin-block-end: 6px;
+}
+.overview-mode {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-weight: 650;
+  background: var(--bg-card);
+}
+.overview-context a,
+.overview-process-details a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.overview-jump {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 6px;
+  gap: 8px;
+  text-align: start;
+}
+.overview-jump:hover {
+  background: var(--bg-card-hover);
+}
+.overview-jump i {
+  width: 8px;
+  height: 8px;
+  background: var(--border-strong);
+}
+.overview-jump [data-metric='cpu'] {
+  background: var(--series-cpu);
+}
+.overview-jump [data-metric='memory'] {
+  background: var(--series-memory);
+}
+.overview-jump [data-metric='gpu'] {
+  background: var(--series-gpu);
+}
+.overview-jump [data-metric='disk'] {
+  background: var(--series-storage);
+}
+.overview-jump [data-metric='network'] {
+  background: var(--series-network);
+}
+.overview-jump [data-metric='battery'] {
+  background: var(--series-battery);
+}
+.overview-context label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.overview-deck {
+  min-width: 0;
+  container-type: inline-size;
+}
+.telemetry-workspace .overview-header {
+  min-height: 48px;
+  padding: 8px 12px;
+  background: var(--bg-base);
+}
+.overview-heading {
+  font-size: 1.43rem;
+  font-weight: 735;
+  line-height: 1.15;
+}
+.overview-layout-label {
+  color: var(--text-muted);
+  font-size: var(--type-label);
+}
+.trace-switch {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+.trace-switch button {
+  padding: 3px 7px;
+  font-size: var(--type-label);
+  border-radius: var(--radius);
+}
+.trace-switch button[aria-pressed='true'] {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  font-weight: 660;
+}
+.trace-switch button:not([aria-pressed='true']):hover {
+  background: var(--bg-card-hover);
+}
+
+.telemetry-workspace .telemetry-grid {
+  background: var(--bg-base);
+  padding: 8px 10px;
+  gap: 8px;
+}
+.telemetry-grid.instrument-board .instrument-cell {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 1px);
+  background: var(--bg-card);
+}
+.telemetry-grid .instrument-cell > .instrument {
+  padding: 8px 10px;
+  gap: 5px;
+}
+.telemetry-grid .instrument-cell :is(.instrument-header, .instrument-detail) {
+  padding-block-end: 4px;
+}
+.telemetry-grid .instrument-cell :is(.instrument-header, .instrument-detail) h3 {
+  font-weight: 700;
+}
+.telemetry-grid .instrument-cell .instrument-facts {
+  gap: 3px 7px;
+}
+.telemetry-grid .instrument-cell .instrument-split {
+  gap: 9px;
+}
+.cpu-observed {
+  display: grid;
+  gap: 1px;
+  font-size: var(--type-label);
+  color: var(--text-secondary);
+}
+.cpu-observed strong {
+  color: var(--text-primary);
+}
+.instrument-cell:is(:focus, :focus-visible) {
+  outline-offset: -2px;
+}
+.telemetry-grid .instrument-cell[data-widget='gpu'] .arc {
+  max-width: 108px;
+}
+.telemetry-grid .instrument-cell[data-widget='battery'] .ring-display svg {
+  width: 38px;
+  flex-basis: 38px;
+}
+.telemetry-grid .instrument-cell .reading-value {
+  font-size: 1.58rem;
+}
+.telemetry-grid .instrument-cell .reading-value[data-unavailable='true'] {
+  font-size: 0.87rem;
+}
+
+@container (min-width: 785px) {
+  .telemetry-grid[data-standard='true'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .telemetry-grid[data-standard='true']
+    .instrument-cell:is([data-widget='cpu'], [data-widget='memory']) {
+    grid-column: span 2;
+  }
+}
+.live-chart[data-calibrated='true'] .trace-plot {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 4px;
+}
+.telemetry-grid .live-chart[data-calibrated='true'] .trace-plot svg {
+  height: 70px;
+}
+.trace-y,
+.trace-x {
+  font-size: 0.67rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.trace-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  line-height: 1;
+  padding-block: 2px;
+}
+.trace-x {
+  display: flex;
+  justify-content: space-between;
+  padding-inline-start: 43px;
+  gap: 3px;
+}
+.trace-x span {
+  white-space: nowrap;
+}
+.trace-plot svg {
+  min-width: 0;
+}
+.telemetry-grid .core-section,
+.telemetry-grid .memory-composition {
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.telemetry-grid .core-activity {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  margin-block: 4px 0;
+}
+.telemetry-grid .core-activity li {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 0;
+  justify-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-size: 0.68rem;
+}
+.core-meter-column {
+  display: none;
+}
+.telemetry-grid .core-activity li::after {
+  display: none;
+}
+.telemetry-grid .core-meter-column {
+  display: flex;
+  align-items: flex-end;
+  width: min(14px, 82%);
+  height: 27px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--instrument-track);
+}
+.core-meter-column i {
+  width: 100%;
+  height: var(--core-fill);
+  background: var(--series-cpu);
+}
+.memory-composition {
+  display: grid;
+  gap: 4px;
+  font-size: var(--type-label);
+}
+.memory-composition > div[role='img'] {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--instrument-track);
+}
+.memory-composition > div[role='img'] span {
+  display: block;
+  height: 100%;
+  background: var(--series-memory);
+}
+.memory-composition > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  gap: 4px 9px;
+}
+
+.overview-processes {
+  margin: 0 10px 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.36fr);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 1px);
+  background: var(--bg-card);
+}
+.overview-processes header,
+.overview-process-details h3 {
+  min-height: 30px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-secondary);
+  border-block-end: 1px solid var(--border);
+}
+.overview-processes h3 {
+  font-weight: 680;
+}
+.overview-processes header span {
+  font-size: var(--type-label);
+  color: var(--text-muted);
+}
+.overview-processes table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+  font-size: var(--type-label);
+  font-variant-numeric: tabular-nums;
+}
+.overview-processes table :is(th, td) {
+  text-align: end;
+  padding: 4px 7px;
+  border-block-end: 1px solid var(--border);
+}
+.overview-processes table th:first-child {
+  text-align: start;
+}
+.overview-processes table th button {
+  max-width: 100%;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.overview-processes tr[data-selected='true'] {
+  background: var(--selection);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.overview-processes table thead {
+  color: var(--text-muted);
+}
+.overview-process-details {
+  min-width: 0;
+  border-inline-start: 1px solid var(--border);
+}
+.overview-process-details > :not(h3) {
+  margin: 5px 8px;
+  overflow-wrap: anywhere;
+}
+.overview-process-details > a {
+  display: inline-block;
+}
+.overview-process-details dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 7px;
+  font-size: var(--type-label);
+  font-variant-numeric: tabular-nums;
+}
+.overview-process-details dt {
+  color: var(--text-muted);
+}
+.overview-process-details dd {
+  text-align: end;
+}
+.overview-anomalies {
+  margin: 8px 10px;
+}
+
+.desktop-shell[data-sidebar='collapsed'] .telemetry-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+.desktop-shell[data-sidebar='collapsed'] .overview-context {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  border-inline-end: 0;
+  padding: 5px 10px;
+  border-block-end: 1px solid var(--border);
+}
+.desktop-shell[data-sidebar='collapsed'] .overview-context > section {
+  display: none;
+}
+
+@media (max-width: 925px) {
+  .workstation-bar {
+    gap: 6px;
+    padding-inline: 7px;
+  }
+  .workstation-bar :is(.workspace-tab, .workspace-tab.rail-link) {
+    padding-inline: 7px;
+  }
+  .workstation-tools .command-trigger span {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .workstation-navigation > :not(.compact-workspaces) {
+    display: none !important;
+  }
+  .compact-workspaces {
+    display: flex;
+  }
+  .telemetry-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overview-context {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-inline-end: 0;
+    padding: 5px 10px;
+    border-block-end: 1px solid var(--border);
+  }
+  .overview-context > section {
+    display: none;
+  }
+}
+@container (max-width: 540px) {
+  .overview-processes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overview-process-details {
+    border-inline-start: 0;
+  }
+}
+@container (max-width: 270px) {
+  .telemetry-grid .core-activity {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -35,3 +35,7 @@ export interface AlertAnalytics {
 }
 
 export type NewAlertHistoryEntry = Omit<AlertHistoryEntry, 'id' | 'read'>
+export interface TrayAlertSummary {
+  unreadCount: number
+  latestTitle: string | null
+}

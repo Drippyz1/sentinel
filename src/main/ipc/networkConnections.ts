@@ -1,10 +1,8 @@
-import { ipcMain } from 'electron'
 import { getNetworkConnections } from '../collectors/networkConnections'
-import { assertTrustedIpcSender } from '../ipcSecurity'
+import { handleTrustedIpc } from '../ipcSecurity'
 
 export function registerNetworkConnectionsIpc(): void {
-  ipcMain.handle('get-network-connections', (event) => {
-    assertTrustedIpcSender(event)
+  handleTrustedIpc('get-network-connections', () => {
     return getNetworkConnections()
   })
 }

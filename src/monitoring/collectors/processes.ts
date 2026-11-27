@@ -8,8 +8,17 @@ import type {
   ProcessMetrics
 } from '../../shared/contracts'
 import { cachedProbe, nonNegative, observed, percent, unavailable } from '../probe'
+import { LIVE_PROCESS_LIMIT, PROCESS_LIMIT, pageProcesses } from '../../shared/utils/processPage'
+import type { ProcessPage, ProcessPageRequest } from '../../shared/contracts'
 
-let processDetails = new Map<number, ProcessDetails>()
+type ProviderProcess = Awaited<ReturnType<typeof si.processes>>['list'][number]
+let processDetails = new Map<number, { summary: ProcessInfo; source: ProviderProcess }>()
+let inventory: {
+  rows: ProcessInfo[]
+  collectedAt: number
+  reported: number
+  truncated: boolean
+} | null = null
 const readProcesses = cachedProbe(() => si.processes(), 0)
 
 function optionalText(value: string | undefined): string | null {
@@ -19,7 +28,7 @@ function optionalText(value: string | undefined): string | null {
 
 function executablePath(pathValue: string | undefined, command: string | undefined): string | null {
   const path = optionalText(pathValue)
-  if (!path) return null
+  if (!path || path.length > 4096 || path.includes('\0')) return null
 
   const commandName = optionalText(command)
   if (!commandName || basename(path) === commandName || process.platform === 'win32') return path
@@ -36,16 +45,30 @@ function uptimeSeconds(started: string | undefined): number | null {
 }
 
 export async function getProcessMetrics(): Promise<MetricCollectionResult<ProcessMetrics>> {
-  const data = await readProcesses()
+  const data = await readProcesses().catch((error) => {
+    clearProcessInventory()
+    throw error
+  })
   if (!data.list.length || data.all < 1) {
-    processDetails.clear()
+    clearProcessInventory()
     return unavailable('no-data')
   }
 
-  const collected = data.list
-    .filter((p) => Number.isSafeInteger(p.pid) && p.pid > 0 && p.name?.trim())
-    .sort((a, b) => (nonNegative(b.cpu) ?? 0) - (nonNegative(a.cpu) ?? 0))
-    .slice(0, 100)
+  const unique = new Map(
+    data.list
+      .filter(
+        (p) =>
+          Number.isSafeInteger(p.pid) &&
+          p.pid > 0 &&
+          p.pid <= 2147483647 &&
+          p.name?.trim() &&
+          p.name.length <= 1024
+      )
+      .map((p) => [p.pid, p])
+  )
+  const collected = [...unique.values()]
+    .sort((a, b) => (nonNegative(b.cpu) ?? -1) - (nonNegative(a.cpu) ?? -1) || a.pid - b.pid)
+    .slice(0, PROCESS_LIMIT)
     .map((processData) => {
       const cpu = nonNegative(processData.cpu)
       const memory = nonNegative(processData.memRss)
@@ -57,31 +80,57 @@ export async function getProcessMetrics(): Promise<MetricCollectionResult<Proces
         memoryBytes: memory === null ? null : memory * 1024,
         memoryPercent: usage === null ? null : Math.round(usage * 10) / 10,
         status: processData.state ?? 'unknown',
-        started: processData.started ?? ''
+        started: (processData.started ?? '').slice(0, 128)
       }
-      const command = optionalText(processData.command)
-      const params = optionalText(processData.params)
-      const details: ProcessDetails = {
-        ...summary,
-        parentPid: processData.parentPid > 0 ? processData.parentPid : null,
-        threads: null,
-        user: optionalText(processData.user),
-        path: executablePath(processData.path, processData.command),
-        commandLine: command ? [command, params].filter(Boolean).join(' ') : null,
-        uptimeSeconds: uptimeSeconds(processData.started),
-        architecture: null,
-        platform: process.platform
-      }
-      return { summary, details }
+      return { summary, source: processData }
     })
 
-  processDetails = new Map(collected.map(({ details }) => [details.pid, details]))
+  processDetails = new Map(collected.map((row) => [row.summary.pid, row]))
   const list = collected.map(({ summary }) => summary)
-  return observed({ list, total: data.all })
+  inventory = {
+    rows: list,
+    collectedAt: Date.now(),
+    reported: Math.max(data.all, list.length),
+    truncated: unique.size > PROCESS_LIMIT
+  }
+  return observed({ list: list.slice(0, LIVE_PROCESS_LIMIT), total: inventory.reported })
+}
+
+export function clearProcessInventory(): void {
+  processDetails.clear()
+  inventory = null
+}
+
+export function getProcessPage(request: ProcessPageRequest, sampledAt: number): ProcessPage | null {
+  if (
+    !inventory ||
+    inventory.collectedAt > sampledAt ||
+    Math.abs(Date.now() - inventory.collectedAt) > 45_000
+  )
+    return null
+  const { rows, collectedAt, reported, truncated } = inventory
+  return pageProcesses(rows, request, { collectedAt, reported, truncated })
 }
 
 export function getProcessDetails(pid: number): ProcessDetails | null {
-  return processDetails.get(pid) ?? null
+  if (!inventory || Math.abs(Date.now() - inventory.collectedAt) > 45_000) return null
+  const entry = processDetails.get(pid)
+  if (!entry) return null
+  const { source, summary } = entry
+  const command = optionalText(source.command)
+  return {
+    ...summary,
+    parentPid: source.parentPid > 0 ? source.parentPid : null,
+    threads: null,
+    user: optionalText(source.user)?.slice(0, 256) ?? null,
+    path: executablePath(source.path, source.command),
+    commandLine: command
+      ? [command, optionalText(source.params)].filter(Boolean).join(' ').slice(0, 8192)
+      : null,
+    uptimeSeconds: uptimeSeconds(source.started),
+    architecture: null,
+    platform: process.platform
+  }
 }
 
 export function matchesProcessIdentity(
@@ -97,7 +146,7 @@ export function matchesProcessIdentity(
 }
 
 export async function verifyProcessIdentity(identity: ProcessIdentity): Promise<boolean> {
-  if (!matchesProcessIdentity(identity, processDetails.get(identity.pid))) return false
+  if (!matchesProcessIdentity(identity, processDetails.get(identity.pid)?.summary)) return false
   const { list } = await readProcesses()
   return matchesProcessIdentity(
     identity,

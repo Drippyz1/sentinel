@@ -136,6 +136,36 @@ test('stopping suppresses results from work that was already in flight', async (
   assert.equal(poller.get('active').status.state, 'pending')
 })
 
+test('resume invalidation suppresses pre-resume completions without overlapping probes', async () => {
+  const clock = new FakeClock()
+  let finish: (value: MetricCollectionResult<number>) => void = () => {}
+  let calls = 0
+  const poller = new MetricPoller<{ active: number }>(
+    {
+      active: () => {
+        calls++
+        if (calls > 1) return Promise.resolve(observed(2))
+        return new Promise((resolve) => {
+          finish = resolve
+        })
+      }
+    },
+    { active: 10 },
+    { clock }
+  )
+  poller.start()
+  await clock.advance(0)
+  poller.invalidate()
+  assert.equal(poller.get('active').status.state, 'pending')
+  assert.equal(calls, 1)
+  finish(observed(1))
+  await setImmediate()
+  await clock.advance(0)
+  assert.equal(calls, 2)
+  assert.equal(poller.get('active').value, 2)
+  await poller.stop()
+})
+
 test('collector failures back off and success restores the configured cadence', async () => {
   const clock = new FakeClock()
   const attempts: number[] = []

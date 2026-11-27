@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { METRIC_GROUPS, type MetricsSnapshot } from '../src/shared/contracts/metrics'
 import { historyValues } from '../src/main/storage/snapshotRow'
-import { selectChartSamples } from '../src/shared/utils/chartSamples'
+import { projectHistoryChart, selectChartSamples } from '../src/shared/utils/chartSamples'
+import { HISTORY_BUCKET_MS as minute, type SnapshotRow } from '../src/shared/contracts/history'
+import { formatHistoryCsv } from '../src/shared/utils/historyCsv'
 import { metricsView, projectLiveMetrics } from '../src/shared/utils/liveMetrics'
 
 test('chart projection bounds points without losing the endpoints, spikes, or missing spans', () => {
@@ -24,6 +26,94 @@ test('chart projection bounds points without losing the endpoints, spikes, or mi
     [...projected].sort((a, b) => a.timestamp - b.timestamp)
   )
   assert.equal(fixture.length, 1000)
+})
+
+test('history inserts view-only sentinels for absent minutes and metric-specific nulls, not zeros', () => {
+  const data = [
+    { timestamp: 0, value: null },
+    { timestamp: minute, value: 0 },
+    { timestamp: 61 * minute, value: 100 },
+    { timestamp: 62 * minute, value: null },
+    { timestamp: 63 * minute, value: 0 },
+    { timestamp: 64 * minute, value: null }
+  ]
+  assert.deepEqual(
+    projectHistoryChart(data).map(({ timestamp, value }) => [timestamp / minute, value]),
+    [
+      [0, null],
+      [1, 0],
+      [2, null],
+      [61, 100],
+      [62, null],
+      [63, 0],
+      [64, null]
+    ]
+  )
+  assert.equal(data.length, 6)
+  assert.deepEqual(projectHistoryChart([]), [])
+  assert.deepEqual(projectHistoryChart([{ timestamp: 0, value: null }]), [])
+})
+
+test('long sparse history preserves extrema and never connects retained points across missing buckets', () => {
+  const data = Array.from({ length: 1440 }, (_, n) => ({
+    timestamp: n * 3 * minute,
+    value: n === 50 ? 900 : n === 400 ? -111 : 0
+  }))
+  const projected = projectHistoryChart(data)
+  assert.ok(projected.length <= 485)
+  assert.equal(projected[0], data[0])
+  assert.equal(projected.at(-1), data.at(-1))
+  assert.ok(projected.includes(data[50]))
+  assert.ok(projected.includes(data[400]))
+  assert.ok(
+    projected.every(
+      (point, i) => i === 0 || point.value === null || projected[i - 1].value === null
+    )
+  )
+})
+
+test('chart gap markers do not produce CSV rows or change disk unit columns', () => {
+  const first: SnapshotRow = {
+    timestamp: minute,
+    cpu_usage: 0,
+    memory_usage: null,
+    memory_used: null,
+    disk_usage: null,
+    disk_available: null,
+    disk_free: null,
+    disk_purgeable: null,
+    disk_read: null,
+    disk_write: null,
+    disk_read_legacy_ops: 2,
+    disk_write_legacy_ops: 3,
+    net_down: null,
+    net_up: null,
+    gpu_usage: null,
+    battery: null,
+    cpu_temperature: null,
+    gpu_temperature: null
+  }
+  const second = {
+    ...first,
+    timestamp: 61 * minute,
+    cpu_usage: 42,
+    disk_write: 1024,
+    disk_read_legacy_ops: null,
+    disk_write_legacy_ops: null
+  }
+  const rows = [first, second]
+  const points = projectHistoryChart(
+    rows.map((row) => ({ timestamp: row.timestamp, value: row.cpu_usage }))
+  )
+  assert.deepEqual(
+    points.map(({ value }) => value),
+    [0, null, 42]
+  )
+  const [header, before, after] = formatHistoryCsv(rows).split('\r\n')
+  assert.equal(formatHistoryCsv(rows).split('\r\n').length, 3)
+  assert.equal(before.split(',').slice(-2).join(','), '2,3')
+  assert.equal(after.split(',')[header.split(',').indexOf('disk_write')], '1024')
+  assert.ok(header.endsWith('disk_read_legacy_ops_per_sec,disk_write_legacy_ops_per_sec'))
 })
 
 test('frame projections preserve sample times and only deliver process data to the Processes view', () => {
@@ -82,6 +172,11 @@ test('frame projections preserve sample times and only deliver process data to t
     assert.equal(frame.statuses.diskCapacity.sampledAt, 3000)
   }
   assert.equal(projectLiveMetrics(snapshot, 'processes').processes, snapshot.processes)
+  assert.deepEqual(projectLiveMetrics(snapshot, 'dashboard').topProcesses, [
+    { pid: 10, name: 'fixture', cpuPercent: 0, memoryBytes: 0 }
+  ])
+  for (const view of ['processes', 'system', 'status', 'tray', 'mini'] as const)
+    assert.equal(projectLiveMetrics(snapshot, view).topProcesses, undefined)
   assert.equal(projectLiveMetrics(snapshot, 'dashboard').cpuTemperature, 54)
   assert.equal(projectLiveMetrics(snapshot, 'system').cpuTemperature, 54)
   assert.equal(projectLiveMetrics(snapshot, 'processes').cpuTemperature, undefined)

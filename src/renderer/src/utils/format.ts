@@ -7,8 +7,8 @@ export function formatBytes(bytes: number | null, decimals = 1): string {
 }
 
 export function formatSpeed(bytesPerSec: number | null): string {
-  if (bytesPerSec === null || !Number.isFinite(bytesPerSec)) return 'Unavailable'
-  const value = Math.max(0, bytesPerSec)
+  if (bytesPerSec === null || !Number.isFinite(bytesPerSec) || bytesPerSec < 0) return 'Unavailable'
+  const value = bytesPerSec
   const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
   let unitIndex = 0
   let scaled = value

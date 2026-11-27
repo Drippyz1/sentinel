@@ -30,7 +30,8 @@ export async function getBatteryMetrics(): Promise<MetricCollectionResult<Batter
     chargePercent: Math.round(charge),
     isCharging: Boolean(data.isCharging),
     isPluggedIn: Boolean(data.acConnected),
-    timeRemainingMins: minutes && minutes < 65535 ? minutes : null,
+    timeRemainingMins:
+      !data.isCharging && !data.acConnected && minutes && minutes < 65535 ? minutes : null,
     voltage,
     capacityWh,
     designCapacityWh,

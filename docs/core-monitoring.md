@@ -43,3 +43,13 @@ Electron windows use a sandboxed preload, context isolation, blocked external na
 ## Extension Boundary
 
 The scheduler and observations are reusable independently of the desktop. The current OS adapters rely on `systeminformation` and in some cases OS command-line utilities. Electron, renderer libraries, and the desktop SQLite binding are not required for collection. A future least-privilege Agent could use the same collector interface with versioned samples and bounded local buffering. Enrollment, transport, authentication, and Hub storage are not part of the current desktop app.
+
+## Diagnostic readings and coverage
+
+- Processor utilization uses logical-core counter deltas. A reset or invalid interval does not produce a zero. A partial set of valid cores can still be shown separately, without presenting it as a complete aggregate. Nominal clock, load averages where provided, and utilization are different readings.
+- The memory ring continues to show the provider's active-memory estimate. Free-now and estimated available memory are separate; neither is a substitute for OS memory pressure.
+- Dedicated GPU memory is shown only when reported independently. Adapter inventory is not evidence that utilization, temperature or clock counters are accessible. On Apple Silicon unified memory is not labeled as dedicated VRAM.
+- The network widget follows the route-selected default interface. Its rates are observed traffic, not internet bandwidth. The rate baseline and live trace break when the monitored link changes or disappears. Disk throughput covers monitored devices, not individual volumes.
+- The Processes live view streams up to 100 CPU-ranked entries. Browse collected processes searches the most recent valid cache of up to 4,096 unique entries, without launching a collector; each response contains up to 50 summary rows.
+- History buckets show averages of valid observations. The database uses collection time to assign observations to a minute, even when their IPC frame is published in the next minute. Partial buckets and unavailable intervals are not filled. Existing records and CSV field meanings are retained.
+- Threshold alerts require sustained valid samples. A continuous threshold episode notifies at most once until a recovery reading, with the configured cooldown still applied. Low-battery alerts require operation off AC power.

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ProcessDetails, ProcessInfo } from '../../../../shared/contracts'
+import { Modal } from '../ui/Modal'
 import { formatBytes, formatPercent } from '../../utils/format'
 
 function formatUptime(seconds: number | null): string {
@@ -22,7 +23,7 @@ function DetailRow({
   monospace?: boolean
 }) {
   return (
-    <div className="grid min-w-0 gap-1 py-2.5 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-3">
+    <div className="process-property">
       <dt className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
         {label}
       </dt>
@@ -56,7 +57,7 @@ function CopyButton({ label, value }: { label: string; value: string | null }) {
     <button
       type="button"
       onClick={() => void copy()}
-      className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold"
+      className="control"
       style={{
         color: copied ? 'var(--accent-green)' : 'var(--text-primary)',
         backgroundColor: 'var(--bg-base)',
@@ -88,14 +89,6 @@ export function ProcessDetailsDrawer({
   const [revealError, setRevealError] = useState(false)
   const isMac = navigator.platform.toUpperCase().includes('MAC')
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-
   async function revealProcess() {
     setRevealError(false)
     try {
@@ -111,27 +104,16 @@ export function ProcessDetailsDrawer({
       : String(candidate)
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/60"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="process-details-title"
-        className="flex h-full w-full max-w-md flex-col overflow-hidden shadow-2xl"
-        style={{ backgroundColor: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal titleId="process-details-title" onClose={onClose} variant="drawer">
+      <div className="flex h-full flex-col overflow-hidden">
         <header
-          className="flex items-start justify-between gap-4 border-b px-5 py-4"
+          className="process-inspector-head flex items-start justify-between gap-4 border-b px-4 py-3"
           style={{ borderColor: 'var(--border)' }}
         >
           <div className="min-w-0">
             <h2
               id="process-details-title"
-              className="truncate text-base font-semibold"
+              className="workspace-title break-words"
               style={{ color: 'var(--text-primary)' }}
             >
               {process.name}
@@ -142,7 +124,7 @@ export function ProcessDetailsDrawer({
           </div>
           <button
             type="button"
-            autoFocus
+            data-initial-focus
             onClick={onClose}
             aria-label="Close process details"
             className="min-h-9 shrink-0 rounded-lg px-3 text-xs font-semibold"
@@ -221,20 +203,12 @@ export function ProcessDetailsDrawer({
                 Reveal in Finder
               </button>
             )}
-            <button
-              type="button"
-              onClick={onKill}
-              className="min-h-9 rounded-lg px-3 py-2 text-xs font-semibold text-white"
-              style={{
-                backgroundColor: 'var(--accent-red)',
-                border: '1px solid var(--accent-red)'
-              }}
-            >
+            <button type="button" onClick={onKill} className="control control--danger">
               Kill Process
             </button>
           </div>
         </footer>
-      </aside>
-    </div>
+      </div>
+    </Modal>
   )
 }

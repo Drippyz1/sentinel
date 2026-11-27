@@ -1,3 +1,5 @@
+export const HISTORY_BUCKET_MS = 60_000
+
 export interface SnapshotRow {
   timestamp: number
   cpu_usage: number | null

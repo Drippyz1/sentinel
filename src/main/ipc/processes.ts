@@ -1,11 +1,18 @@
 import { existsSync } from 'fs'
 import { isAbsolute } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
-import { assertTrustedIpcSender, isValidPid } from '../ipcSecurity'
-import { getProcessDetails, verifyProcessIdentity } from '../../monitoring/collectors/processes'
+import { app, BrowserWindow, dialog, shell, type WebContents } from 'electron'
+import { assertTrustedIpcSender, handleTrustedIpc, isValidPid } from '../ipcSecurity'
+import {
+  getProcessDetails,
+  getProcessPage,
+  verifyProcessIdentity
+} from '../../monitoring/collectors/processes'
 import type { ProcessIdentity } from '../../shared/contracts'
 import { metricsView } from '../../shared/utils/liveMetrics'
 import { processBirth } from './processBirth'
+import { isProcessPageRequest } from '../../shared/utils/processPage'
+import type { MetricsService } from '../services/MetricsService'
+import { loadSettings } from '../storage/settings'
 
 const pendingTermination = new WeakSet<WebContents>()
 
@@ -13,6 +20,7 @@ function isValidIdentity(value: unknown): value is ProcessIdentity {
   if (!value || typeof value !== 'object') return false
   const identity = value as Partial<ProcessIdentity>
   return (
+    Object.keys(value).every((key) => key === 'pid' || key === 'name' || key === 'started') &&
     isValidPid(identity.pid) &&
     typeof identity.name === 'string' &&
     identity.name.length > 0 &&
@@ -23,15 +31,28 @@ function isValidIdentity(value: unknown): value is ProcessIdentity {
   )
 }
 
-export function registerProcessIpc(): void {
-  ipcMain.handle('get-process-details', (event, pid: unknown) => {
-    assertTrustedIpcSender(event, 'main')
+export function registerProcessIpc(metrics: MetricsService): void {
+  handleTrustedIpc('get-process-page', (event, _role, request: unknown) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    if (
+      !parent?.isVisible() ||
+      parent.isMinimized() ||
+      metricsView(new URL(event.sender.getURL()).hash, 'main') !== 'processes' ||
+      !isProcessPageRequest(request)
+    )
+      throw new Error('Invalid process page request')
+    if (loadSettings().ui.dashboardPollingPaused) return null
+    const status = metrics.getLatestSnapshot().statuses.processes
+    return status.state === 'ok' && status.sampledAt !== null
+      ? getProcessPage(request, status.sampledAt)
+      : null
+  })
+  handleTrustedIpc('get-process-details', (_event, _role, pid: unknown) => {
     if (!isValidPid(pid)) return null
     return getProcessDetails(pid)
   })
 
-  ipcMain.handle('reveal-process', (event, pid: unknown) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('reveal-process', (_event, _role, pid: unknown) => {
     if (!isValidPid(pid) || process.platform !== 'darwin') return false
 
     const details = getProcessDetails(pid)
@@ -40,8 +61,7 @@ export function registerProcessIpc(): void {
     return true
   })
 
-  ipcMain.handle('kill-process', async (event, identity: unknown) => {
-    assertTrustedIpcSender(event, 'main')
+  handleTrustedIpc('kill-process', async (event, _role, identity: unknown) => {
     const inProcesses = () =>
       metricsView(new URL(event.sender.getURL()).hash, 'main') === 'processes'
     if (!isValidIdentity(identity)) return { success: false, error: 'Invalid process identity' }
@@ -61,7 +81,7 @@ export function registerProcessIpc(): void {
       if (!birth || !(await verifyProcessIdentity(identity))) {
         return { success: false, error: 'The selected process has changed or is no longer running' }
       }
-      assertTrustedIpcSender(event, 'main')
+      assertTrustedIpcSender(event, 'kill-process')
       if (!parent.isVisible() || parent.isMinimized() || !inProcesses()) {
         return { success: false, error: 'Could not verify the selected process' }
       }
@@ -78,7 +98,7 @@ export function registerProcessIpc(): void {
       const unchanged = checkNativeBirth
         ? (await processBirth(identity.pid)) === birth
         : await verifyProcessIdentity(identity)
-      assertTrustedIpcSender(event, 'main')
+      assertTrustedIpcSender(event, 'kill-process')
       if (
         !unchanged ||
         !parent.isVisible() ||

@@ -25,6 +25,14 @@ const SettingsPage = lazy(() =>
 const SystemPage = lazy(() =>
   import('./pages/SystemPage').then((module) => ({ default: module.SystemPage }))
 )
+const StorageExplorerPage = lazy(() =>
+  import('./pages/StorageExplorerPage').then((module) => ({ default: module.StorageExplorerPage }))
+)
+const DuplicateExplorerPage = lazy(() =>
+  import('./pages/DuplicateExplorerPage').then((module) => ({
+    default: module.DuplicateExplorerPage
+  }))
+)
 
 function AppContent() {
   const initializeUiSettings = useUiSettingsStore((state) => state.initialize)
@@ -63,6 +71,8 @@ function AppContent() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="system" element={<SystemPage />} />
+        <Route path="storage" element={<StorageExplorerPage />} />
+        <Route path="duplicates" element={<DuplicateExplorerPage />} />
       </Route>
     </Routes>
   )

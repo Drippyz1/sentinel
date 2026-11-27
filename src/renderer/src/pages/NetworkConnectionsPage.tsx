@@ -10,6 +10,7 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 
 type ProtocolFilter = 'all' | NetworkConnectionProtocol
 type GroupMode = 'connections' | 'process'
+type ConnectionOrder = 'observed' | 'process' | 'protocol' | 'state' | 'local'
 type DisplayRow =
   | { kind: 'connection'; connection: NetworkConnection }
   | { kind: 'group'; key: string; label: string; count: number }
@@ -77,6 +78,8 @@ export function NetworkConnectionsPage() {
   const [protocol, setProtocol] = useState<ProtocolFilter>('all')
   const [stateFilter, setStateFilter] = useState('all')
   const [groupMode, setGroupMode] = useState<GroupMode>('connections')
+  const [order, setOrder] = useState<ConnectionOrder>('observed')
+  const [selection, setSelection] = useState<NetworkConnection | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,7 +115,7 @@ export function NetworkConnectionsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return (result?.connections ?? []).filter((connection) => {
+    const matches = (result?.connections ?? []).filter((connection) => {
       if (protocol !== 'all' && connection.protocol !== protocol) return false
       if (stateFilter !== 'all' && connection.state !== stateFilter) return false
       if (!query) return true
@@ -128,7 +131,15 @@ export function NetworkConnectionsPage() {
         connection.state
       ].some((value) => value?.toLowerCase().includes(query))
     })
-  }, [protocol, result, search, stateFilter])
+    if (order === 'observed') return matches
+    const key = (connection: NetworkConnection) => {
+      if (order === 'process') return processLabel(connection)
+      if (order === 'local') return endpoint(connection.localAddress, connection.localPort)
+      return connection[order] ?? ''
+    }
+    return matches.sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true }))
+  }, [order, protocol, result, search, stateFilter])
+  const inspected = selection && filtered.includes(selection) ? selection : null
 
   const rows = useMemo(() => {
     if (groupMode === 'connections') {
@@ -160,15 +171,11 @@ export function NetworkConnectionsPage() {
     : null
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className="connections-workspace">
+      <div className="workspace-header workbench-toolbar">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Network Connections
-          </h2>
-          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-            Network connection data is collected locally and is not sent anywhere.
-          </p>
+          <h2 className="sr-only">Network Connections</h2>
+          <p className="track-kicker">Local endpoint inventory</p>
         </div>
         <div className="flex items-center gap-3">
           {lastRefreshed && (
@@ -180,16 +187,18 @@ export function NetworkConnectionsPage() {
             type="button"
             onClick={() => void refresh()}
             disabled={loading}
-            className="min-h-10 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: 'var(--accent-blue)' }}
+            className="control control--accent"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      <Card>
-        <div className="mb-4">
+      {result?.supported && result.limitation && (
+        <p className="workspace-meta mb-3">{result.limitation}</p>
+      )}
+      <div className="workbench-toolbar connection-tools">
+        <div className="workbench-search">
           <label
             htmlFor="network-search"
             className="mb-1.5 block text-xs font-semibold"
@@ -204,11 +213,11 @@ export function NetworkConnectionsPage() {
               placeholder="Process, PID, address, port, or state"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="min-h-10 w-full rounded-lg py-2.5 pl-3.5 pr-16 text-sm outline-none"
+              className="control w-full pr-16"
               style={{
                 color: 'var(--text-primary)',
                 backgroundColor: 'var(--bg-base)',
-                border: '1px solid var(--accent-blue)'
+                border: '1px solid var(--border-strong)'
               }}
             />
             {search && (
@@ -224,10 +233,7 @@ export function NetworkConnectionsPage() {
           </div>
         </div>
 
-        <div
-          className="mb-4 flex flex-wrap items-end gap-4 rounded-xl p-3"
-          style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
-        >
+        <div className="workspace-actions">
           <ControlGroup label="Protocol">
             <SegmentedControl
               value={protocol}
@@ -239,6 +245,30 @@ export function NetworkConnectionsPage() {
                 { label: 'UDP', value: 'UDP' }
               ]}
             />
+          </ControlGroup>
+          <ControlGroup label="Sort">
+            <select
+              className="control"
+              aria-label="Connection sort order"
+              value={order}
+              onChange={(event) => {
+                const next = event.currentTarget.value
+                if (
+                  next === 'observed' ||
+                  next === 'process' ||
+                  next === 'protocol' ||
+                  next === 'state' ||
+                  next === 'local'
+                )
+                  setOrder(next)
+              }}
+            >
+              <option value="observed">Observed</option>
+              <option value="process">Process</option>
+              <option value="protocol">Protocol</option>
+              <option value="state">State</option>
+              <option value="local">Local endpoint</option>
+            </select>
           </ControlGroup>
           <ControlGroup label="State">
             <select
@@ -275,7 +305,8 @@ export function NetworkConnectionsPage() {
             {filtered.length} of {result?.connections.length ?? 0} connections
           </p>
         </div>
-
+      </div>
+      <Card className="connection-surface">
         {error ? (
           <div
             role="alert"
@@ -326,31 +357,29 @@ export function NetworkConnectionsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <div className="min-w-[940px]">
-              <div
-                className="grid gap-3 px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider"
-                style={{
-                  gridTemplateColumns:
-                    'minmax(150px, 1fr) 70px 70px minmax(180px, 1.2fr) minmax(180px, 1.2fr) 110px 150px',
-                  color: 'var(--text-muted)',
-                  borderBottom: '1px solid var(--border)'
-                }}
-              >
-                <span>Process</span>
-                <span>PID</span>
-                <span>Protocol</span>
-                <span>Local</span>
-                <span>Remote</span>
-                <span>State</span>
-                <span>Copy</span>
+          <div
+            className="connection-scroll"
+            role="region"
+            tabIndex={0}
+            aria-label="Connection results"
+          >
+            <div className="connection-table" role="table" aria-label="Connections">
+              <div className="connection-row connection-heading" role="row">
+                <span role="columnheader">Process</span>
+                <span role="columnheader">PID</span>
+                <span role="columnheader">Protocol</span>
+                <span role="columnheader">Local</span>
+                <span role="columnheader">Remote</span>
+                <span role="columnheader">State</span>
+                <span role="columnheader">Copy</span>
               </div>
-              <div className="max-h-[calc(100vh-340px)] min-h-32 overflow-y-auto">
+              <div className="max-h-[calc(100vh-340px)] min-h-32 overflow-y-auto" role="rowgroup">
                 {rows.map((row, index) => {
                   if (row.kind === 'group') {
                     return (
                       <div
                         key={`group-${row.key}`}
+                        role="row"
                         className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 text-xs font-semibold"
                         style={{
                           color: 'var(--text-primary)',
@@ -358,8 +387,14 @@ export function NetworkConnectionsPage() {
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
-                        <span>{row.label}</span>
-                        <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                        <span role="cell" aria-colspan={6}>
+                          {row.label}
+                        </span>
+                        <span
+                          role="cell"
+                          className="tabular-nums"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
                           {row.count} connection{row.count === 1 ? '' : 's'}
                         </span>
                       </div>
@@ -374,23 +409,34 @@ export function NetworkConnectionsPage() {
                   return (
                     <div
                       key={key}
-                      className="grid items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-[var(--bg-card-hover)]"
-                      style={{
-                        gridTemplateColumns:
-                          'minmax(150px, 1fr) 70px 70px minmax(180px, 1.2fr) minmax(180px, 1.2fr) 110px 150px'
-                      }}
+                      className="connection-row"
+                      role="row"
+                      data-selected={connection === inspected}
                     >
                       <span
+                        role="cell"
                         className="truncate text-sm font-medium"
                         style={{ color: 'var(--text-primary)' }}
                         title={processLabel(connection)}
                       >
-                        {processLabel(connection)}
+                        <button
+                          type="button"
+                          className="connection-select"
+                          aria-pressed={connection === inspected}
+                          onClick={() => setSelection(connection === inspected ? null : connection)}
+                        >
+                          {processLabel(connection)}
+                        </button>
                       </span>
-                      <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                      <span
+                        role="cell"
+                        className="text-xs font-mono"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
                         {connection.pid ?? '—'}
                       </span>
                       <span
+                        role="cell"
                         className="text-xs font-semibold"
                         style={{
                           color:
@@ -402,6 +448,7 @@ export function NetworkConnectionsPage() {
                         {connection.protocol}
                       </span>
                       <span
+                        role="cell"
                         className="truncate text-xs font-mono"
                         style={{ color: 'var(--text-primary)' }}
                         title={local}
@@ -409,6 +456,7 @@ export function NetworkConnectionsPage() {
                         {local}
                       </span>
                       <span
+                        role="cell"
                         className="truncate text-xs font-mono"
                         style={{ color: 'var(--text-primary)' }}
                         title={remote}
@@ -416,13 +464,14 @@ export function NetworkConnectionsPage() {
                         {remote}
                       </span>
                       <span
+                        role="cell"
                         className="truncate text-xs font-medium"
                         style={{ color: 'var(--text-muted)' }}
                         title={connection.state ?? 'Unavailable'}
                       >
                         {connection.state ?? '—'}
                       </span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1" role="cell">
                         <CopyButton label="Local" value={local} />
                         <CopyButton label="Remote" value={remote} />
                         <CopyButton label="Row" value={rowDetails(connection)} />
@@ -435,6 +484,30 @@ export function NetworkConnectionsPage() {
           </div>
         )}
       </Card>
+      {inspected && (
+        <section className="connection-inspector" aria-label="Selected connection">
+          <header>
+            <h3>{processLabel(inspected)}</h3>
+            <button type="button" className="control" onClick={() => setSelection(null)}>
+              Close details
+            </button>
+          </header>
+          <dl>
+            <dt>Protocol</dt>
+            <dd>{inspected.protocol}</dd>
+            <dt>State</dt>
+            <dd>{inspected.state ?? 'Unavailable'}</dd>
+            <dt>Local</dt>
+            <dd>{endpoint(inspected.localAddress, inspected.localPort)}</dd>
+            <dt>Remote</dt>
+            <dd>{endpoint(inspected.remoteAddress, inspected.remotePort)}</dd>
+            <dt>Process ID</dt>
+            <dd>{inspected.pid ?? 'Unavailable'}</dd>
+            <dt>Observed</dt>
+            <dd>{lastRefreshed}</dd>
+          </dl>
+        </section>
+      )}
     </div>
   )
 }
